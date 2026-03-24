@@ -1,0 +1,24 @@
+{
+  "name": "nuxt4-template",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "build:gh-pages": "nuxt build --dotenv .env.gh-pages",
+    "dev": "nuxt dev",
+    "dev:gh-pages": "nuxt dev --dotenv .env.gh-pages",
+    "generate": "nuxt generate",
+    "generate:gh-pages": "nuxt generate --dotenv .env.gh-pages",
+    "preview": "nuxt preview",
+    "preview:gh-pages": "nuxt preview --dotenv .env.gh-pages",
+    "postinstall": "nuxt prepare",
+    "eslint": "eslint --ext .ts,.js,.vue .",
+    "typelint": "nuxi typecheck",
+    "customize": "node customize"
+  },
+  "dependencies": {
+    "nuxt": "^4.4.2",
+    "vue": "^3.5.30",
+    "vue-router": "^5.0.4"
+  }
+}
