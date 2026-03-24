@@ -1,9 +1,8 @@
-
 name: Pull Request CI/CD
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -16,19 +15,18 @@ jobs:
         node-version: [22.22.0]
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
 
-    - name: Install
-      run: npm ci
+      - name: Install
+        run: npm ci
 
-    - name: Build
-      run: npm run generate:gh-pages
+      - name: Build
+        run: npm run generate:gh-pages
 
-    - name: Test
-      run: npm run eslint
-    
+      - name: Test
+        run: npm run eslint

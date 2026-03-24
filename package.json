@@ -12,13 +12,28 @@
     "preview": "nuxt preview",
     "preview:gh-pages": "nuxt preview --dotenv .env.gh-pages",
     "postinstall": "nuxt prepare",
-    "eslint": "eslint --ext .ts,.js,.vue .",
+    "eslint": "eslint .",
     "typelint": "nuxi typecheck",
     "customize": "node customize"
   },
   "dependencies": {
+    "@nuxt/ui": "^4.6.0",
     "nuxt": "^4.4.2",
+    "tailwindcss": "^4.2.2",
     "vue": "^3.5.30",
     "vue-router": "^5.0.4"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^7.7.3",
+    "@nuxt/eslint": "^1.15.2",
+    "@nuxt/test-utils": "^4.0.0",
+    "@playwright/test": "^1.58.2",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.8.7",
+    "pixelmatch": "^7.1.0",
+    "playwright-core": "^1.58.2",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "vitest": "^4.1.1"
   }
 }

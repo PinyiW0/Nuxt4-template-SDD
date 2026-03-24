@@ -77,7 +77,7 @@ npm run typelint // 檢查 typelint 規則
     - GitHub Repo 設定
       - 移動至 `Settings > Security > Secrets and variables > Actions > Repository secrets` 將上述 JSON 檔貼上，並取變數名為 `AZURE_CREDENTIALS` (Beta 為 `AZURE_CREDENTIALS_BETA`)
       - 移動至 `Settings > Security > Secrets and variables > Actions > Repository variables` 將 Azure storage account name 貼上，並取變數名為 `ACCOUNT_NAME`（Beta 為 `ACCOUNT_NAME_BETA`）
-    
+
 - 建立 `feature/#2-design` 分支（設計稿完成）
   - assets/icons
     - 下載設計稿圖示包
@@ -148,8 +148,8 @@ npm run typelint // 檢查 typelint 規則
 - 只開發對應 Issue 的內容，不相關的內容請另開 Issue
 - 複雜邏輯應適當註解
 - 定期同步主分支
-  - Main 分支為主分支 : `git merge main --no-ff` 
-  - 特定 Release 分支為主分支 : `git merge release/${主版號}.${次版號} --no-ff` 
+  - Main 分支為主分支 : `git merge main --no-ff`
+  - 特定 Release 分支為主分支 : `git merge release/${主版號}.${次版號} --no-ff`
 - 通過 `commitlint` 檢查
 
 ### Pull Requests
