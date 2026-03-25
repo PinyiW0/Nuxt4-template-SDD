@@ -27,13 +27,9 @@
 npm install // 安裝套件
 npm run customize // 客製化專案設定
 npm run dev // 啟動專案
-npm run dev:gh-pages // 啟動專案（GitHub Pages 模式）
 npm run build // 使用 CSR 或 SSR 模式打包專案
-npm run build:gh-pages // 使用 CSR 或 SSR 模式打包專案（GitHub Pages 模式）
 npm run generate // 使用 SSG 模式打包專案
-npm run generate:gh-pages // 使用 SSG 模式打包專案（GitHub Pages 模式）
 npm run preview // 啟動打包後專案
-npm run preview:gh-pages // 啟動打包後專案（GitHub Pages 模式）
 npm run eslint // 檢查 eslint 規則
 npm run typelint // 檢查 typelint 規則
 ```
@@ -44,24 +40,12 @@ npm run typelint // 檢查 typelint 規則
 - General
   - Pull Requests
     - Allow squash merging : `Default to pull request title and commit details`
-- Branches
-  - Branch protection rules
-    - Branch name pattern : `main`
-    - Require a pull request before merging
-      - Require approvals : `1`
-      - Require review from Code Owners : `true`
-      - Dismiss stale pull request approvals when new commits are pushed : `true`
-- Pages
-  - Build and deployment
-    - Branch : `gh-pages`
 
 ### 開發步驟
 - 建立 `feature/#1-basic` 分支
   - 執行 `npm run customize` 進行專案客製化設定或手動執行以下步驟
     - package.json
       - name : `${GitHub 專案名稱}`
-    - .env.gh-pages
-      - NUXT_APP_BASE_URL : `${GitHub 專案名稱}`
     - README.md
       - 填寫專案名稱及專案資訊
     - Slack 綁定

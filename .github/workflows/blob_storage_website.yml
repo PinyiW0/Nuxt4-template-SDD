@@ -10,15 +10,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '>=18'
+          node-version: 22
+          cache: npm
       - name: Install dependencies
-        run: yarn install
+        run: npm ci
       - name: Build project
-        run: yarn generate
+        run: npm run generate
       - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -38,6 +39,5 @@ jobs:
 
       # Azure logout
       - name: logout
-        run: |
-          az logout
+        run: az logout
         if: always()

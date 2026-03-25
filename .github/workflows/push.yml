@@ -26,13 +26,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run generate:gh-pages
+        run: npm run generate
 
       - name: Test
         run: npm run eslint
-
-      - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@releases/v4
-        with:
-          BRANCH: gh-pages
-          FOLDER: dist
