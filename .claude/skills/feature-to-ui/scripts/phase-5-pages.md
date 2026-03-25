@@ -8,7 +8,7 @@
 - ui-config.yaml > form（表單設定）
 - ui-config.yaml > toast（通知設定）
 - ui-config.yaml > colorMode（深淺模式）
-- docs/route-map.yaml > 對應路由的 features_used（此頁面使用的 additionalFeature）
+- spec/report/route-map.yaml > 對應路由的 features_used（此頁面使用的 additionalFeature）
 - page-builder.md（DSL 解析 + 表單範本 + 列表範本 + Command → 元件對照）
 - features.md（僅 features_used 有值時需讀取，了解對應元件的使用方式）
 - rules.md [P5] 段落（配色、對比色、Zod v4、Nuxt UI 類型、表單型別安全、API、第三方 import、Pinia Store、testid）
@@ -21,7 +21,7 @@
 - components.md（列表佈局範本、#empty slot 用法、拖曳排序、UCard ui props 等編碼慣例。元件 props/slots 已可從 .vue 原始碼讀取，不需重複查閱）
 
 Sync 模式額外讀取：
-- docs/sync-report.md（變更報告，決定每個頁面的執行模式）
+- spec/report/sync-report.md（變更報告，決定每個頁面的執行模式）
 
 執行 /nuxt-ui 載入組件文檔（若尚未載入）
 ```
@@ -49,7 +49,7 @@ glob test/e2e/specs/*.spec.ts
 
 ## 模式判斷
 
-Phase 5 開始前，先檢查 `docs/sync-report.md` 是否存在：
+Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 
 | 條件 | 模式 | 行為 |
 |------|------|------|

@@ -85,8 +85,8 @@ green（修復 UI、讓測試通過）
 
 | 檢查項 | 檔案 | 不存在時 |
 |--------|------|---------|
-| Flow 架構 | `docs/e2e-flows/_common.flow.md` | 提示先執行 `/feature-to-flow 0` |
-| 目標 Flow | `docs/e2e-flows/{NN}-{name}.flow.md` | 提示先執行 `/feature-to-flow {NN}` |
+| Flow 架構 | `spec/e2e-flows/_common.flow.md` | 提示先執行 `/feature-to-flow 0` |
+| 目標 Flow | `spec/e2e-flows/{NN}-{name}.flow.md` | 提示先執行 `/feature-to-flow {NN}` |
 | E2E 基礎 | `test/e2e/helpers/actions.ts` | 提示先執行 `/test e2e setup` |
 
 ---
@@ -96,7 +96,7 @@ green（修復 UI、讓測試通過）
 一個 feature 的 E2E 視為「完成」的條件：
 
 ```
-docs/e2e-flows/{NN}-{name}.flow.md 存在
+spec/e2e-flows/{NN}-{name}.flow.md 存在
   AND
 test/e2e/specs/{NN}-{name}.spec.ts 存在
   AND
@@ -106,7 +106,7 @@ npx playwright test test/e2e/specs/{NN}-{name}.spec.ts 全部通過
 ### auto 偵測邏輯
 
 ```
-for each docs/e2e-flows/{NN}-{name}.flow.md:
+for each spec/e2e-flows/{NN}-{name}.flow.md:
     spec_exists = test/e2e/specs/{NN}-{name}.spec.ts 存在？
     if not spec_exists:
         需要處理 → 加入待處理清單

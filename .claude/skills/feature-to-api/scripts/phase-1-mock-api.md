@@ -5,14 +5,14 @@
 ```
 僅需讀取：
 - app/types/api/*.ts（Phase 0 已建立的型別定義）
-- docs/route-map.yaml > api_contract.endpoints（端點規格）
-- docs/route-map.yaml > enabled_features（若含 dragAndDrop → 需建 sort API；若含 fileUpload → 需建 upload API）
-- docs/e2e-flows/*.flow.md（操作流程中引用的實體名稱、資料值）
+- spec/report/route-map.yaml > api_contract.endpoints（端點規格）
+- spec/report/route-map.yaml > enabled_features（若含 dragAndDrop → 需建 sort API；若含 fileUpload → 需建 upload API）
+- spec/e2e-flows/*.flow.md（操作流程中引用的實體名稱、資料值）
 - ui-config.yaml > testAccounts（測試帳號）
 - rules.md [P1] 段落（Server API 類型規範、Mock API 回傳慣例）
 
 Sync 模式額外讀取：
-- docs/sync-report.md（變更報告的「型別變更」+「端點變更」段落）
+- spec/report/sync-report.md（變更報告的「型別變更」+「端點變更」段落）
 ```
 
 > ⚠️ **型別定義（`app/types/api/*.ts`）由 Phase 0 建立**。Phase 1 讀取這些型別檔作為 mock data 和 API 端點的合約依據，不再從 YAML 翻譯型別。
@@ -23,7 +23,7 @@ Sync 模式額外讀取：
 
 ## 增量模式判斷
 
-Phase 1 開始前，先檢查 `docs/sync-report.md` 是否存在：
+Phase 1 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 
 | 條件 | 模式 | 行為 |
 |------|------|------|
@@ -70,7 +70,7 @@ Phase 1 增量更新完成
    - ⚠️ **型別檔必須在 `app/types/api/`**，Nuxt 4 的 `~` 別名解析到 `app/`
 2. **從 .feature Background 提取 mock 資料**
 3. **交叉比對 .flow.md 引用的實體值**
-   - 掃描所有 `docs/e2e-flows/*.flow.md`，提取操作步驟和預期結果中引用的實體名稱、數值
+   - 掃描所有 `spec/e2e-flows/*.flow.md`，提取操作步驟和預期結果中引用的實體名稱、數值
    - 補建資料時，優先使用 `.flow.md` 中出現的名稱/值
    - 若 `.flow.md` 未引用（純粹為了湊數量），可自行命名但風格需一致
 4. **建立 mock data 檔案**（mock 資料結構必須符合 `types/api/` 定義）

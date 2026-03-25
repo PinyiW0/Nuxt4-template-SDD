@@ -124,7 +124,7 @@ npx playwright test test/e2e/specs/{NN}-{name}.spec.ts 2>&1
 | 檢查項 | 問自己 |
 |--------|--------|
 | 改 spec？ | 我是否正在修改 `test/e2e/specs/*.spec.ts`？ |
-| 改 flow？ | 我是否正在修改 `docs/e2e-flows/*.flow.md`？ |
+| 改 flow？ | 我是否正在修改 `spec/e2e-flows/*.flow.md`？ |
 | 改預期值？ | 我的修復是為了讓 spec 的 `expect()` 預期值對上 UI，而不是讓 UI 對上 spec？ |
 | 改業務邏輯？ | 我是否在改變功能行為（而非修正顯示）？ |
 
@@ -207,7 +207,7 @@ E2E 綠燈報告：{NN}-{name}
   1. ❌ {test name}
      錯誤：{error}
      嘗試過：{修復描述}
-     相關 flow：docs/e2e-flows/{NN}-{name}.flow.md > 規則：{rule name}
+     相關 flow：spec/e2e-flows/{NN}-{name}.flow.md > 規則：{rule name}
      相關檔案：app/pages/{page}.vue:L{line}
      建議：{人工處理建議}
 
@@ -304,7 +304,7 @@ E2E 綠燈批次報告：01 → 05
 
 失敗測試：{test name}
 根因：{描述}（例：feature 04 變更了 TeamItem 結構，但 flow 07 的預期值未更新）
-相關 flow：docs/e2e-flows/{NN}-{name}.flow.md > {具體段落}
+相關 flow：spec/e2e-flows/{NN}-{name}.flow.md > {具體段落}
 建議修改：{flow 中需要更新的具體內容}
 
 修復流程：

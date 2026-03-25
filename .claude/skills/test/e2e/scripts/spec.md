@@ -14,13 +14,13 @@
 
 ```
 必讀（結構來源）：
-1. docs/e2e-flows/{NN}-{name}.flow.md  — 操作流程文件（測試結構）
-2. docs/e2e-flows/_common.flow.md      — 共用步驟
+1. spec/e2e-flows/{NN}-{name}.flow.md  — 操作流程文件（測試結構）
+2. spec/e2e-flows/_common.flow.md      — 共用步驟
 3. test/e2e/helpers/actions.ts       — 共用操作（login 等）
 4. test/e2e/helpers/fixtures.ts       — 測試資料
 
 必讀（資料來源）：
-5. docs/gherkin-spec/features/{NN}-{name}.dsl.feature — 原始 Feature Background（該 feature 的初始狀態定義）
+5. spec/gherkin-feature/{NN}-{name}.dsl.feature — 原始 Feature Background（該 feature 的初始狀態定義）
 6. server/mock/data/*.ts             — 實際 mock 資料（實體名稱、日期、數值等）
 7. server/api/{相關 API}.ts           — API 過濾邏輯 + 錯誤訊息（createError 的 message）
 
@@ -75,7 +75,7 @@
 
 #### 2a. 讀取 Feature Background（⚠️ 初始狀態定義）
 
-讀取 `docs/gherkin-spec/features/{NN}-{name}.dsl.feature`，解析 `Background:` 區塊中的 `Given` 語句，識別**該 feature 定義的初始狀態**（哪些實體在測試開始時應該存在）。
+讀取 `spec/gherkin-feature/{NN}-{name}.dsl.feature`，解析 `Background:` 區塊中的 `Given` 語句，識別**該 feature 定義的初始狀態**（哪些實體在測試開始時應該存在）。
 
 ```
 Feature Background 定義：

@@ -53,13 +53,13 @@ flowchart LR
 
 | 條件 | 模式 | 說明 |
 |------|------|------|
-| `docs/route-map.yaml` **不存在** | 提示先執行 `/feature-to-api` | 前置條件未滿足 |
+| `spec/report/route-map.yaml` **不存在** | 提示先執行 `/feature-to-api` | 前置條件未滿足 |
 | 頁面 `.vue` 尚未建立 | **全量模式** | 從零建立所有 UI |
 | 頁面 `.vue` 已存在 + `sync-report.md` 存在 | **Sync 模式** | 增量更新受影響的 UI |
 
 ### Sync 模式運作方式
 
-1. 讀取 `docs/sync-report.md`（由 `/feature-to-api` Phase 0 產出）
+1. 讀取 `spec/report/sync-report.md`（由 `/feature-to-api` Phase 0 產出）
 2. 按標記執行：
    - Phase 2：只建立新增路由的空殼頁面
    - Phase 5：按 build（新增）/ patch（修改）/ rebuild（重大變更）分別處理
@@ -74,7 +74,7 @@ flowchart LR
 
 ## 現有 Feature 檔案
 
-!`ls -1 docs/gherkin-spec/features/*.feature 2>/dev/null || echo "(無)"`
+!`ls -1 spec/gherkin-feature/*.feature 2>/dev/null || echo "(無)"`
 
 ---
 
@@ -105,7 +105,7 @@ flowchart LR
 ### E2E 測試合約（Phase 2, 5 需要）
 
 - `test/e2e/specs/*.spec.ts` - **Phase 5 的唯一 UI 合約**（testid、互動模式、斷言預期全在這裡）
-- `docs/e2e-flows/pages/*.elements.md` - Phase 2 路由骨架的 testid 來源
+- `spec/e2e-flows/pages/*.elements.md` - Phase 2 路由骨架的 testid 來源
 
 > ⚠️ Phase 5 **直接從 `.spec.ts` 的 `getByTestId()` 複製 testid**，不讀 `.flow.md` / `elements.md`。
 > 這確保 UI 的 testid 與測試合約完全一致，消除版本不同步的問題。
@@ -141,7 +141,7 @@ flowchart LR
 ## 自動執行規則
 
 - 執行 `/feature-to-ui`（無參數或參數為 `1`）時，**直接開始 Phase 1**
-- **前置檢查**：確認 `docs/route-map.yaml` 和 `app/types/api/` 存在，若不存在則提示「請先執行 `/feature-to-api`」
+- **前置檢查**：確認 `spec/report/route-map.yaml` 和 `app/types/api/` 存在，若不存在則提示「請先執行 `/feature-to-api`」
 
 ---
 
@@ -157,5 +157,5 @@ flowchart LR
 - 所有設定從 `ui-config.yaml` 讀取
 - Phase 5 禁止定義 local interface，必須 import `~/types/api/`
 - Phase 5 每個功能必須先讀取 API 原始碼、共用元件、store
-- **Phase 2 若 `docs/e2e-flows/pages/*.elements.md` 存在，testid 以該檔案為準**
+- **Phase 2 若 `spec/e2e-flows/pages/*.elements.md` 存在，testid 以該檔案為準**
 - **Phase 5 testid 直接從 `test/e2e/specs/*.spec.ts` 的 `getByTestId()` 複製**，不讀 `.flow.md` / `elements.md`

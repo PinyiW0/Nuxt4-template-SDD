@@ -78,7 +78,7 @@ E2E 偵測結果：全量模式（首次建立）
 
 ```bash
 # 取得所有 flow 和 spec 檔案
-glob docs/e2e-flows/*.flow.md          # 排除 _common.flow.md
+glob spec/e2e-flows/*.flow.md          # 排除 _common.flow.md
 glob test/e2e/specs/*.spec.ts
 ```
 
@@ -101,7 +101,7 @@ glob test/e2e/specs/*.spec.ts
 對每個 `{NN}-{name}.spec.ts`：
 
 ```
-對應的 flow = docs/e2e-flows/{NN}-{name}.flow.md
+對應的 flow = spec/e2e-flows/{NN}-{name}.flow.md
 
 flow 不存在？
   → 標記「孤兒」— 建議刪除 spec
@@ -111,7 +111,7 @@ flow 不存在？
 
 ```bash
 # 取得檔案修改時間（秒級 Unix timestamp）
-stat -f %m docs/e2e-flows/04-建立球隊.flow.md
+stat -f %m spec/e2e-flows/04-建立球隊.flow.md
 stat -f %m test/e2e/specs/04-建立球隊.spec.ts
 ```
 
@@ -204,7 +204,7 @@ E2E 偵測結果：全部同步
 
 ### 分類上下文（可選）
 
-若 `docs/sync-report.md` 存在，讀取「Feature 變更總覽」表格，為每個 feature 補充分類資訊（build/patch/rebuild/delete）。此資訊僅作為顯示用途，**不影響偵測判定**。
+若 `spec/report/sync-report.md` 存在，讀取「Feature 變更總覽」表格，為每個 feature 補充分類資訊（build/patch/rebuild/delete）。此資訊僅作為顯示用途，**不影響偵測判定**。
 
 ### 執行計畫格式
 

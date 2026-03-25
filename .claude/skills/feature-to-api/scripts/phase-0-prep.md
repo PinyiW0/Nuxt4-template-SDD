@@ -5,10 +5,10 @@
 ```
 僅需讀取：
 - .ai-prompts/ui/ui-config-pm.yaml（PM 設定）
-- docs/gherkin-spec/features/*.feature（所有 feature 檔）
+- spec/gherkin-feature/*.feature（所有 feature 檔）
 
 Sync 模式額外讀取：
-- docs/route-map.yaml（現有路由對照表）
+- spec/report/route-map.yaml（現有路由對照表）
 - app/types/api/*.ts（現有型別定義，欄位級比對基準）
 ```
 
@@ -16,7 +16,7 @@ Sync 模式額外讀取：
 
 ## 模式判斷
 
-Phase 0 開始前，先檢查 `docs/route-map.yaml` 是否存在：
+Phase 0 開始前，先檢查 `spec/report/route-map.yaml` 是否存在：
 
 | 條件 | 模式 | 行為 |
 |------|------|------|
@@ -33,7 +33,7 @@ Phase 0 開始前，先檢查 `docs/route-map.yaml` 是否存在：
    - 記錄 `additionalFeatures` 中值為 `true` 的項目（後續步驟 6 寫入 route-map）
 
 2. **掃描所有 .feature 檔**
-   - 路徑：`docs/gherkin-spec/features/*.dsl.feature`
+   - 路徑：`spec/gherkin-feature/*.dsl.feature`
    - ⚠️ **必須讀取全部檔案**
 
 3. **產出功能清單**（見下方格式）
@@ -49,7 +49,7 @@ Phase 0 開始前，先檢查 `docs/route-map.yaml` 是否存在：
    - ⚠️ **必須建在 `app/types/api/`**，Nuxt 4 的 `~` 別名解析到 `app/`
    - 見下方「API 合約型別範例」
 
-6. **產生路由對照表**（`docs/route-map.yaml`）
+6. **產生路由對照表**（`spec/report/route-map.yaml`）
    - 根據步驟 3-5 的分析結果，自動產生路由對照檔
    - 此檔案是後續所有 Phase 及 **update 迭代的唯一參照來源**
    - ⚠️ **`api_contract` 區塊**：包含 `types`（型別欄位快照，作為 Sync diff 基準；程式碼 SSoT 仍是 `app/types/api/*.ts`）和 `endpoints`（端點規格）
@@ -172,10 +172,10 @@ export type { CreateTeamBody, TeamItem } from './teams'
 
 ## 路由對照表格式（route-map.yaml）
 
-用戶確認後，將此對照表寫入 `docs/route-map.yaml`。此檔案是後續 Phase 2-5 及 **update 迭代的唯一參照來源**。
+用戶確認後，將此對照表寫入 `spec/report/route-map.yaml`。此檔案是後續 Phase 2-5 及 **update 迭代的唯一參照來源**。
 
 ```yaml
-# docs/route-map.yaml
+# spec/report/route-map.yaml
 # 由 /feature-to-ui Phase 0 自動產生
 # ⚠️ 可手動修改，修改後以此為準
 
@@ -319,7 +319,7 @@ features:
 
 計算方式（shell，統一使用 `shasum -a 256`，macOS/Linux 皆內建）：
 ```bash
-shasum -a 256 docs/gherkin-spec/features/03-查詢球隊列表.dsl.feature | awk '{print $1}'
+shasum -a 256 spec/gherkin-feature/03-查詢球隊列表.dsl.feature | awk '{print $1}'
 ```
 
 ---

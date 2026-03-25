@@ -4,14 +4,14 @@
 
 ```
 僅需讀取：
-- docs/route-map.yaml（`/feature-to-api` Phase 0 產生的路由對照表）
+- spec/report/route-map.yaml（`/feature-to-api` Phase 0 產生的路由對照表）
 - rules.md [P2] 段落（testid 規範）
 
 若存在，額外讀取（testid 來源）：
-- docs/e2e-flows/pages/*.elements.md（各頁面的 testid 定義）
+- spec/e2e-flows/pages/*.elements.md（各頁面的 testid 定義）
 
 Sync 模式額外讀取：
-- docs/sync-report.md（變更報告的「路由變更」段落）
+- spec/report/sync-report.md（變更報告的「路由變更」段落）
 ```
 
 > ⚠️ 若 `pages/*.elements.md` 存在，頁面骨架的 `data-testid` **必須**使用該檔案定義的 testid，不可自行命名。
@@ -21,7 +21,7 @@ Sync 模式額外讀取：
 
 ## 增量模式判斷
 
-Phase 2 開始前，先檢查 `docs/sync-report.md` 是否存在：
+Phase 2 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 
 | 條件 | 模式 | 行為 |
 |------|------|------|
@@ -57,8 +57,8 @@ Phase 2 增量更新完成
 
 ## 全量模式執行步驟
 
-1. **讀取路由規劃表**（`docs/route-map.yaml`）
-2. **檢查 `docs/e2e-flows/pages/` 是否存在 elements.md 檔案**
+1. **讀取路由規劃表**（`spec/report/route-map.yaml`）
+2. **檢查 `spec/e2e-flows/pages/` 是否存在 elements.md 檔案**
    - 存在 → 讀取對應頁面的 elements.md，提取 testid
    - 不存在 → 按命名規則定義 testid
 3. **根據路由規劃建立所有頁面空殼**（帶入 testid）

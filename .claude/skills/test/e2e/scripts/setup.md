@@ -13,7 +13,7 @@
 
 | 檢查項 | 說明 |
 |--------|------|
-| `docs/e2e-flows/_common.flow.md` | 由 `/feature-to-flow 0` 產出 |
+| `spec/e2e-flows/_common.flow.md` | 由 `/feature-to-flow 0` 產出 |
 
 > 不存在？提示先執行 `/feature-to-flow 0`
 

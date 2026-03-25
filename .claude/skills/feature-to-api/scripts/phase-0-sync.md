@@ -1,6 +1,6 @@
 # Phase 0: Sync 模式步驟
 
-> 僅當 `docs/route-map.yaml` 存在時進入此流程。
+> 僅當 `spec/report/route-map.yaml` 存在時進入此流程。
 > 全量模式步驟 → 詳見 [phase-0-prep.md](phase-0-prep.md)
 
 ---
@@ -31,7 +31,7 @@
 
 ### 步驟 3：掃描所有新版 .dsl.feature
 
-- 路徑：`docs/gherkin-spec/features/*.dsl.feature`
+- 路徑：`spec/gherkin-feature/*.dsl.feature`
 - 計算每個檔案的 `content_hash`
 
 ### 步驟 4：讀取現有型別定義
@@ -111,7 +111,7 @@
 
 ### 步驟 8：產出變更報告
 
-將分析結果寫入 **`docs/sync-report.md`**。
+將分析結果寫入 **`spec/report/sync-report.md`**。
 
 > 因為 `context: fork`，Phase 間無法共享對話記憶，所以必須持久化為檔案。後續 Phase 讀取此報告決定行為。
 
@@ -154,7 +154,7 @@
 
 ---
 
-## 變更報告格式（docs/sync-report.md）
+## 變更報告格式（spec/report/sync-report.md）
 
 ```markdown
 # Sync 變更報告

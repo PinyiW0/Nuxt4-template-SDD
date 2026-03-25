@@ -8,7 +8,7 @@
 - ui-config.yaml > colorMode（深淺模式）
 - ui-config.yaml > responsive.sidebar（響應式設定）
 - ui-config.yaml > icons.common（常用 icon）
-- docs/route-map.yaml > routes（所有路由，用於建立 sidebar 導航項目）
+- spec/report/route-map.yaml > routes（所有路由，用於建立 sidebar 導航項目）
 - rules.md [P3] 段落（配色策略、深淺模式與對比色、Layout 規範）
 
 執行 /nuxt-ui 載入組件文檔
@@ -16,7 +16,7 @@
 
 ## 模式判斷
 
-Phase 3 開始前，先檢查 `docs/sync-report.md` 是否存在：
+Phase 3 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 
 | 條件 | 模式 | 行為 |
 |------|------|------|

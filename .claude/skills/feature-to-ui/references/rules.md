@@ -220,7 +220,7 @@ await authStore.login(account, password)
 ### 來源優先級
 
 - **Phase 5**：直接從 `test/e2e/specs/*.spec.ts` 的 `getByTestId()` 複製（唯一來源，不讀 elements.md）
-- **Phase 2**：`docs/e2e-flows/pages/{page}.elements.md`（若存在）→ 下方命名規則（備用）
+- **Phase 2**：`spec/e2e-flows/pages/{page}.elements.md`（若存在）→ 下方命名規則（備用）
 
 ### 命名格式：`{page}-{element}`
 
@@ -232,7 +232,7 @@ await authStore.login(account, password)
 | 列表 | `team-list` |
 | 確認彈窗 | `confirm-modal`, `confirm-ok`, `confirm-cancel` |
 
-> 確認彈窗 testid 以 `docs/e2e-flows/_common.flow.md` 為準。
+> 確認彈窗 testid 以 `spec/e2e-flows/_common.flow.md` 為準。
 
 ---
 
