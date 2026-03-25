@@ -4,7 +4,7 @@
 
 ```
 僅需讀取：
-- .ai-prompts/ui/ui-config-pm.yaml（PM 設定）
+- spec/ui-config/ui-config-pm.yaml（PM 設定）
 - spec/gherkin-feature/*.feature（所有 feature 檔）
 
 Sync 模式額外讀取：

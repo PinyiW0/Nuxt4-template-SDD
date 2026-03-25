@@ -74,7 +74,7 @@ flowchart LR
 
 ## 現有 Feature 檔案
 
-!`ls -1 spec/gherkin-feature/*.feature 2>/dev/null || echo "(無)"`
+!`ls -1 spec/gherkin-feature/*.dsl.feature 2>/dev/null || echo "(無)"`
 
 ---
 
@@ -112,7 +112,7 @@ flowchart LR
 
 ### 專案設定
 
-@.ai-prompts/ui/ui-config.yaml（完整規範）
+@spec/ui-config/ui-config.yaml（完整規範）
 
 ### NuxtUI 文檔
 
