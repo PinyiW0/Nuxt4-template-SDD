@@ -209,9 +209,18 @@ await authStore.login(account, password)
 
 ---
 
-## TypeCheck 規範 `[P5]`
+## 程式碼品質檢查規範 `[P5]`
 
-頁面實作完成後，**必須執行 `npx nuxi typecheck`** 確認無型別錯誤。若有錯誤，修復後重新檢查。
+每個頁面實作完成後，**必須依序執行以下三項檢查**，針對本次新增或修改的檔案：
+
+```bash
+npx eslint <file> --fix          # ESLint 檢查 + 自動修復（@antfu/eslint-config）
+npx prettier --write <file>      # Prettier 格式化（含 Tailwind class 排序）
+npm run typelint                  # TypeCheck 型別檢查（nuxi typecheck）
+```
+
+- 有錯誤 → 修復後重新執行，直到全部通過
+- **三項全部通過才可向用戶輸出確認格式**
 
 ---
 

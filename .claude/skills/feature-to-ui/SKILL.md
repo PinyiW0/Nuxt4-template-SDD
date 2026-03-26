@@ -44,7 +44,7 @@ flowchart LR
 /feature-to-ui 2            # Phase 2: 路由骨架
 /feature-to-ui 3            # Phase 3: Layout 建置
 /feature-to-ui 4            # Phase 4: 共用元件
-/feature-to-ui 5 [功能名]   # Phase 5: 頁面實作（指定功能）
+/feature-to-ui 5 <功能名>   # Phase 5: 頁面實作（必須指定功能，一次一頁）
 ```
 
 ## 全量模式 vs Sync 模式
@@ -134,7 +134,7 @@ flowchart LR
 
 ### Phase 5：功能實作
 
-5. **Phase 5**：逐一實作每個頁面的完整功能
+5. **Phase 5**：逐一實作每個頁面的完整功能（一次只做一個頁面，確認後才做下一個）
 
 ---
 
@@ -150,7 +150,7 @@ flowchart LR
 - **前置條件**：`/feature-to-api` 必須先完成（types + mock API + route-map.yaml 已存在）
 - **Phase 5 額外前置條件**：`/test e2e spec` 必須先完成（`.spec.ts` 是 Phase 5 的唯一 UI 合約）
 - **每個 Phase 完成後，告知用戶下一步應執行的指令**（如「下一步：`/feature-to-ui 5`」），不要用「要我繼續嗎？」的問法
-- **Phase 5 每個頁面完成後都要確認，結尾指引下一個頁面的指令**
+- **Phase 5 一次只做一個頁面。每個頁面完成後輸出確認格式，然後立即停止回應，等待用戶回覆後才處理下一個頁面**
 - **Phase 5 所有頁面處理完成後（不論 build/patch/rebuild），結尾必須提示：「下一步：`/test e2e green auto`」**
 - **每個 Phase 開始時只讀取該 Phase 的 phase 檔 + rules.md**
 - 禁止自行決定網站名稱、色彩等設定

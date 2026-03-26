@@ -1,5 +1,21 @@
 # Phase 5: 頁面實作
 
+> ⚠️ **核心規則：一次只做一個頁面**
+>
+> Phase 5 **嚴禁在一次回應中處理多個頁面**。每個頁面必須走完完整流程（讀 spec → 對照表 → 實作 → 品質檢查 → 確認），
+> 輸出確認格式後 **立即停止回應，等待用戶回覆後才處理下一個頁面**。
+>
+> 禁止行為：
+> - 一次回應中連續實作多個頁面
+> - 自動判斷「確認 OK」後繼續下一個頁面
+> - 把多個頁面的確認合併在同一次回應中
+>
+> 正確行為：
+> - 實作一個頁面 → 輸出確認格式 → **停止回應**
+> - 用戶回覆後 → 開始下一個頁面
+
+---
+
 ## 必讀規範
 
 ```
@@ -167,8 +183,17 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
    - 型別是否從 `types/api/` import（禁止定義 local interface）
    - 深淺模式是否正常（禁止寫死顏色值）
 7. **若步驟 5-6 發現缺漏 → 修復後重新驗證**
-8. **向用戶確認（必須使用下方結構化格式，包含步驟 3 的對照表）**
-9. **確認後才進入下一個功能**
+8. **⚠️ 程式碼品質檢查（必須執行）**
+   - 依序執行以下指令，針對本次新增或修改的檔案：
+   ```bash
+   npx eslint app/pages/xxx.vue --fix          # ESLint 檢查 + 自動修復
+   npx prettier --write app/pages/xxx.vue      # Prettier 格式化（含 Tailwind class 排序）
+   npm run typelint                             # TypeCheck 型別檢查
+   ```
+   - 有錯誤 → 修復後重新執行，直到全部通過
+   - **三項全部通過才可進入下一步**
+9. **向用戶確認（必須使用下方結構化格式，包含步驟 3 的對照表）**
+10. **⚠️ 輸出確認格式後立即停止回應，等待用戶回覆後才處理下一個頁面**
 
 ## 每個功能必讀資源 Checklist
 
@@ -211,10 +236,17 @@ Scenario 覆蓋：
 - API 路徑：全部確認 OK
 - testid：對應 .spec.ts OK
 
-下一個頁面：`/feature-to-ui 6 {頁面名}`
+品質檢查：
+- ESLint：通過
+- Prettier：通過
+- TypeCheck：通過
+
+下一個頁面：`/feature-to-ui 5 {頁面名}`
 ```
 
 > ⚠️ **最後一個頁面確認時**：將結尾替換為「Phase 5 全部完成。下一步：`/test e2e green auto`」
+>
+> ⚠️ **輸出以上確認格式後，必須立即停止回應。禁止在同一次回應中繼續處理下一個頁面。**
 
 ## 頁面實作範本
 
@@ -239,7 +271,15 @@ Scenario 覆蓋：
    - 找不到 → **自動升級為 rebuild**，向用戶說明原因
    - 常見定位目標：`const schema = z.object`、`function openCreate`、`<UFormField label=`、`data-testid=`
 6. **逐項 Edit**（使用 Edit tool，不 Write 整個檔案）
-7. **完成後確認**（一次確認即可）
+7. **⚠️ 程式碼品質檢查（必須執行）**
+   - 依序執行以下指令，針對本次修改的檔案：
+   ```bash
+   npx eslint app/pages/xxx.vue --fix
+   npx prettier --write app/pages/xxx.vue
+   npm run typelint
+   ```
+   - 有錯誤 → 修復後重新執行，直到全部通過
+8. **完成後確認**（一次確認即可）
 
    ```
    Patch 完成：/teams
@@ -258,10 +298,17 @@ Scenario 覆蓋：
    | 建立球隊 | OK 已更新 | 新增 description |
    | 刪除球隊 | OK 未動 | 05 無變化 |
 
-   下一個頁面：`/feature-to-ui 6 {頁面名}`
+   品質檢查：
+   - ESLint：通過
+   - Prettier：通過
+   - TypeCheck：通過
+
+   下一個頁面：`/feature-to-ui 5 {頁面名}`
    ```
 
    > ⚠️ **最後一個頁面確認時**：將結尾替換為「Phase 5 全部完成。下一步：`/test e2e green auto`」
+   >
+   > ⚠️ **輸出以上確認格式後，必須立即停止回應。禁止在同一次回應中繼續處理下一個頁面。**
 
 8. **功能覆蓋驗證**（含未變更 feature 的 Scenario 確認，確保 patch 沒有破壞既有功能）
 

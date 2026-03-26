@@ -10,14 +10,21 @@
     "postinstall": "nuxt prepare",
     "eslint": "eslint .",
     "typelint": "nuxi typecheck",
-    "customize": "node customize"
+    "customize": "node customize",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@nuxt/ui": "^4.6.0",
+    "@pinia/nuxt": "^0.11.3",
     "nuxt": "^4.4.2",
+    "pinia": "^3.0.4",
+    "pinia-plugin-persistedstate": "^4.7.1",
     "tailwindcss": "^4.2.2",
     "vue": "^3.5.30",
-    "vue-router": "^5.0.4"
+    "vue-router": "^5.0.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^7.7.3",
