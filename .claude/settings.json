@@ -6,7 +6,6 @@
       "Bash",
       "WebSearch",
       "WebFetch(domain:*)",
-      "WebFetch(domain:ui.nuxt.com)",
       "Skill"
     ]
   }

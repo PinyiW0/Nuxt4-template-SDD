@@ -4,7 +4,7 @@
 
 管理 E2E 測試的完整生命週期：生成 spec → 跑紅燈 → 修綠燈。支援單一、批次和自動偵測模式。
 
-> **前置條件**：`.flow.md` 必須已由 `/feature-to-flow` 產出。本 skill 不負責 flow 生成。
+> **前置條件**：`.flow.md` 必須已放入 `spec/e2e-flows/`（外部產出）。本 skill 不負責 flow 生成。
 
 ---
 
@@ -85,8 +85,8 @@ green（修復 UI、讓測試通過）
 
 | 檢查項 | 檔案 | 不存在時 |
 |--------|------|---------|
-| Flow 架構 | `spec/e2e-flows/_common.flow.md` | 提示先執行 `/feature-to-flow 0` |
-| 目標 Flow | `spec/e2e-flows/{NN}-{name}.flow.md` | 提示先執行 `/feature-to-flow {NN}` |
+| Flow 架構 | `spec/e2e-flows/_common.flow.md` | 提示「請先將 `_common.flow.md` 放入 `spec/e2e-flows/`」 |
+| 目標 Flow | `spec/e2e-flows/{NN}-{name}.flow.md` | 提示「請先將對應的 `.flow.md` 放入 `spec/e2e-flows/`」 |
 | E2E 基礎 | `test/e2e/helpers/actions.ts` | 提示先執行 `/test e2e setup` |
 
 ---
@@ -122,8 +122,8 @@ for each spec/e2e-flows/{NN}-{name}.flow.md:
 開始
   │
   ├─ 檢查前置條件
-  │   ├─ _common.flow.md 存在？ → 不存在 → 提示 /feature-to-flow 0
-  │   ├─ 目標 .flow.md 存在？ → 不存在 → 提示 /feature-to-flow {NN}
+  │   ├─ _common.flow.md 存在？ → 不存在 → 提示「請先放入 _common.flow.md」
+  │   ├─ 目標 .flow.md 存在？ → 不存在 → 提示「請先放入對應的 .flow.md」
   │   └─ actions.ts 存在？ → 不存在 → 提示 /test e2e setup
   │
   ├─ 讀取 .flow.md + _common.flow.md

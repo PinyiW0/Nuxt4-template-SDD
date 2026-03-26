@@ -9,7 +9,7 @@ description: E2E 測試開發流程 — Playwright
 
 ## 使用方式
 
-> **前置條件**：`.flow.md` 必須已由 `/feature-to-flow` 產出。
+> **前置條件**：`.flow.md` 必須已放入 `spec/e2e-flows/`（外部產出）。
 
 ```bash
 /test e2e                # 自動偵測模式 — 分析狀態、產出執行計畫
@@ -50,7 +50,7 @@ description: E2E 測試開發流程 — Playwright
 | e2e red | [red.md](e2e/scripts/red.md) |
 | e2e green | [green.md](e2e/scripts/green.md) |
 
-> Flow 生成（`.feature` → `.flow.md`）已獨立為 `/feature-to-flow` skill。
+> Flow 檔案（`.flow.md`）由外部工具產出，手動放入 `spec/e2e-flows/`。
 
 ---
 

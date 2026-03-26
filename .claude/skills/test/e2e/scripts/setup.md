@@ -13,9 +13,9 @@
 
 | 檢查項 | 說明 |
 |--------|------|
-| `spec/e2e-flows/_common.flow.md` | 由 `/feature-to-flow 0` 產出 |
+| `spec/e2e-flows/_common.flow.md` | 外部產出，手動放入 |
 
-> 不存在？提示先執行 `/feature-to-flow 0`
+> 不存在？提示「請先將 `_common.flow.md` 放入 `spec/e2e-flows/`」
 
 ---
 
