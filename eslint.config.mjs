@@ -5,5 +5,6 @@ export default withNuxt(
   antfu({
     vue: true,
     typescript: true,
+    ignores: ['.claude/**', 'spec/**'],
   }),
 )
