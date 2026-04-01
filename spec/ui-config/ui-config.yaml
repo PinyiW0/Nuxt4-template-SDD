@@ -12,7 +12,7 @@ project:
 
 # =============================================================================
 # SEO 與社群分享（從 ui-config-pm.yaml 同步）
-# Phase 2 讀取後寫入 nuxt.config.ts 的 app.head
+# Phase 1 讀取後寫入 nuxt.config.ts 的 app.head
 # =============================================================================
 meta:
   keywords: "" # SEO 關鍵字（逗號分隔）
@@ -29,7 +29,7 @@ meta:
 # Nuxt UI 自動處理 light/dark：light 取 500 色階，dark 取 400 色階
 #
 # 格式說明：
-#   - "#hex"   → 自訂色碼，Phase 2 會用 https://uicolors.app 產生 50-950 色階
+#   - "#hex"   → 自訂色碼，Phase 1 會用 https://uicolors.app 產生 50-950 色階
 #                 寫入 main.css 的 @theme static { --color-{名稱}-* }
 #                 app.config.ts 映射 {名稱}: '{名稱}'
 #   - "名稱"   → Tailwind 內建色（如 emerald, amber, red, blue）
@@ -40,7 +40,7 @@ meta:
 #   primary → green | secondary → sky | success → green
 #   warning → amber | error → red | info → blue | neutral → neutral
 #
-# Phase 2 實作方式：
+# Phase 1 實作方式：
 #   - 有 "#hex" → @theme static { --color-{色名}-50~950 } 寫入 main.css
 #   - 有 "名稱" 或空值 → 不產生 CSS
 #   - app.config.ts：有自訂色階 → 映射自身名稱；沒有 → 映射 Tailwind 內建色名
@@ -189,7 +189,6 @@ loading:
 
 # =============================================================================
 # 響應式設計（RWD）規範
-# 詳細實作規範見 responsive.md
 # =============================================================================
 responsive:
   enabled: true
