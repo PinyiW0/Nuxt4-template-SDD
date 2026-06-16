@@ -95,7 +95,7 @@ Phase 3 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 
 ## default.vue 範例（可收合 Sidebar）
 
-> ⚠️ **Sidebar 規範** → 詳見 [rules.md](../references/rules.md) > Layout 規範
+> ⚠️ **Sidebar 規範** → 詳見 [rules.md](rules.md) > Layout 規範
 
 ```vue
 <!-- app/layouts/default.vue -->

@@ -15,7 +15,7 @@ Sync 模式額外讀取：
 ```
 
 > ⚠️ 若 `pages/*.elements.md` 存在，頁面骨架的 `data-testid` **必須**使用該檔案定義的 testid，不可自行命名。
-> 若不存在，按 [rules.md](../references/rules.md) > testid 規範 的命名規則自行定義。
+> 若不存在，按 [rules.md](rules.md) > testid 規範 的命名規則自行定義。
 
 ---
 

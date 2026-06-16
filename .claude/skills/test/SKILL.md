@@ -20,6 +20,7 @@ description: E2E 測試開發流程 — Playwright
 /test e2e red <feature>  # 紅燈 - 跑測試收集失敗
 /test e2e green <feature>  # 綠燈 - 修復 UI/mock/API 讓測試通過
 /test e2e pipeline <feature>   # 完整流程 (spec→red→green)
+/test e2e handwritten [<path>]  # vibe 視覺/互動測試（diff-driven，獨立於 spec）
 ```
 
 ### 參數說明
@@ -43,12 +44,13 @@ description: E2E 測試開發流程 — Playwright
 
 | Phase | 子檔 |
 |-------|------|
-| e2e（自動偵測） | [detect.md](e2e/scripts/detect.md) |
-| e2e setup | [setup.md](e2e/scripts/setup.md) |
-| e2e spec | [spec.md](e2e/scripts/spec.md) |
-| e2e batch / auto / pipeline | [pipeline.md](e2e/scripts/pipeline.md) |
-| e2e red | [red.md](e2e/scripts/red.md) |
-| e2e green | [green.md](e2e/scripts/green.md) |
+| e2e（自動偵測） | [detect.md](e2e/references/detect.md) |
+| e2e setup | [setup.md](e2e/references/setup.md) |
+| e2e spec | [spec.md](e2e/references/spec.md) |
+| e2e batch / auto / pipeline | [pipeline.md](e2e/references/pipeline.md) |
+| e2e red | [red.md](e2e/references/red.md) |
+| e2e green | [green.md](e2e/references/green.md) |
+| e2e handwritten | [handwritten.md](e2e/references/handwritten.md) |
 
 > Flow 檔案（`.flow.md`）由外部工具產出，手動放入 `spec/e2e-flows/`。
 

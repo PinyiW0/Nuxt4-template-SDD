@@ -28,6 +28,47 @@
 
 - 解析所有已登錄的路由、features（含 `content_hash`）
 - 記錄當前 `version` 欄位值
+- **記錄 `api_contract.path_prefix`**（給步驟 2.5 比對用）
+
+### 步驟 2.5：Path 前綴漂移檢查（⚠️ 必跑）
+
+> **目的**：path 前綴是專案級不變量，不可因 SoT 模式切換（OpenAPI ↔ Feature）、spec 改寫、Claude 重抽而默默變動。此步驟保護你從「OpenAPI 模式 → Feature 推導模式」或反向切換時不會搬動整批 `server/api/` 結構。
+
+#### 流程
+
+1. 取既有值：`route-map.yaml > api_contract.path_prefix`（步驟 2 已讀）
+2. 重新偵測本次預期前綴：
+   - **OpenAPI 模式**：讀 `spec/api/api-spec.yml > servers.url`，取 path 段（去掉 protocol+host+port）
+   - **Feature 推導模式**：掃 `server/api/` 取最長共同前綴
+3. 比對：
+
+   | 情況 | 動作 |
+   |------|------|
+   | 既有 path_prefix **不存在**（舊版 route-map） | 寫入本次偵測值，sync-report 記錄「初始化 path_prefix = X」 |
+   | 兩值相同 | 通過，繼續步驟 3 |
+   | 兩值不同 | **停下來詢問使用者**（見下方），不要默默改寫 |
+
+#### 不一致時的對話腳本
+
+```
+偵測到 API path 前綴漂移：
+- route-map.yaml 既有：/api/v1
+- 本次偵測（{OpenAPI servers.url / server/api/ 結構}）：/v1
+
+可能原因：
+  (a) 後端真的改了前綴（如 v1 → v2 升版） 
+      → 我會更新 route-map.yaml + 列入 sync-report「待批次調整」（含 server/api/ 資料夾、app/api/ 引用）
+  (b) spec / 程式碼狀態漂移（無心改動） 
+      → 維持既有 path_prefix，提示你修正 spec 或還原誤改
+
+請選 (a) 或 (b)，或描述其他情況。
+```
+
+#### 不要做的事
+
+- ❌ 默默把 `route-map.yaml > path_prefix` 改成新值
+- ❌ 默默把既有 endpoint 路徑全部改寫
+- ❌ 把 host name 寫進 path_prefix（OpenAPI `servers.url` 含絕對 URL 時，**只取 path 段**）
 
 ### 步驟 3：掃描所有新版 .dsl.feature
 
@@ -109,6 +150,52 @@
 - 新啟用的功能 → 在變更報告中標註，Phase 4 需要建立對應元件
 - 關閉的功能 → 在待刪除項目中標記（不自動移除）
 
+### 步驟 7.6：孤兒偵測（反向 audit，⚠️ 必跑）
+
+> **目的**：當 feature 移除整個 Feature / Scenario / Command / Event，正向 rebuild 不會偵測到「codebase 仍殘留」，導致 UI / types / endpoints 變成孤兒（沒人測、沒人引用）。**本步驟反向掃描，補正向流程的缺口。**
+
+#### 偵測流程
+
+1. **抽取新版 feature 的「合約 symbol 集」**：
+   - Commands：`When {Actor} sends {CommandName}` → `{CommandName}Body`
+   - Events：`Then the {EventName} event is emitted` → `{EventName}Event`
+   - Views：`When the {ViewName} view is queried` → `{ViewName}Item` / `{ViewName}Detail`
+   - Operations failure：`Then the operation fails with: {message}` → error message 字串
+
+2. **抽取 codebase 的「實作 symbol 集」**：
+   - `app/types/api/*.ts` 的 `export interface` / `export type` 名稱
+   - `server/api/v1/**/*.ts` 的 endpoint 路由 + method（檔名 / HTTP verb）
+   - `app/pages/**/*.vue` 中 `import { X } from '~/types/api'` 的 X 集合
+
+3. **差集 = 孤兒**：
+   - `type 孤兒` = codebase types ∖ feature contract types
+   - `endpoint 孤兒` = codebase endpoints ∖ feature contract endpoints
+   - `UI 孤兒` = 引用孤兒 type 的 .vue 檔（連帶相關 button / Modal / handler）
+
+#### 不視為孤兒的例外（白名單）
+
+| 例外類型 | 範例 | 處理 |
+|---------|------|------|
+| 過渡兼容欄位（feature 已遷移，server 為兼容 UI 保留） | `PracticeHistoryItem.startedAt` 為兼容欄位 | type 加 `@deprecated` 註解，報告標「兼容」不視為孤兒 |
+| 基礎設施路由 | `/api/__test__/reset`、`/api/health` | 跳過 |
+| UI extension（feature 未定義但 UI 有額外需求） | `ExportType: 'selected-pitches'` | 報告標「UI extension」，待 feature 補對應 Scenario，不視為孤兒 |
+
+#### 偵測指令範例
+
+```bash
+# 從 feature 抽 Command 名稱
+grep -oE "sends [A-Z][A-Za-z]+" spec/gherkin-feature/*.feature | sort -u
+
+# codebase 中的 Body / Event interface
+grep -rE "export (interface|type) [A-Z][A-Za-z]*(Body|Event|Item|Detail)" app/types/api/
+
+# 找差集（手動或腳本比對）
+```
+
+#### 輸出
+
+填入步驟 8 的「🗑️ 孤兒清單」表格（見變更報告格式）。
+
 ### 步驟 8：產出變更報告
 
 將分析結果寫入 **`spec/report/sync-report.md`**。
@@ -132,13 +219,26 @@
 
 格式見下方「變更報告格式」。
 
+### 步驟 8.5：保留前版未解決孤兒（防止覆蓋丟失）
+
+> **背景**：sync-report.md 每次重生會整檔覆蓋。若前一版列出的孤兒「實際仍存在於 codebase」但這次步驟 7.6 沒列出（如重跑時誤判、模式切換），會丟失資訊。本步驟做最後保險。
+
+**作法**：
+
+1. 寫入新版 sync-report.md 前，**讀取舊版**的「🗑️ 孤兒清單」段
+2. 對舊版每一項：
+   - 若 symbol / path 在 codebase 中**仍存在** → 強制保留進新版（即使步驟 7.6 沒重新偵測到）
+   - 若已不存在 → 視為已清理，可從新版移除（但建議在報告底部「本次已清理孤兒」段記錄一行）
+3. 若是從 OpenAPI 模式切到 Feature 模式（或反向），**舊版的「待 PM 處理」清單必須完整遞延**進新版孤兒/待處理段，不可整段消失
+
 ### 步驟 9：更新 route-map.yaml
 
 - `version` 遞增（如 1 → 2）
 - 新增的 feature → 加入對應路由的 features 陣列（或建立新路由條目）
 - hash 變更的 feature → 更新 `content_hash`
 - 刪除的 feature → **不自動移除**，僅在報告中標記待刪除
-- **同步更新 `api_contract`**：新增/修改的型別 → 更新 `api_contract.types`（鏡像 `app/types/api/*.ts` 的欄位）；新增/修改的端點 → 更新 `api_contract.endpoints`
+- **`api_contract.path_prefix` 維持步驟 2.5 結果**（使用者未確認 (a) 升版前，不可變動）
+- **同步更新 `api_contract`**：新增/修改的型別 → 更新 `api_contract.types`（鏡像 `app/types/api/*.ts` 的欄位）；新增/修改的端點 → 更新 `api_contract.endpoints`（所有 `path:` 必以 `path_prefix` 開頭）
 - **同步更新 `enabled_features`**：反映 PM yaml 最新的 `additionalFeatures`
 - 更新 `generated_at` 為今天日期
 
@@ -148,7 +248,10 @@
 1. 變更報告摘要（Feature 變更總覽表格）
 2. Phase 執行建議（哪些 Phase 需要跑、哪些可跳過）
 3. 待刪除項目（提醒用戶手動處理）
-4. 更新後的 route-map.yaml 變更
+4. **🗑️ 孤兒清單**（步驟 7.6 + 8.5 產出）——分 `UI` / `Backend` / `兼容` 三類明確標示
+5. 更新後的 route-map.yaml 變更
+
+**⚠️ 孤兒清單必須口頭強調**：不能只放進報告就算數。若 `UI` 類孤兒存在，必須在回應中明確提示「下一步：清除 UI 層孤兒 [列項目]」，否則 claude 容易跳過此步直接進 Phase 1。
 
 確認後才寫入檔案。
 
@@ -162,6 +265,14 @@
 generated_at: YYYY-MM-DD
 base_version: 1
 sync_version: 2
+
+## Path 前綴狀態
+
+| 項目 | 值 | 備註 |
+|------|-----|------|
+| 既有 path_prefix | /api/v1 | 來自上一版 route-map.yaml |
+| 本次偵測 | /api/v1 | 來自 servers.url 或 server/api/ 結構 |
+| 結論 | 一致，沿用 | （或「使用者確認升版 /api/v1 → /api/v2，列入待批次調整」） |
 
 ## 設定檔變更
 
@@ -228,6 +339,28 @@ sync_version: 2
 | feature 參照 | route-map.yaml > /teams > 05-刪除球隊 | feature 檔已不存在 |
 | 型別（待確認） | app/types/api/teams.ts > DeleteTeamBody | 若 05 是唯一使用者 |
 | 端點（待確認） | DELETE /api/teams/[id] | 若 05 是唯一使用者 |
+
+## 🗑️ 孤兒清單（codebase 有，feature 不再引用）
+
+> 來源：步驟 7.6 反向 audit + 步驟 8.5 保留前版未解決項目。
+> **每次 sync 都要重新評估，但已存在的項目不會被新 sync 覆蓋丟失**——只要 codebase 中還存在，就會繼續列出，直到實際清理為止。
+
+| 類型 | 路徑 / symbol | feature 對應狀態 | 建議動作 | 負責方 |
+|------|--------------|----------------|---------|--------|
+| Type | `app/types/api/practice.ts > SwitchPitcherBody` | feature 已移除「切換投手」Feature（commit XXX）| 清除 interface + 所有 import | UI |
+| Endpoint | `server/api/v1/practices/[practiceId]/pitcher.patch.ts` | 同上 | 刪除整檔 | Backend |
+| UI 元素 | `app/pages/practice/[practiceId].vue` 切換投手按鈕、Modal、form、handler | 同上 | 移除 UI 區塊 | UI |
+
+> **負責方分類**：
+> - `UI`：claude 或前端工程師可直接清，主 spec 仍會綠
+> - `Backend`：後端工程師處理，列入 task list（如 `task #N`）
+> - `兼容`：刻意保留的過渡欄位，待 UI 收斂後拆除
+
+## 本次已清理孤兒（自上次 sync 起）
+
+| 路徑 / symbol | 清理 commit / 時間 |
+|--------------|------------------|
+| （無 / 上次列出已清掉的項目）| |
 ```
 
 ### 邊界情況處理

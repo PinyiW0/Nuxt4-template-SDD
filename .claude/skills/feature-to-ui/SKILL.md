@@ -82,11 +82,11 @@ flowchart LR
 
 | Phase | 名稱 | 輸出 | 必讀規範 |
 |-------|------|------|----------|
-| 1 | 基礎設定 | app.config.ts, main.css, nuxt.config.ts（SEO head） | [phase-1](scripts/phase-1-theme.md) |
-| 2 | 路由骨架 | 所有 pages/*.vue 空殼（含 testid） | [phase-2](scripts/phase-2-skeleton.md) + [rules.md `[P2]`](references/rules.md) |
-| 3 | Layout 建置 | layouts/*.vue | [phase-3](scripts/phase-3-layout.md) + [rules.md `[P3]`](references/rules.md) |
-| 4 | 共用元件 | components/common/*.vue（+ additionalFeature 元件） | [phase-4](scripts/phase-4-components.md) + [features.md](references/features.md)（若有） + [rules.md `[P4]`](references/rules.md) |
-| 5 | 頁面實作 | 逐一填充 pages 內容 | [phase-5](scripts/phase-5-pages.md) + [page-builder.md](references/page-builder.md) + [rules.md `[P5]`](references/rules.md)（選讀：components.md、features.md） |
+| 1 | 基礎設定 | app.config.ts, main.css, nuxt.config.ts（SEO head） | [phase-1](references/phase-1-theme.md) |
+| 2 | 路由骨架 | 所有 pages/*.vue 空殼（含 testid） | [phase-2](references/phase-2-skeleton.md) + [rules.md `[P2]`](references/rules.md) |
+| 3 | Layout 建置 | layouts/*.vue | [phase-3](references/phase-3-layout.md) + [rules.md `[P3]`](references/rules.md) |
+| 4 | 共用元件 | components/common/*.vue（+ additionalFeature 元件） | [phase-4](references/phase-4-components.md) + [features.md](references/features.md)（若有） + [rules.md `[P4]`](references/rules.md) |
+| 5 | 頁面實作 | 逐一填充 pages 內容 | [phase-5](references/phase-5-pages.md) + [page-builder.md](references/page-builder.md) + [rules.md `[P5]`](references/rules.md)（選讀：components.md、features.md） |
 
 **設計理念**：骨架優先，細節後填。每個 Phase 只載入必要的規範，避免 context 過載。`app/types/api/` 作為 API 合約的單一真相來源（由 `/feature-to-api` 建立）。`route-map.yaml` 作為路由與 feature 對照的單一真相來源。**Phase 5 以 `.spec.ts` 為唯一 UI 合約**（testid 直接從 spec 的 `getByTestId()` 複製，不讀 `.flow.md` / `elements.md`）。
 
@@ -97,7 +97,7 @@ flowchart LR
 ### 核心規範（按需讀取）
 
 - **[rules.md](references/rules.md)** - 共用規則權威來源（配色、類型、API、Pinia、testid、Layout 規範）
-- **[scripts/](scripts/)** - 各 Phase 的執行步驟與模板（**每個 Phase 開始前讀取對應的 phase 檔**）
+- **references/phase-N-*.md** - 各 Phase 的執行步驟與模板（**每個 Phase 開始前讀取對應的 phase 檔**）
 - [page-builder.md](references/page-builder.md) - DSL 解析 + 表單範本（Phase 5 需要）
 - [components.md](references/components.md) - 元件使用規範（Phase 4, 5 需要）
 

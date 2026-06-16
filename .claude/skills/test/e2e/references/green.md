@@ -249,10 +249,14 @@ E2E 綠燈批次報告：01 → 05
 
 ```vue
 <!-- ❌ 不要改結構 -->
-<div>球隊列表</div>
+<div>
+球隊列表
+</div>
 
 <!-- ✅ 只加 testid -->
-<div data-testid="teams-page">球隊列表</div>
+<div data-testid="teams-page">
+球隊列表
+</div>
 ```
 
 ### UTable 行 testid
@@ -260,7 +264,7 @@ E2E 綠燈批次報告：01 → 05
 ```vue
 <!-- 在 UTable 的 row 模板中加 testid -->
 <template #row="{ row }">
-  <tr :data-testid="`team-row`">
+  <tr data-testid="team-row">
     ...
   </tr>
 </template>
