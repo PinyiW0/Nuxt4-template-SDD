@@ -2,7 +2,7 @@
 
 > 配色、深淺模式、Nuxt UI 類型、API 規範、Pinia store 規範 → 詳見 [rules.md](rules.md)
 >
-> 色彩主題設定（app.config.ts、main.css）→ 詳見 [phase-1-theme.md](../scripts/phase-1-theme.md)
+> 色彩主題設定（app.config.ts、main.css）→ 詳見 [phase-1-theme.md](phase-1-theme.md)
 
 ---
 

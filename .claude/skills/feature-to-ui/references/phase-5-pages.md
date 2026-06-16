@@ -153,7 +153,7 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
    - **讀取 Pinia store 原始碼**（若頁面需要）：確認 store 提供的方法和屬性
 3. **⚠️ 實作前對照表（必須在寫 code 之前輸出！）**
    - 從 spec 的 `test.describe` / `test()` 標題提取 Scenario 清單
-   - 比對 spec 互動模式 → UI 元件（**必須**查 [page-builder.md](../references/page-builder.md) Command 對照表）
+   - 比對 spec 互動模式 → UI 元件（**必須**查 [page-builder.md](page-builder.md) Command 對照表）
    - 產出「Spec → UI 對照表」，格式如下：
 
    ```
@@ -250,7 +250,7 @@ Scenario 覆蓋：
 
 ## 頁面實作範本
 
-詳見 [page-builder.md](../references/page-builder.md)
+詳見 [page-builder.md](page-builder.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # 元件規範（Phase 5 使用參考）
 
 > **本檔用途**：Phase 5 實作頁面時，查閱「如何使用」共用元件的範例與規則。
-> **元件原始碼**（props、slots、events 定義）→ 詳見 [phase-4-components.md](../scripts/phase-4-components.md)
+> **元件原始碼**（props、slots、events 定義）→ 詳見 [phase-4-components.md](phase-4-components.md)
 > Nuxt UI 類型規範、API 規範、配色策略 → 詳見 [rules.md](rules.md)
 
 ## 表單元件
@@ -190,7 +190,7 @@ const totalItems = computed(() => items.value.length)
 
 ## Layout 配合須知
 
-> Layout 完整程式碼與結構 → 詳見 [phase-3-layout.md](../scripts/phase-3-layout.md)
+> Layout 完整程式碼與結構 → 詳見 [phase-3-layout.md](phase-3-layout.md)
 > Layout 規範（Sidebar 必備功能、Mobile Top Bar）→ 詳見 [rules.md](rules.md) > Layout 規範
 
 頁面在 `<main class="flex min-h-0 flex-1 flex-col overflow-auto p-6">` 內渲染，注意：

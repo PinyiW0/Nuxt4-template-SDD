@@ -1,7 +1,7 @@
 # Phase 4: 共用元件（元件原始碼）
 
 > **本檔用途**：Phase 4 建置元件時的原始碼範本。
-> **使用方式與規則**（Phase 5 參考）→ 詳見 [components.md](../references/components.md)
+> **使用方式與規則**（Phase 5 參考）→ 詳見 [components.md](components.md)
 
 ## 必讀規範
 

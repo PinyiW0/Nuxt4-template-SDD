@@ -179,7 +179,7 @@ const heatMapPoints = computed<HeatMapPoint[]>(() => analysis.value?.heat_map_da
 
 ---
 
-> **Server API 類型規範和 Mock API 回傳慣例已移至 `/feature-to-api` 的 [rules.md](../feature-to-api/rules.md)**。
+> **Server API 類型規範和 Mock API 回傳慣例已移至 `/feature-to-api` 的 [rules.md](../../feature-to-api/references/rules.md)**。
 
 ---
 
@@ -221,6 +221,97 @@ npm run typelint                  # TypeCheck 型別檢查（nuxi typecheck）
 
 - 有錯誤 → 修復後重新執行，直到全部通過
 - **三項全部通過才可向用戶輸出確認格式**
+
+---
+
+## Business Invariant 文字 `[P5]`
+
+`test/e2e/specs/*.spec.ts` 內 `getByText(...)`、`toContainText(...)` 取出的字串是 **Business Invariant 落點**。UI 與 spec **必須引用同一份字串來源**，避免 runtime 漂移。
+
+### 首選方案：typed invariant constants
+
+優先使用集中常數檔，UI 與 spec 同 import：
+
+```typescript
+// 常數檔（位置與結構見 /feature-to-api 的 invariants.md）
+export const {GROUP} = {
+  {STATE_KEY}: '{invariant text}',
+} as const
+
+// UI template
+<script setup>
+import { {GROUP} } from '~/constants/invariants'
+</script>
+<span>{{ {GROUP}.{STATE_KEY} }}</span>
+
+// spec.ts
+import { {GROUP} } from '~/constants/invariants'
+await expect(row).toContainText({GROUP}.{STATE_KEY})
+```
+
+**為什麼**：TypeScript 編譯期保證 UI 與 spec 對齊，文字漂移從 runtime 紅燈降為 compile-time 錯誤。vibe iteration 改錯字會被 TS 立刻擋，不需跑 playwright。
+
+**規範細節**：見 [`/feature-to-api` 的 invariants.md](../../feature-to-api/references/invariants.md)。
+
+### Fallback：未遷移到常數時的 hardcode 規則
+
+若某段 invariant 文字尚未遷移到常數，UI 直接 hardcode 字面字串時必須遵守：
+
+#### 禁止行為
+
+| ❌ 禁止 | 例 |
+|--------|------|
+| 翻譯成其他語言 | `{invariant}` →（譯文）|
+| 同義詞替換 | `{invariant}` →（同義詞 1）（同義詞 2）|
+| 純 icon 替代（無文字） | icon + 無文字 |
+| 拆字加裝飾 | `{invariant}` → `{部分 1}` + icon + `{部分 2}` |
+
+#### 允許的並存方案
+
+icon 與文字並排，或 icon + `<span class="sr-only">` 保留文字給 screen reader 與 spec：
+
+```vue
+<!-- [X] 純 icon 表達狀態 -->
+<UIcon name="..." />
+
+<!-- [X] 翻譯 / 同義詞 -->
+<span>{translated or synonym}</span>
+
+<!-- [O] icon + 文字併排 -->
+<div class="flex items-center gap-1">
+  <UIcon name="..." />
+  <span>{INVARIANT_TEXT}</span>
+</div>
+
+<!-- [O] icon-only 視覺，但保留 a11y 文字 -->
+<button>
+  <UIcon name="..." />
+  <span class="sr-only">{INVARIANT_TEXT}</span>
+</button>
+```
+
+#### regex 同義詞集合的選擇規則
+
+若 spec assertion 是 regex 同義詞集合（`/A|B|C/`），代表 UI 端尚未統一——應**優先收斂為單一字串並遷移到常數**。
+過渡期若仍 hardcode，UI **必須挑其中一個固定字串寫死全頁**，不可同頁混用。
+
+### 改字流程
+
+修改任一 invariant 文字 = 修改業務合約。**必須走**：
+
+1. 改 `.flow.md` 的 Business Invariants 文字
+2. 改 invariants 常數檔（如已遷移）
+3. 重跑 `/test e2e spec` 重生對應 spec
+4. 才能改 UI 引用
+
+**禁止**：
+- 直接改 UI 不動 spec / 常數 → 主 spec 紅燈
+- 直接改 spec → 違反 SSOT 凍結
+- regex 集合加 `/A|B/` 兩邊收 → 污染
+
+### 來源權威
+
+`.spec.ts` 與 invariants 常數檔互為 SSOT（同 import 同字串）。`.flow.md` Business Invariants 段為**人類可讀的合約定義**，spec 與常數實作之。
 
 ---
 
