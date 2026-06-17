@@ -30,7 +30,7 @@ argument-hint: "[feature 名(選填)]"
 > 兩模式共用本 SKILL 的流程與 [checks.md](references/checks.md),差別只在安全深度與輸出。
 > pr 模式入口:`.github/workflows/sdd-review.yml`(PR 對 `app/**`、`server/**` 改動時觸發)。
 > Phase 1 只留言不自動改 code;自動修+push(僅框架慣例、安全永遠只留言)留待 Phase 2。
-> 需在 repo Secrets 設定 `ANTHROPIC_API_KEY`。
+> 認證用 Claude 訂閱:本機跑 `claude setup-token`,把 token 存進 repo Secrets 的 `CLAUDE_CODE_OAUTH_TOKEN`(不另花 API 費用)。
 
 ## 3. 流程(local 模式)
 

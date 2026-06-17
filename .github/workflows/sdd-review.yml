@@ -26,7 +26,9 @@ jobs:
       - name: Run SDD Review
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # 用 Claude 訂閱（Max/Pro）的 OAuth token，不另外花 API 費用
+          # token 由本機 `claude setup-token` 產生，存進 repo Secrets
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # 直接複用既有的 /sdd-review skill（pr 模式：完整推敲 authz / 敏感資料）
           prompt: |
             這是 PR 自動審查。對本次 PR 的 diff 執行 /sdd-review（pr 模式）：
