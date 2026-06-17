@@ -25,9 +25,12 @@ argument-hint: "[feature 名(選填)]"
 | 模式 | 狀態 | 觸發 | 輸出 | 安全深度 |
 |------|------|------|------|----------|
 | local | 現行 | 手動 `/sdd-review` | 終端報告 | 輕量(動 `server/` 才點出可疑處) |
-| pr | 規劃中 | GitHub Action(PR 事件) | PR 留言 | 完整(推敲 authz / 敏感資料) |
+| pr | Phase 1 | GitHub Action(PR 事件) | PR 留言 | 完整(推敲 authz / 敏感資料) |
 
-> 目前僅實作 local 模式;pr 模式之後以 `.github/workflows/` 搭配 headless 觸發再加。
+> 兩模式共用本 SKILL 的流程與 [checks.md](references/checks.md),差別只在安全深度與輸出。
+> pr 模式入口:`.github/workflows/sdd-review.yml`(PR 對 `app/**`、`server/**` 改動時觸發)。
+> Phase 1 只留言不自動改 code;自動修+push(僅框架慣例、安全永遠只留言)留待 Phase 2。
+> 需在 repo Secrets 設定 `ANTHROPIC_API_KEY`。
 
 ## 3. 流程(local 模式)
 
