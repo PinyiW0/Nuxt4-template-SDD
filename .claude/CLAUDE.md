@@ -10,6 +10,21 @@
 
 ---
 
+## 框架知識 Skill 與裁決
+
+已安裝 Anthony Fu 的 `vue` / `nuxt` / `pinia` skill（`.claude/skills/`），寫對應程式碼時會自動觸發，提供框架正確語法與踩坑提醒。與本專案慣例衝突時，**一律以下列裁決為準**：
+
+- **Pinia store 採 `@pinia/nuxt` 預設 auto-import** — `app/stores/` 下的 store 直接使用、不需手動 import（與 `pinia` skill 一致）
+- **本專案是 Nuxt 4** — `nuxt` skill 基於 3.x（整體相容），目錄結構與設定以 Nuxt 4 官方為準
+  - data fetching 兩處需注意：`useFetch`/`useAsyncData` 的 `data` 是 `shallowRef`（深層 mutate 不觸發響應、預設值 `undefined`）；`immediate: false` 時初始 `status` 是 `'idle'` 非 `'pending'`
+
+> 維持與官方同步：
+> - 升級框架 major/minor 時，重跑 `npx skills add antfu/skills --skill=vue --skill=nuxt --skill=pinia` 重抓快照
+> - 定期回查 antfu 是否已出 **Nuxt 4** 版 skill（目前上游仍為 3.x），有則直接替換以消除版本落差
+> - 已對齊：vue skill(3.5) ↔ vue 3.5.x、pinia skill(3.0.4) ↔ pinia 3.0.x；唯 nuxt 落後一個 major
+
+---
+
 ## SDD 工作流程
 
 Spec-Driven Development：從 Feature 規格驅動開發。
@@ -60,6 +75,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 | `/vibe-setup` | UI 分層 — 將 vibe diff 分類為 visual / 互動 / 結構，並標記測試 pattern | `/vibe-check` 綠燈 |
 | `/vibe-e2e` | 依 pattern 自動生成 `test/e2e/vibe/*.spec.ts`（keep，進守門）並跑，時序敏感產到 `vibe/unstable/` | `/vibe-check` 綠燈 |
 | `/nuxt-ui` | 載入 NuxtUI 官方文檔 | 無 |
+| `/sdd-review` | 手動審查 git diff 的框架語意慣例與邏輯安全（只查 eslint/typecheck/測試漏網的死角） | 有 .vue/store/server 程式碼改動 |
 
 ---
 
