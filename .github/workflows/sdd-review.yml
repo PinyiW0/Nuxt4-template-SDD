@@ -11,9 +11,11 @@ on:
   workflow_dispatch:
 
 # 只給留言所需權限；不開 contents: write，故無 commit loop 風險（Phase 2 才需要）
+# id-token: write 是 claude-code-action 用 OIDC 換取 GitHub token 的必要權限
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 jobs:
   sdd-review:
