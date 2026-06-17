@@ -40,4 +40,5 @@ jobs:
             - 安全類（authz / 敏感資料外洩）完整推敲，一律列「必修」
             把報告（必修 / 建議 / 通過 + Verdict）以一則 PR 留言輸出。
             沒有 finding 時只回「全部通過」，不為湊報告硬找問題。
-          claude_args: '--allowed-tools "Read,Grep,Glob,Bash(git diff:*)"'
+          # mcp__github_comment__update_claude_comment：放行留言工具，否則審查報告產得出來卻發不出去
+          claude_args: '--allowed-tools "Read,Grep,Glob,Bash(git diff:*),mcp__github_comment__update_claude_comment"'
