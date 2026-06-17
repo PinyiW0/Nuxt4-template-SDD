@@ -43,18 +43,6 @@ if [ "$need_test" -eq 0 ]; then
   exit 0
 fi
 
-# 模板初始階段可能還沒任何 gate 測試檔（SDD 流程尚未產出 spec）。
-# Playwright 對「No tests found」會回非 0，會誤擋 push；
-# 故先確認 gate 範圍內（specs/、vibe/，排除 vibe/unstable/）有測試檔，
-# 沒有則印警告並視為通過 —— 等之後產出 spec，gate 才真正生效。
-# 注意：目錄不存在時 find 回非 0，sh -e 會觸發 errexit，故加 || true（同上方 grep）
-gate_specs=$(find test/e2e/specs test/e2e/vibe -name '*.spec.ts' -not -path '*/vibe/unstable/*' 2>/dev/null || true)
-if [ -z "$gate_specs" ]; then
-  echo "⚠️  尚無 gate 測試檔（test/e2e/specs｜vibe/*.spec.ts）→ 跳過 gate spec。"
-  echo "   （SDD 流程產出 spec 後，此 gate 才會真正守。）"
-  exit 0
-fi
-
 # 清掉測試專用 port 3100 的殘留程序（前次測試被中斷沒殺乾淨時，
 # reuseExistingServer: false 會因 port 被占而 fail-fast，先清保平安）
 lsof -ti:3100 2>/dev/null | xargs kill 2>/dev/null || true
