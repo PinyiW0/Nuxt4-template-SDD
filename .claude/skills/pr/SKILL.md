@@ -46,7 +46,13 @@ git log main..HEAD --oneline      # 本分支所有 commit
 git diff main...HEAD --stat        # 變更檔案總覽
 ```
 
-從分支名解析 issue 編號（如 `feature/#2-...` → `#2`），供內文參考。
+從分支名解析 issue 編號（如 `feature/#2-...` → `#2`）。
+
+**解析到編號時，內文結尾固定補一行 `Closes #<編號>`** —— PR 合併進 `main` 時 GitHub 會自動關閉該 issue，不必再手動關。不論內文用 PR 模板或內建三段式，都在最後補這行。注意：
+
+- 關鍵字須**獨立成行、緊接編號**才生效（寫進清單項或被其他字包住會失效）。
+- 跨 repo 的 issue 用 `owner/repo#<編號>`。
+- 分支名沒有編號 → 略過這行，不硬湊。
 
 ### 3. 產生標題 + 內文草案（全繁中）
 
@@ -66,7 +72,11 @@ git diff main...HEAD --stat        # 變更檔案總覽
 
 ## 測試
 - <如何驗證；本專案 CI 自動跑 build + eslint + sdd-review>
+
+Closes #<編號>
 ```
+
+> 末行 `Closes #<編號>` 僅在分支名解析得到 issue 編號時加；沒有就拿掉。
 
 ### 4. 內文精簡易讀守則（重點）
 
@@ -106,6 +116,8 @@ Pull Request，提升整體開發體驗與工作流程效率。
 
 ## 測試
 CI 自動跑 build + eslint + sdd-review。
+
+Closes #2
 ```
 
 ### 5. 先出草案 → 等確認 → 才執行
