@@ -76,7 +76,7 @@ api_contract:
   ...
 ```
 
-> ⚠️ **產出永遠是相對 path**：若偵測來源含絕對 URL（如 `https://host/v1`），只取 path 段（`/v1`），host / port / protocol 全部丟棄。Domain 由 env (`NUXT_PUBLIC_BASE_API_URL`) 在 runtime 注入。
+> ⚠️ **產出永遠是相對 path**：若偵測來源含絕對 URL（如 `https://host/v1`），只取 path 段（`/v1`），host / port / protocol 全部丟棄。Domain 由 env (`NUXT_PUBLIC_API_BASE`) 在 runtime 注入。
 
 ---
 
@@ -313,7 +313,7 @@ enabled_features:
 # API 合約規格
 api_contract:
   # API path 前綴（由 Phase 0「Path 前綴偵測」產生，各專案不同）
-  # - 普世原則：產出永遠是相對 path；domain 由 env (NUXT_PUBLIC_BASE_API_URL) runtime 注入
+  # - 普世原則：產出永遠是相對 path；domain 由 env (NUXT_PUBLIC_API_BASE) runtime 注入
   # - 範例：/api/v1、/v1、/api、/api/v2024-01、'' (空字串皆合法)
   # - 鎖定原則：一旦寫入，後續執行不重抽；SoT 模式切換時不變
   path_prefix: /api/v1

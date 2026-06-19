@@ -146,7 +146,7 @@ catch (e: any) {
 >
 > - `app/api/*.ts`、`server/api/**/*.ts`、`route-map.yaml` 的 `path:`、type 註解內的 endpoint 範例 ——**一律寫相對 path**
 > - **絕不寫絕對 URL**：產出檔案中不得出現 `http://`、`https://`、host name、port
-> - Runtime domain 由 env (`NUXT_PUBLIC_BASE_API_URL`) 注入 `runtimeConfig.public.baseApiUrl`，`app/composables/useHttp.ts` 自動套上 baseURL
+> - Runtime domain 由 env (`NUXT_PUBLIC_API_BASE`) 注入 `runtimeConfig.public.apiBase`，`app/composables/useHttp.ts` 自動套上 baseURL
 > - 若 OpenAPI `servers.url` 含絕對 URL（例：`https://api.example.com/v1`），**只取其 path 段**（`/v1`）作為前綴，host / port / protocol 全部丟棄
 > - 換 domain = 改 `.env.production` 一行；spec、型別、產出程式碼**完全不動**
 
