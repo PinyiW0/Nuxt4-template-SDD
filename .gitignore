@@ -26,6 +26,9 @@ logs
 # .env.*
 # !.env.example
 
+# Nuxt test-utils 自動產生的 setup 標記
+.nuxtrc
+
 # husky
 .husky/_/
 
