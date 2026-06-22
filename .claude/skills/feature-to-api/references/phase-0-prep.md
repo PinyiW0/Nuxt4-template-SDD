@@ -80,6 +80,21 @@ api_contract:
 
 ---
 
+## Auth 偵測（兩種模式皆執行，先做）
+
+> SDD workflow 對 auth 中立——**偵測到才走**，無訊號的專案完全不生 auth。詳見 [auth-scaffold.md](auth-scaffold.md)。
+
+grep 來源訊號（命中任一即「需要 auth」）：
+
+- OpenAPI：`paths` 同時含 `/auth/login` 與 `/auth/refresh`；或 `securitySchemes` 有 bearer
+- `.feature` / `.flow.md`：有登入 scenario（登入 / login / 帳號+密碼 / 未登入導向）
+
+**偵測到 → 寫入 `route-map.yaml > auth` 區塊**（`required: true` + `login_path` / `home_path` / `public_paths`（含 login）/ `token_endpoints`，格式見 auth-scaffold.md §2），並依 auth-scaffold.md §3 從 `assets/auth/` 套用 scaffold（含覆蓋 useHttp 為 auth 版、`nuxt.config` 追加 auth 路徑）。
+
+**沒偵測到 → route-map 不寫 auth 區塊、不套 scaffold。** Sync 模式下後來才出現 `/auth/*` 一樣補上（見 auth-scaffold.md §6）。
+
+---
+
 ## OpenAPI 模式執行步驟（api-spec.yml 存在時）
 
 1. **讀取 PM 設定**（同下方全量模式步驟 1）

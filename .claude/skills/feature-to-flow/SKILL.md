@@ -63,6 +63,8 @@ spec/gherkin-feature/*.feature（Given event / When command / Then event）
 ```
 
 > **`00-` 編號保留給 auth**（capability layer 首要分組，業界主流，見 [references/phase-0-plan.md](references/phase-0-plan.md) 第 2 段）。
+> **條件式**：僅在 feature 含登入需求（登入 / login / 帳號+密碼 / 未登入導向）時才產 `00-auth.flow.md`；
+> 純展示 / 無登入專案不產（編號保留即可）。auth 守門細節（白名單、未登入導向、防迴圈）由 feature-to-api 的 [auth-scaffold.md](../feature-to-api/references/auth-scaffold.md) 處理。
 >
 > 編號必須穩定。Sync 模式（已存在編號）時保留原編號，只在新增模組時往後遞增；不可重排既有編號，否則 `/test e2e` 的 spec 對應會錯位。
 
