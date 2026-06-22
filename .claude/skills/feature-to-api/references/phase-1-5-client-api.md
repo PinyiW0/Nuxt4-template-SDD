@@ -27,7 +27,7 @@ Sync 模式額外讀取：
 
 ## 統一 HTTP 入口（單一 useHttp）
 
-所有 client 呼叫只走一個 composable —— `useHttp()`，共用 `runtimeConfig.public.apiBase` 這個 domain。path 替換、baseURL 由 `useHttp` 內部統一處理，無副作用（本模板不含 auth / 401 / envelope）。
+所有 client 呼叫只走一個 composable —— `useHttp()`，共用 `runtimeConfig.public.apiBase` 這個 domain。path 替換、baseURL、envelope 拆封由 `useHttp` 內部統一處理（envelope 預設拆、`apiEnvelope=false` 可關；本模板尚不含 auth / 401，由 auth scaffold 偵測到登入需求時注入）。
 
 ```
 useHttp().get        ← page 層用，useFetch，SSR-friendly，reactive url，回 AsyncData
@@ -111,6 +111,11 @@ export function getPracticeDetail(
   )
 }
 ```
+
+> 💡 **資料新鮮度**：`get()` 回傳的是 `AsyncData`，本來就帶 `refresh`。頁面需要「寫入後刷新」時，
+> 解構出 `refresh` 即可（`const { data, refresh } = listTeams({ key: 'teams' })`），寫入成功後 `await refresh()`。
+> 跨元件刷新傳穩定 `key` 並用 `refreshNuxtData(key)`。詳見 feature-to-ui `page-builder.md` 的「資料新鮮度」段。
+> client function **不需**自己包刷新邏輯——保持薄包裝，刷新由呼叫端（page）決定時機。
 
 ### POST 建立
 
