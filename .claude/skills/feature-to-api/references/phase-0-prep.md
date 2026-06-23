@@ -89,7 +89,7 @@ grep 來源訊號（命中任一即「需要 auth」）：
 - OpenAPI：`paths` 同時含 `/auth/login` 與 `/auth/refresh`；或 `securitySchemes` 有 bearer
 - `.feature` / `.flow.md`：有登入 scenario（登入 / login / 帳號+密碼 / 未登入導向）
 
-**偵測到 → 寫入 `route-map.yaml > auth` 區塊**（`required: true` + `login_path` / `home_path` / `public_paths`（含 login）/ `token_endpoints`，格式見 auth-scaffold.md §2），並依 auth-scaffold.md §3 從 `assets/auth/` 套用 scaffold（含覆蓋 useHttp 為 auth 版、`nuxt.config` 追加 auth 路徑）。
+**偵測到 → 寫入 `route-map.yaml > auth` 區塊**（`required: true` + `login_path` / `home_path` / `public_paths`（含 login）/ `token_endpoints`，格式見 auth-scaffold.md §2），並依 auth-scaffold.md §3a 套用 API 層範本（提供 `useHttpAuth` handler 即啟用攔截，**useHttp.ts 不覆蓋**；`nuxt.config` 追加 auth 路徑）。
 
 **沒偵測到 → route-map 不寫 auth 區塊、不套 scaffold。** Sync 模式下後來才出現 `/auth/*` 一樣補上（見 auth-scaffold.md §6）。
 

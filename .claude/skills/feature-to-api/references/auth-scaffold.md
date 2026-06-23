@@ -46,7 +46,7 @@ auth:
 | 檔案 | 範本位置 | 套用者 | 說明 |
 |---|---|---|---|
 | `app/types/api/auth.ts` | §3a | feature-to-api | TokenPairData / LoginBody / MeResponse… |
-| `app/composables/useHttp.ts` | §3a | feature-to-api | **覆蓋**中立版：envelope 超集 + Authorization + 401→refresh→retry + `handleUnauthorized` |
+| `app/composables/useHttpAuth.ts` | §3a | feature-to-api | **覆蓋**中立 stub（回 null）→ 從 store + force-logout 組 handler。**useHttp.ts 不動**（已內建 Authorization / 401→refresh→retry 注入點） |
 | `app/stores/auth.ts` | §3a | feature-to-api | single-flight refresh、cookie persist、login/logout/clearAuth |
 | `app/utils/force-logout.ts` | §3a | feature-to-api | **冪等單飛**登出出口（防並發導頁，§4） |
 | `app/api/auth.api.ts` | §3a | feature-to-api | 登入/refresh/logout/me，全 `handleUnauthorized:false` |
@@ -86,163 +86,28 @@ export interface MeResponse {
 ```
 
 ```ts
-// app/composables/useHttp.ts —— auth 版，覆蓋中立 envelope 版（envelope 超集 + Authorization + 401→refresh→retry）
-import type { AsyncData, UseFetchOptions } from 'nuxt/app'
-import type { FetchContext, FetchError, FetchOptions } from 'ofetch'
-import type { MaybeRefOrGetter } from 'vue'
+// app/composables/useHttpAuth.ts —— auth 版，覆蓋中立 stub（從 store + force-logout 組出 handler）
+// 重點：useHttp.ts **不覆蓋**——中立版已內建 auth 注入點（Authorization / 401→refresh→retry），
+//       只要本檔回傳真實 handler 即啟用。envelope / get / request 核心維持單一編譯來源，不複製。
 import { useAuthStore } from '~/stores/auth'
 import { forceLogout } from '~/utils/force-logout'
 
-export type PathParams = Record<string, string | number>
-
-export type HttpGetOptions<T> = Omit<UseFetchOptions<T>, 'baseURL' | 'method'> & {
-  pathParams?: PathParams
-  handleUnauthorized?: boolean // 401 是否自動 refresh→retry→（失敗）登出；登入/refresh 端點設 false
-}
-export type HttpRequestOptions = Omit<FetchOptions, 'baseURL' | 'method'> & {
-  pathParams?: PathParams
-  handleUnauthorized?: boolean
+export interface HttpAuthHandler {
+  // 目前 access token（無則回 null）→ useHttp 用來帶 Authorization
+  getToken: () => string | null
+  // 401 時換發 token，回傳是否成功（成功則 retry 原請求）
+  refresh: () => Promise<boolean>
+  // refresh 失敗 / retry 仍 401 → 冪等登出出口（並發 401 只導一次，§4 第 1 道）
+  forceLogout: () => Promise<void>
 }
 
-type ImperativeMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-
-const colonParam = /:(\w+)/g
-const braceParam = /\{(\w+)\}/g
-
-function withPathParams(url: string, params?: PathParams): string {
-  if (!params)
-    return url
-  return url
-    .replace(colonParam, (match, key: string) =>
-      key in params ? encodeURIComponent(String(params[key])) : match)
-    .replace(braceParam, (match, key: string) =>
-      key in params ? encodeURIComponent(String(params[key])) : match)
-}
-
-// ---- Envelope 拆封（同中立版）----
-function isJsonResponse(response: { headers?: Headers }): boolean {
-  return (response.headers?.get?.('content-type') ?? '').includes('application/json')
-}
-function isSuccessEnvelope(body: unknown): body is { success: true, data: unknown, meta?: unknown } {
-  if (!body || typeof body !== 'object')
-    return false
-  const obj = body as Record<string, unknown>
-  return obj.success === true && 'data' in obj
-}
-function isPaginatedData(data: unknown): data is { items: unknown[] } {
-  return !!data && typeof data === 'object' && !Array.isArray(data)
-    && Array.isArray((data as Record<string, unknown>).items)
-}
-function unwrapEnvelope(response: { _data?: unknown, headers?: Headers }): void {
-  if (!isJsonResponse(response))
-    return
-  const body = response._data
-  if (!isSuccessEnvelope(body))
-    return
-  response._data = isPaginatedData(body.data) ? body.data.items : body.data
-  if ('meta' in body) {
-    ;(response as { _meta?: unknown })._meta = body.meta
-  }
-}
-
-function isUnauthorized(error: unknown): boolean {
-  const e = error as FetchError | undefined
-  return e?.response?.status === 401 || e?.statusCode === 401
-}
-
-export function useHttp() {
-  const config = useRuntimeConfig().public
-  const baseURL = config.apiBase
-  const envelopeEnabled = config.apiEnvelope !== false
+export function useHttpAuth(): HttpAuthHandler | null {
   const authStore = useAuthStore()
-  // 首次 await 後 SSR context 會遺失 → 先抓 nuxtApp，hook/catch 內 runWithContext 還原
   const nuxtApp = useNuxtApp()
-
-  function bearer(): string {
-    return authStore.token ? `Bearer ${authStore.token}` : ''
-  }
-  function withUnwrap(
-    userHook: ((ctx: FetchContext) => unknown) | ((ctx: FetchContext) => unknown)[] | undefined,
-  ) {
-    return async (ctx: FetchContext) => {
-      if (Array.isArray(userHook)) {
-        for (const hook of userHook) await hook(ctx)
-      }
-      else if (typeof userHook === 'function') {
-        await userHook(ctx)
-      }
-      if (envelopeEnabled && ctx.response)
-        unwrapEnvelope(ctx.response)
-    }
-  }
-
-  function get<T>(url: MaybeRefOrGetter<string>, options?: HttpGetOptions<T>) {
-    const { pathParams, onResponse, handleUnauthorized = true, ...rest } = options ?? {}
-    return useFetch(() => withPathParams(toValue(url), pathParams), {
-      baseURL,
-      ...rest,
-      retry: handleUnauthorized ? 1 : 0,
-      retryStatusCodes: [401],
-      onRequest: (ctx: FetchContext) => {
-        ctx.options.headers.set('Authorization', bearer())
-      },
-      onResponse: withUnwrap(onResponse as Parameters<typeof withUnwrap>[0]),
-      onResponseError: async (ctx: FetchContext) => {
-        if (!handleUnauthorized || ctx.response?.status !== 401)
-          return
-        const remaining = (ctx.options as { retry?: number | false }).retry
-        if (remaining)
-          await nuxtApp.runWithContext(() => authStore.refresh())
-        else
-          await forceLogout(nuxtApp)
-      },
-    } as unknown as UseFetchOptions<unknown>) as AsyncData<T | undefined, FetchError | undefined>
-  }
-
-  function request<T>(method: ImperativeMethod, url: string, options?: HttpRequestOptions) {
-    const { pathParams, onResponse, handleUnauthorized = true, headers, ...rest } = options ?? {}
-    const finalUrl = withPathParams(url, pathParams)
-    const attempt = () =>
-      $fetch<T>(finalUrl, {
-        baseURL,
-        method,
-        ...rest,
-        headers: { ...(headers as Record<string, string> | undefined), Authorization: bearer() },
-        onResponse: withUnwrap(onResponse as Parameters<typeof withUnwrap>[0]),
-      })
-    if (!handleUnauthorized)
-      return attempt()
-    return (async () => {
-      try {
-        return await attempt()
-      }
-      catch (error) {
-        if (!isUnauthorized(error))
-          throw error
-        const refreshed = await nuxtApp.runWithContext(() => authStore.refresh())
-        if (refreshed) {
-          try {
-            return await attempt()
-          }
-          catch (retryError) {
-            if (isUnauthorized(retryError))
-              await forceLogout(nuxtApp)
-            throw retryError
-          }
-        }
-        await forceLogout(nuxtApp)
-        throw error
-      }
-    })()
-  }
-
   return {
-    get,
-    getOnce: <T>(url: string, options?: HttpRequestOptions) => request<T>('GET', url, options),
-    post: <T>(url: string, options?: HttpRequestOptions) => request<T>('POST', url, options),
-    put: <T>(url: string, options?: HttpRequestOptions) => request<T>('PUT', url, options),
-    patch: <T>(url: string, options?: HttpRequestOptions) => request<T>('PATCH', url, options),
-    delete: <T>(url: string, options?: HttpRequestOptions) => request<T>('DELETE', url, options),
+    getToken: () => authStore.token,
+    refresh: () => authStore.refresh(),
+    forceLogout: () => forceLogout(nuxtApp),
   }
 }
 ```
@@ -395,7 +260,11 @@ export function forceLogout(nuxtApp: NuxtApp): Promise<void> {
 ```ts
 // app/api/auth.api.ts —— auth 端點全 handleUnauthorized:false（防自身迴圈）
 import type {
-  LoginBody, LoginResponse, MeResponse, RefreshBody, RefreshResponse,
+  LoginBody,
+  LoginResponse,
+  MeResponse,
+  RefreshBody,
+  RefreshResponse,
 } from '~/types/api/auth'
 import { useHttp } from '~/composables/useHttp'
 
