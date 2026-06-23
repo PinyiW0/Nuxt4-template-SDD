@@ -20,6 +20,11 @@
 | **時間欄位後綴 `At`** | `createdAt`、`startedAt`、`deletedAt` |
 | **計數欄位後綴 `Count`** | `pitchCount`、`playerCount` |
 
+> ⚠️ **codegen 例外（OpenAPI 模式）**：上述 camelCase 規則管的是「**手寫 / Feature 推導**的型別」。
+> 由 `gen:api` 從 `api-spec.yml` **機器鏡像**的 `_schema.d.ts` 一律**忠實照 spec**，spec 是 snake_case
+> （如裝置 ingestion 的 `raw_traj`、`pitch_traj_Xc0`）就照 snake_case——契約以後端為準，不可改寫，
+> 改寫反而與真實後端漂移。view alias 直接沿用該欄名即可。詳見 [openapi-codegen.md](openapi-codegen.md) § 8。
+
 ### 型別名稱（interface name）
 
 | 用途 | 命名規則 | 範例 |
@@ -68,6 +73,18 @@ export interface TeamCreatedEvent {
   teamName: string
 }
 ```
+
+### 型別來源：手寫 interface vs codegen alias
+
+上表的「OpenAPI → TypeScript」對應有兩種落地方式，依模式決定：
+
+| 模式 | 底層型別 | view 型別 |
+|------|---------|----------|
+| **Feature 推導模式**（無 spec） | 無 | **手寫 interface**（依本節對應規則人工翻譯） |
+| **OpenAPI 模式**（`spec/api/api-spec.yml` 存在） | `npm run gen:api` 產 `_schema.d.ts`（機器產、不漂移） | **手寫 alias** 疊在 `_schema` 上：`export type TeamListItem = components['schemas']['TeamListItem']` |
+
+> 兩種模式的 **view 型別命名一致**（§ 1 的 Event / ListItem / Body / Detail），差別只在底層是「手抄」或「codegen」。
+> OpenAPI 模式詳見 [openapi-codegen.md](openapi-codegen.md)（含 alias、合約測試、Sync 重生 loop）。
 
 ---
 

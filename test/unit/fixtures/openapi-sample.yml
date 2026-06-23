@@ -1,0 +1,99 @@
+# codegen 合約測試用 fixture（envelope 後端：data 為具名 schema）
+# 對應 test/unit/codegen.spec.ts —— 驗證 openapi-typescript 工具鏈與「具名 data schema → 可 alias」慣例。
+# 注意：這是測試夾具，不是專案 SoT；真正的 SoT 是各專案的 spec/api/api-spec.yml。
+openapi: 3.0.3
+info:
+  title: Sample API（codegen fixture）
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /accounts:
+    get:
+      operationId: listAccounts
+      responses:
+        '200':
+          description: 帳號列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountListItem'
+    post:
+      operationId: createAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountCreatedEvent'
+  /accounts/{accountId}:
+    get:
+      operationId: getAccount
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 帳號詳情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDetail'
+components:
+  schemas:
+    AccountListItem:
+      type: object
+      required: [accountId, accountName, isActive]
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        accountName:
+          type: string
+        isActive:
+          type: boolean
+    AccountDetail:
+      type: object
+      required: [accountId, accountName, isActive, createdAt]
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        accountName:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        remark:
+          type: string
+          nullable: true
+    CreateAccountRequest:
+      type: object
+      required: [accountName]
+      properties:
+        accountName:
+          type: string
+    AccountCreatedEvent:
+      type: object
+      required: [accountId, accountName]
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        accountName:
+          type: string

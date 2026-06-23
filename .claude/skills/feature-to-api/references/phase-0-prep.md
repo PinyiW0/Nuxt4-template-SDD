@@ -9,6 +9,7 @@
 
 OpenAPI 模式必讀：
 - spec/api/api-spec.yml（SoT）
+- ../references/openapi-codegen.md（codegen 工具鏈 + view 型別 alias + 合約測試 + Sync loop）
 
 Feature 推導模式必讀：
 - spec/gherkin-feature/*.feature（所有 feature 檔）
@@ -99,11 +100,13 @@ grep 來源訊號（命中任一即「需要 auth」）：
 
 1. **讀取 PM 設定**（同下方全量模式步驟 1）
 2. **讀取 OpenAPI**：`spec/api/api-spec.yml`
-3. **派生 types**：每個 `components/schemas/*` → 對應 TS interface
-   - 依語意分組到 `app/types/api/{resource}.ts`（一個資源一檔）
-   - 同資源的 `XxxCreatedEvent` / `XxxListItem` / `XxxBody` 放同檔
-   - 命名、null、enum 處理嚴格遵守 `openapi-conventions.md` § 2
-   - 建立 `app/types/api/index.ts` 統一 re-export
+3. **codegen 重生底層型別**（OpenAPI 模式專用，取代逐欄手抄 YAML → TS）：
+   - 跑 `npm run gen:api` → 產 `app/types/api/_schema.d.ts`（機器產、進版控、**不手改**）
+   - 從 `_schema` 的具名 schema **派生 view 型別 alias** 到 `app/types/api/{resource}.ts`（一個資源一檔）：
+     `export type AccountListItem = components['schemas']['AccountListItem']`
+   - 同資源的 `XxxCreatedEvent` / `XxxListItem` / `XxxBody` 放同檔；view 命名照 `openapi-conventions.md` § 1
+   - null / enum / 具名 schema 對應由 codegen 處理；view 命名語意由 alias 補（見 `openapi-codegen.md` § 4）
+   - 建立 `app/types/api/index.ts` 統一 re-export（re-export view 型別，**不 re-export `_schema`**）
 4. **派生端點規格**：每個 `paths/*/{method}` → `endpoints` 條目
    - 路徑、method、request/response schema 引用全照抄
    - 不要自加分頁（除非 spec 有 `parameters`）
@@ -119,9 +122,11 @@ grep 來源訊號（命中任一即「需要 auth」）：
      error: 'throw createError({ statusCode, statusMessage })'
    ```
 6. **產出前自檢**：
+   - □ `app/types/api/_schema.d.ts` 由 `gen:api` 產、未手改（檔頭 `Do not make direct changes`）
+   - □ view 型別是 `_schema` 的 alias，`index.ts` 未 re-export `_schema`
    - □ `api_contract.path_prefix` 已寫入（值來自「Path 前綴偵測」）
    - □ 所有 `endpoints[*].path` 都以 `path_prefix` 開頭，且為相對 path（無 `http://` / host）
-   - □ types 數量與 `components/schemas` 一致
+   - □ view 型別涵蓋所有端點用到的 `components/schemas`
    - □ endpoints 數量與 `paths` 一致（method 維度）
    - □ 全欄位 camelCase
    - □ 無 `{ status, data }` 包裝

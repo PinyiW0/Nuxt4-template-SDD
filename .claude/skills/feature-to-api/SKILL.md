@@ -50,7 +50,7 @@ Phase 0 開始前先判斷：
 
 | 條件 | 模式 | 行為 |
 |------|------|------|
-| `spec/api/api-spec.yml` **存在** | **OpenAPI 模式** | 以它為 SoT；types 1:1 對應 `components/schemas`、endpoints 1:1 對應 `paths`；`.feature` 僅供 BDD 測試比對 |
+| `spec/api/api-spec.yml` **存在** | **OpenAPI 模式** | 以它為 SoT；`npm run gen:api` 產底層 `_schema.d.ts`、view 型別 alias 疊其上（見 [openapi-codegen.md](references/openapi-codegen.md)）、endpoints 1:1 對應 `paths`；`.feature` 僅供 BDD 測試比對 |
 | 僅有 `.feature`（無 OpenAPI） | **Feature 推導模式** | 從 `.feature` 推欄位 + 端點；**輸出格式仍嚴格遵守 [openapi-conventions.md](references/openapi-conventions.md)**（camelCase、直接回 schema、Event/ListItem 命名等） |
 
 > ⚠️ **永遠不要產出 snake_case 欄位或 `{ status, data }` 包裝**——即使在 Feature 推導模式下，產出格式也必須對齊 OpenAPI 慣例，這樣未來補上 `api-spec.yml` 是「換 SoT 不換格式」，差異最小。
@@ -90,6 +90,7 @@ Phase 0 開始前先判斷：
 ### 核心規範
 
 - **[openapi-conventions.md](references/openapi-conventions.md)** ⭐ - 輸出格式法典（命名、回應、錯誤、HTTP code），不論輸入來源都要遵守
+- **[openapi-codegen.md](references/openapi-codegen.md)** - OpenAPI 模式專用：`gen:api` 工具鏈 + view 型別 alias + 合約測試 + Sync 重生 loop（Feature 推導模式不適用）
 - **[auth-scaffold.md](references/auth-scaffold.md)** - 條件式登入守門（偵測到 `/auth/*` 才套用；SSOT + API 層範本內嵌，UI 層範本在 feature-to-ui；含防導向迴圈六道）
 - **[rules.md](references/rules.md)** - Server API 類型規範
 - **[invariants.md](references/invariants.md)** - Business Invariant Constants 規範（UI / spec 共用的 typed 文字常數，強建議）

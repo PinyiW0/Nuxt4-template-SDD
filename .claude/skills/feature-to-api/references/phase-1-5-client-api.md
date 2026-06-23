@@ -11,7 +11,7 @@
 ```
 僅需讀取：
 - ../references/openapi-conventions.md（命名、HTTP method、path 樣式）
-- app/types/api/*.ts（Phase 0 已建立，作為 function signature 來源）
+- app/types/api/*.ts（Phase 0 已建立，作為 function signature 來源；OpenAPI 模式下為 `_schema.d.ts` 的 view alias，見 ../references/openapi-codegen.md）
 - spec/report/route-map.yaml > api_contract.path_prefix
 - spec/report/route-map.yaml > api_contract.endpoints
 - app/composables/useHttp.ts（理解 useHttp().get / getOnce / post / put / patch / delete 的 options 形態，型別 HttpGetOptions / HttpRequestOptions）

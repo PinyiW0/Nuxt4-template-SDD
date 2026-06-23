@@ -43,6 +43,11 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 /test e2e green  → 修 UI 直到 spec 全過
 ```
 
+**spec 變更迭代流（OpenAPI 模式，後端更新 api-spec 時）**：手動置入新 `api-spec` →
+`/feature-to-api`（Sync，內含 `npm run gen:api` 重生型別 + `typelint` 紅燈修受影響呼叫端）→
+`/test e2e spec`（測試先行 → 紅）→ `/feature-to-ui`（Sync）→ `/test e2e green` →
+Gate 回歸（`playwright.gate.config.ts` 全綠）。詳見 `.claude/skills/feature-to-api/references/openapi-codegen.md`。
+
 ---
 
 ## Vibe UI 守則（v2）
