@@ -209,7 +209,7 @@ spec/api/api-spec.yml 變更
 | enum（`status`） | literal union（`'created'\|...`） | alias 自動繼承，填錯值 typelint 紅燈 |
 | OpenAPI 3.1 nullable（`type:[string,'null']`） | `string \| null` | 直接用 |
 | 巢狀子物件無自身 `$ref`（`PitchDetail.metrics`） | inline 匿名物件 | 整包 alias OK；要單獨用 → indexed access `PitchDetail['metrics']` |
-| 鬆散 `data: object`（SSE，prose 描述 discriminated） | `Record<string,never>` | codegen **產不出 union** → 手寫 discriminated union（`type` 欄位收斂），接 realtime skill |
+| 鬆散 `data: object`（SSE，prose 描述 discriminated） | `Record<string,never>` | codegen **產不出 union** → 手寫 discriminated union（`type` 欄位收斂）；實作見 `realtime` skill 的 [references/sse.md](../../realtime/references/sse.md) |
 | ingestion 契約 snake_case（`raw_traj`） | snake_case 欄位（**忠實鏡像**） | 照原樣 alias；**不要改 camelCase**（見 `openapi-conventions.md § 1` carve-out） |
 | 動作端點回裸 `SuccessEnvelope`（無 `data`） | envelope 無 data 欄位 | `useHttp` 不拆（無 data）→ client 回 `void` / 忽略 body |
 | content-negotiation（`application/json` + `text/csv`） | 各自型別 | CSV 走 `getOnce<Blob>` + `responseType:'blob'`；array query（`playerIds[]`）照常傳 |

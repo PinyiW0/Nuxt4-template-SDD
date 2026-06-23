@@ -96,6 +96,22 @@ grep 來源訊號（命中任一即「需要 auth」）：
 
 ---
 
+## Realtime 偵測（兩種模式皆執行，先做）
+
+> SDD workflow 對即時連線中立——**偵測到才提示**，無訊號的專案完全不碰。即時連線的實作知識（連線生命週期、重連補抓、auth token、cleanup、傳輸選型）由 `realtime` skill 提供。
+
+grep 來源訊號（命中任一即「有即時需求」）：
+
+- SSE：OpenAPI 有 `text/event-stream` content type、或 `/events`（含 `?channels=`）端點；`.feature`/`.flow.md` 有「即時 / 推播 / 通知 / live / 斷線重連」scenario
+- WebSocket：`wss://`、`ws://`、WebSocket 端點描述
+- WebRTC：`RTCPeerConnection`、signaling、datachannel
+
+**偵測到 → 寫入 `route-map.yaml > realtime` 區塊**（`transport: sse | websocket | webrtc-data`、`events`（端點路徑）、`event_types`（信封 `type` 列舉，供前端手寫 discriminated union））**並在報告提示「建議套用 `realtime` skill」**。SSE 信封的 `data` 多半是鬆散型別（codegen 給 `Record<string, never>`），型別語意由前端手寫 discriminated union 補（見 openapi-codegen.md §8、realtime/references/sse.md）。
+
+**沒偵測到 → route-map 不寫 realtime 區塊、不提示。** Sync 模式下後來才出現即時端點一樣補上。
+
+---
+
 ## OpenAPI 模式執行步驟（api-spec.yml 存在時）
 
 1. **讀取 PM 設定**（同下方全量模式步驟 1）
