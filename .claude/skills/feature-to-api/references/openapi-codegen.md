@@ -196,7 +196,30 @@ spec/api/api-spec.yml 變更
 
 ---
 
-## 8. 自我檢查清單（OpenAPI 模式產出前必跑）
+## 8. 真實後端形狀對照（cross-project 實測）
+
+拿生產級 spec（OpenAPI 3.1、envelope `allOf`、enum、分頁、巢狀、ingestion）dogfood 後的「形狀 → 消費 pattern」查表。
+**codegen 機械上全部都吃得下（會乾淨產型別）**；下表是「產出後前端怎麼接」的決策，多數靠 typelint 守。
+
+| 真實形狀 | codegen 產出 | view 型別怎麼接 |
+|---|---|---|
+| 回應具名 `$ref`（`AccountResponse`） | 具名 interface | `type Account = Schemas['AccountResponse']`（一行） |
+| request body 內聯（無 `$ref`） | 埋在 `paths[...]` | `paths['/x']['post']['requestBody']['content']['application/json']` 萃取，或手寫 |
+| 分頁 `data:{items:[]}`（泛型 envelope） | `items: Record<string,never>[]`（**無型別**） | alias **item 具名 schema**（`Schemas['TeamResponse']`），`useHttp` 攤平成 `T[]` |
+| enum（`status`） | literal union（`'created'\|...`） | alias 自動繼承，填錯值 typelint 紅燈 |
+| OpenAPI 3.1 nullable（`type:[string,'null']`） | `string \| null` | 直接用 |
+| 巢狀子物件無自身 `$ref`（`PitchDetail.metrics`） | inline 匿名物件 | 整包 alias OK；要單獨用 → indexed access `PitchDetail['metrics']` |
+| 鬆散 `data: object`（SSE，prose 描述 discriminated） | `Record<string,never>` | codegen **產不出 union** → 手寫 discriminated union（`type` 欄位收斂），接 realtime skill |
+| ingestion 契約 snake_case（`raw_traj`） | snake_case 欄位（**忠實鏡像**） | 照原樣 alias；**不要改 camelCase**（見 `openapi-conventions.md § 1` carve-out） |
+| 動作端點回裸 `SuccessEnvelope`（無 `data`） | envelope 無 data 欄位 | `useHttp` 不拆（無 data）→ client 回 `void` / 忽略 body |
+| content-negotiation（`application/json` + `text/csv`） | 各自型別 | CSV 走 `getOnce<Blob>` + `responseType:'blob'`；array query（`playerIds[]`）照常傳 |
+
+> 通則：**codegen 永遠忠實鏡像 spec**（含 snake_case、鬆散 object）。前端語意（命名、discriminated union、巢狀拆出）由「手寫 view 層」補；
+> 兩者分工 = 底層不漂移 + 上層可讀。哪個後端形狀都不會讓 codegen 失敗，只會改變「上層怎麼接」。
+
+---
+
+## 9. 自我檢查清單（OpenAPI 模式產出前必跑）
 
 - [ ] `_schema.d.ts` 由 `gen:api` 產、未手改、已進版控
 - [ ] view 型別是 `_schema` 的 alias，命名照 `openapi-conventions.md § 1`（Event / ListItem / Body / Detail）

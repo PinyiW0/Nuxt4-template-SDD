@@ -20,6 +20,11 @@
 | **時間欄位後綴 `At`** | `createdAt`、`startedAt`、`deletedAt` |
 | **計數欄位後綴 `Count`** | `pitchCount`、`playerCount` |
 
+> ⚠️ **codegen 例外（OpenAPI 模式）**：上述 camelCase 規則管的是「**手寫 / Feature 推導**的型別」。
+> 由 `gen:api` 從 `api-spec.yml` **機器鏡像**的 `_schema.d.ts` 一律**忠實照 spec**，spec 是 snake_case
+> （如裝置 ingestion 的 `raw_traj`、`pitch_traj_Xc0`）就照 snake_case——契約以後端為準，不可改寫，
+> 改寫反而與真實後端漂移。view alias 直接沿用該欄名即可。詳見 [openapi-codegen.md](openapi-codegen.md) § 8。
+
 ### 型別名稱（interface name）
 
 | 用途 | 命名規則 | 範例 |
