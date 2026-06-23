@@ -90,6 +90,7 @@ Phase 0 開始前先判斷：
 ### 核心規範
 
 - **[openapi-conventions.md](references/openapi-conventions.md)** ⭐ - 輸出格式法典（命名、回應、錯誤、HTTP code），不論輸入來源都要遵守
+- **[auth-scaffold.md](references/auth-scaffold.md)** - 條件式登入守門（偵測到 `/auth/*` 才套用；SSOT + API 層範本內嵌，UI 層範本在 feature-to-ui；含防導向迴圈六道）
 - **[rules.md](references/rules.md)** - Server API 類型規範
 - **[invariants.md](references/invariants.md)** - Business Invariant Constants 規範（UI / spec 共用的 typed 文字常數，強建議）
 - **references/phase-N-*.md** - 各 Phase 的執行步驟與模板

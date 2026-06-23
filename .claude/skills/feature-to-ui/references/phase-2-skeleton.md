@@ -58,12 +58,17 @@ Phase 2 增量更新完成
 ## 全量模式執行步驟
 
 1. **讀取路由規劃表**（`spec/report/route-map.yaml`）
-2. **檢查 `spec/e2e-flows/pages/` 是否存在 elements.md 檔案**
+2. **Auth gate（條件式）**：檢查 `route-map.yaml > auth`
+   - **無 `auth` 區塊** → 跳過，本專案不做登入守門
+   - **`auth.required: true`** → 確保 `app/middleware/auth.global.ts` 存在（範本見下方「Auth middleware 範本」）且 `authPublicPaths` 含 `login_path`，
+     並有 `app/pages/login.vue`（範本見 [page-builder.md](page-builder.md)「登入表單」）。API 層（useHttp auth 版 / store / auth.api / types / nuxt.config 追加）由 feature-to-api 依 [auth-scaffold.md](../../feature-to-api/references/auth-scaffold.md) §3a 套用。
+     **不可默默跳過**——缺守門要報錯補上。防迴圈六道與收尾 checklist 見 auth-scaffold.md §4 / §5。
+3. **檢查 `spec/e2e-flows/pages/` 是否存在 elements.md 檔案**
    - 存在 → 讀取對應頁面的 elements.md，提取 testid
    - 不存在 → 按命名規則定義 testid
-3. **根據路由規劃建立所有頁面空殼**（帶入 testid）
-4. **每個頁面只包含基本結構**
-5. **詢問用戶確認**
+4. **根據路由規劃建立所有頁面空殼**（帶入 testid）
+5. **每個頁面只包含基本結構**
+6. **詢問用戶確認**
 
 ## 頁面空殼範例
 
@@ -126,6 +131,57 @@ const teamId = computed(() => route.params.id)
     <p class="text-neutral-500">球隊詳情頁面 #{{ teamId }}（待實作）</p>
   </div>
 </template>
+```
+
+## Auth middleware 範本（僅 `route-map.auth.required` 時產出）
+
+> 防迴圈設計見 feature-to-api `references/auth-scaffold.md` §4。`login.vue` 範本見 [page-builder.md](page-builder.md)「登入表單」。
+
+```ts
+// app/middleware/auth.global.ts
+import { useAuthStore } from '~/stores/auth'
+
+const base64UrlDash = /-/g
+const base64UrlUnderscore = /_/g
+
+// 解析 JWT exp 判斷效期（不驗簽，僅 UX gate；真正驗證在後端）。解析失敗→視為可用，交給後端 401。
+function isJwtAlive(token: string): boolean {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload)
+      return true
+    const json = atob(payload.replace(base64UrlDash, '+').replace(base64UrlUnderscore, '/'))
+    const exp = (JSON.parse(json) as { exp?: number }).exp
+    return typeof exp !== 'number' || exp * 1000 > Date.now()
+  }
+  catch {
+    return true
+  }
+}
+
+export default defineNuxtRouteMiddleware((to) => {
+  const authStore = useAuthStore()
+  const { public: config } = useRuntimeConfig()
+  const loginPath = config.authLoginPath || '/login'
+  const homePath = config.authHomePath || '/'
+  const publicPaths: string[] = config.authPublicPaths?.length ? config.authPublicPaths : [loginPath]
+
+  const isPublic = publicPaths.some(p => to.path === p || to.path.startsWith(`${p}/`))
+
+  const accessAlive = !!authStore.token && !!authStore.accountId && isJwtAlive(authStore.token)
+  const refreshAlive
+    = !!authStore.refreshToken
+      && !!authStore.refreshExpiresAt
+      && new Date(authStore.refreshExpiresAt).getTime() > Date.now()
+  const sessionUsable = accessAlive || refreshAlive
+
+  // 未登入 + 非公開頁 → 導 login（公開頁含 login，故不會 /login → /login 自彈）
+  if (!sessionUsable && !isPublic)
+    return navigateTo(loginPath)
+  // 已登入卻在 login 頁 → 導回 home（never-nav-to-current 保護）
+  if (sessionUsable && to.path === loginPath && to.path !== homePath)
+    return navigateTo(homePath)
+})
 ```
 
 ## 輸出結構
