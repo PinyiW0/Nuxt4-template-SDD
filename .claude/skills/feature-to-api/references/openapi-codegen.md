@@ -54,30 +54,40 @@ npm run gen:api
 - PR 的 `_schema.d.ts` diff 本身就是「API 合約改了什麼」的 review 物件。
 - **重生時機**：首次進 OpenAPI 模式、每次後端更新 `api-spec.yml`（見 § 6 Sync）。
 - 無 `spec/api/api-spec.yml` 時不要跑（Feature 推導模式維持手寫，§ 開頭已述）。
+- **檔名統一 `api-spec.yml`（連字號）**：後端若交付 `api_spec.yml`（底線）等別名，置入時改名對齊，
+  否則 `gen:api` 會「找不到來源」。
+- 來源是 **OpenAPI 3.1 也 OK**：openapi-typescript v7 支援；3.1 的 `type: [string, 'null']` 會產 `string | null`、
+  `enum` 產 literal union、`allOf` 產交集，皆自動處理。
 
 ---
 
 ## 4. View 型別 alias（手寫，疊在 `_schema` 上）
 
-envelope 成功回應的 `data` 是**具名 schema**（`$ref: AccountResponse`），所以 view 型別一行 alias 即可抽出：
+view 型別有**兩種來源**，依後端有沒有把該 shape 取名而定（實測真實後端：**回應多半具名、request body 多半內聯**）：
 
 ```typescript
 // app/types/api/accounts.ts —— view 型別（手寫 alias，命名照 openapi-conventions.md § 1）
-import type { components } from '~/types/api/_schema'
+import type { components, paths } from '~/types/api/_schema'
 
 type Schemas = components['schemas']
 
-export type AccountListItem = Schemas['AccountListItem']
-export type AccountDetail = Schemas['AccountDetail']
-export type CreateAccountBody = Schemas['CreateAccountRequest']
-export type AccountCreatedEvent = Schemas['AccountCreatedEvent']
+// (A) 回應：data 是具名 schema（$ref: AccountResponse）→ 一行 alias（enum union / string|null / 陣列自動繼承）
+export type Account = Schemas['AccountResponse']
+export type TokenPair = Schemas['TokenPairData']
+
+// (B) request body：後端常把 body 內聯在 paths（無具名 schema）→ 從 paths 萃取（或 body 很小時直接手寫）
+export type CreateAccountBody = paths['/api/v1/accounts']['post']['requestBody']['content']['application/json']
+export type LoginBody = paths['/api/v1/auth/login']['post']['requestBody']['content']['application/json']
 ```
 
+- **先判斷有沒有具名 schema**：`components['schemas']` 有 → 走 (A) 一行 alias；只在 `paths` 內聯 → 走 (B) `paths[...]` 萃取。
+  別假設 request body 一定有具名 schema（多數後端只命名 response）。
 - **命名仍照 `openapi-conventions.md § 1`**（`XxxListItem` / `XxxDetail` / `XxxBody` / `XxxEvent`），
   alias 只是把後端 schema 名「翻譯」成前端語意名。
-- **列表 envelope**（`data: { items: [...] }`）：view 型別取 **item 的具名 schema**（`useHttp` 會把分頁
-  攤平成 `T[]`，見 `openapi-conventions.md § 3`）。
-- **改 spec → 重生 `_schema` → 若具名 schema 改名 / 刪欄 → 此 alias 編譯紅燈**，下游 client / page 連帶紅燈
+- **列表 envelope**（`data: { items: [...] }`）：view 型別取 **item 的具名 schema**（`Schemas['TeamResponse']`）。
+  泛型 `PaginatedSuccessEnvelope.data.items` 在 codegen 是 `Record<string, never>[]`（無型別），**不可拿它當 item 型別**；
+  `useHttp` 會把分頁攤平成 `T[]`（見 `openapi-conventions.md § 3`）。
+- **改 spec → 重生 `_schema` → 具名 schema 改名 / 刪欄 → 此 alias 編譯紅燈**，下游 client / page 連帶紅燈
   → 早期發現（這正是 codegen 的價值，見 § 6）。
 - 下游（`app/api/*.api.ts`、store、page）一律 import 這些 **view 型別**，不直接 import `_schema`，
   保留命名語意與替換彈性。
