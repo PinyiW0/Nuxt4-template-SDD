@@ -78,10 +78,55 @@ And 系統顯示 "帳號或密碼錯誤"
 
 | DSL Then | UI 處理 |
 |----------|---------|
-| `操作成功` | Toast success + 導向 |
+| `操作成功` | Toast success +（寫入類）**`await refresh()`** + 導向 |
 | `操作失敗` | Toast error |
 | `系統顯示 "..."` | 顯示錯誤訊息 |
 | `系統回傳 ...` | 儲存到 state |
+
+---
+
+## 資料新鮮度（寫入後刷新）—— 必守，否則畫面 stale
+
+寫入（建立/編輯/刪除）成功後，**畫面上的列表/詳情不會自己更新**——必須主動刷新，否則使用者看到舊資料。
+`useHttp().get()` 回傳的就是 Nuxt `AsyncData`，本來就帶 `refresh`，用它即可，**不需要新 composable**。
+
+**三條鐵律：**
+
+1. **要保持最新的 list / detail 一律用 `get()`（reactive），不要用 `getOnce` 把資料存進 local `ref`** —— `getOnce` 是一次性的，存進 ref 後沒有刷新管道。
+2. **任何 `post / patch / delete` 成功後 `await refresh()`** —— `refresh` 取自同元件 `get()` 的回傳。
+3. **跨元件（子 modal 寫、父層列表讀）用 `refreshNuxtData(key)`** —— 列表的 `get()` 帶穩定 `key`，子元件寫完後 `await refreshNuxtData(key)` 觸發父層重抓。
+
+**同元件範例（列表 + 建立 modal）：**
+
+```vue
+<script setup lang="ts">
+import type { CreateTeamBody } from '~/types/api/teams'
+import { createTeam, listTeams } from '~/api'
+
+const toast = useToast()
+// 列表用 get()（reactive）+ 穩定 key，拿到 refresh 控制權
+const { data: teams, refresh } = listTeams({ key: 'teams' })
+
+async function handleCreate(body: CreateTeamBody) {
+  await createTeam(body)
+  toast.add({ title: '建立成功', color: 'success' })
+  await refresh() // ← 寫入後刷新，列表立即反映最新資料（少了這行就會 stale）
+}
+</script>
+```
+
+**跨元件範例（子 modal 寫、父層列表讀）：**
+
+```ts
+// 父層：列表帶穩定 key
+const { data: teams } = listTeams({ key: 'teams' })
+
+// 子元件（建立 modal）：寫完用同一把 key 觸發父層重抓
+await createTeam(body)
+await refreshNuxtData('teams')
+```
+
+> ⚠️ 別把刷新寫成「手動再 push 一筆進 local array」——那會與後端真實狀態漂移（漏算衍生欄位、排序、權限過濾）。一律重抓。
 
 ---
 
