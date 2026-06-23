@@ -93,23 +93,44 @@ export type AccountCreatedEvent = Schemas['AccountCreatedEvent']
 3. **mock 回傳符合 schema**（mock 賦值給 view alias，欄位不符 → `typelint` 紅燈）
 
 ```typescript
-import type { AccountListItem } from '~/types/api/accounts'
-import { registerEndpoint } from '@nuxt/test-utils/runtime'
+import type { AccountCreatedEvent, AccountListItem } from '~/types/api/accounts'
+import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
-import { listAccounts } from '~/api/accounts.api'
+import { defineComponent, h } from 'vue'
+import { createAccount, listAccounts } from '~/api/accounts.api'
 
 describe('accounts 合約', () => {
-  it('listAccounts 打 GET /api/v1/accounts，回 AccountListItem[]', async () => {
+  // get 系 client 回 AsyncData（useFetch），必須在 setup context 內呼叫 → 用 mountSuspended，
+  // 不可在測試頂層 `await listAccounts()`（會噴 "useFetch must be called within setup"）。
+  it('listAccounts 打 GET /api/v1/accounts，envelope 拆封後回 AccountListItem[]', async () => {
     // (3) mock 賦值給 view alias → 欄位漂移即 typelint 紅燈
-    const mock: AccountListItem[] = [{ accountId: 'a1', accountName: '小明', isActive: true }]
+    const mock: AccountListItem[] = [{ accountId: 'acc-001', name: '王教練', username: 'coach_wang', remark: null }]
     registerEndpoint('/api/v1/accounts', () => ({ success: true, data: mock }))
 
-    // listAccounts 回 AsyncData<AccountListItem[]>；getOnce 版回 Promise，依實際 client 形態調整
-    const res = await listAccounts().then(d => d.data.value)
-    expect(res).toEqual(mock) // (1) URL/method 對 + envelope 已被 useHttp 拆封
+    const Comp = defineComponent({
+      async setup() {
+        const { data } = await listAccounts()
+        return () => h('div', JSON.stringify(data.value))
+      },
+    })
+    const wrapper = await mountSuspended(Comp)
+    expect(wrapper.text()).toContain('coach_wang') // (1) URL 對 + envelope 已被 useHttp 拆封
+    expect(wrapper.text()).not.toContain('success')
+  })
+
+  // post / getOnce 系 client 回 Promise（$fetch），可在測試頂層直接 await。
+  it('createAccount 打 POST /api/v1/accounts，回 AccountCreatedEvent', async () => {
+    const created: AccountCreatedEvent = { accountId: 'acc-001', name: '王教練', username: 'coach_wang', remark: null }
+    registerEndpoint('/api/v1/accounts', { method: 'POST', handler: () => ({ success: true, data: created }) })
+
+    const res = await createAccount({ name: '王教練', username: 'coach_wang', password: 'pass1234', remark: null })
+    expect(res).toEqual(created) // (2) method 對 + envelope 拆封
   })
 })
 ```
+
+> 重點（dogfood 實測）：`get` 系 client（`useHttp().get`）回 `AsyncData`、只能在 setup 內呼叫 → 測試用
+> `mountSuspended` 包元件；`post` / `getOnce`（`$fetch`）回 `Promise` → 可直接 `await`。
 
 - **型別層紅燈**靠 `npm run typelint`（spec 一改、alias 一爆，連鎖到此檔）；**runtime 行為**靠 vitest。
 - 工具鏈本身的煙霧測試見 `test/unit/codegen.spec.ts`（不依賴專案生成碼，守 `openapi-typescript` 不腐化）。
