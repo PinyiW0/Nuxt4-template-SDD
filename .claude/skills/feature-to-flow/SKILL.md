@@ -70,6 +70,8 @@ spec/gherkin-feature/*.feature（Given event / When command / Then event）
 
 > **即時連線（條件式）**：flow 含即時需求（即時 / 推播 / 通知 / live / 斷線重連）時，Business Invariants 段須捕捉「連線狀態對使用者可見」（連線中 / 已連線 / 已斷線）與「斷線重連後資料不遺漏」這兩條業務不變式（UX-agnostic：不指定用什麼元件呈現）。實作知識（傳輸選型、重連補抓、cleanup）由 `realtime` skill 提供，連線端點與信封型別由 feature-to-api Phase 0「Realtime 偵測」寫入 route-map。
 
+> **影音串流（條件式）**：flow 含直播 / 即時影像 / 串流播放（HLS / `.m3u8` / live 畫面）時，Business Invariants 段須捕捉「直播狀態對使用者可見」（無訊號 / 載入失敗 / 直播中 LIVE）這條業務不變式（UX-agnostic：不指定播放器與版面）。實作知識（播放器掛載、看門狗、延遲調校、多路對齊、teardown）由 `streaming` skill 提供，播放 URL 端點由 feature-to-api Phase 0「Streaming 偵測」寫入 route-map。
+
 ---
 
 ## 現有檔案

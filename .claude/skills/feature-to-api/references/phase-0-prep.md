@@ -112,6 +112,21 @@ grep 來源訊號（命中任一即「有即時需求」）：
 
 ---
 
+## Streaming 偵測（兩種模式皆執行，先做）
+
+> SDD workflow 對影音串流中立——**偵測到才提示**，無訊號的專案完全不碰。影音播放的實作知識（播放器掛載、錯誤自救、看門狗、延遲調校、多路對齊、teardown、傳輸選型）由 `streaming` skill 提供。
+
+grep 來源訊號（命中任一即「有串流播放需求」）：
+
+- HLS：OpenAPI 有 `hlsUrl` 欄位、`/streams` 端點、描述含「HLS」、或 `.m3u8`；mock / 原始碼有 `application/vnd.apple.mpegurl`、`application/x-mpegurl`；`.feature`/`.flow.md` 有「直播 / 即時影像 / 串流 / live 畫面」scenario
+- WebRTC media：`RTCPeerConnection` + `ontrack` / `addTrack` / `addTransceiver`
+
+**偵測到 → 寫入 `route-map.yaml > streaming` 區塊**（`transport: hls | webrtc-media`、`url_source`（提供播放 URL 的端點，如 `/streams/{streamId}` 取 `hlsUrl`）、`url_field`（URL 欄位名，如 `hlsUrl`））**並在報告提示「建議套用 `streaming` skill」**。播放 URL 多由獨立端點提供（單一真相來源），型別走 codegen alias（如 `StreamResponse`），實作見 streaming/references/hls.md。
+
+**沒偵測到 → route-map 不寫 streaming 區塊、不提示。** Sync 模式下後來才出現串流端點一樣補上。
+
+---
+
 ## OpenAPI 模式執行步驟（api-spec.yml 存在時）
 
 1. **讀取 PM 設定**（同下方全量模式步驟 1）
