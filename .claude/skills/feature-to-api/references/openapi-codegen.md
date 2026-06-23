@@ -1,0 +1,176 @@
+# OpenAPI Codegen（型別來源強化，OpenAPI 模式專用）
+
+> 適用：`spec/api/api-spec.yml` 存在（OpenAPI 模式）。
+> Feature 推導模式（無 spec）→ 維持手寫型別，本檔不適用。
+>
+> 核心理念：合約底層型別「機器產、不漂移、零 runtime」；view 型別 / 命名仍**手寫**疊在其上
+> → 兩全：底層與後端對齊、語意可讀。codegen 是 OpenAPI 模式的「型別產生工具」，
+> **不取代手寫 view 型別、不綁 envelope**。
+
+---
+
+## 1. 三軸獨立（先釐清，避免綁死）
+
+envelope（runtime 拆封）⊥ OpenAPI（型別來源）⊥ codegen（工具）。三者正交，四種組合都能跑：
+
+| 組合 | 說明 |
+|------|------|
+| envelope + codegen | 主力（對齊團隊後端） |
+| envelope + 手寫 | 無 spec、後端是 envelope |
+| 裸 schema + codegen | 有 spec、後端裸回 |
+| 裸 schema + 手寫 | 最簡專案 |
+
+> 選 envelope 不等於選 codegen；選 codegen 也不強制 envelope。codegen 只是「有 OpenAPI 來源時，
+> 用工具產底層型別」這一件事。
+
+---
+
+## 2. 三層分離（型別來源 / 回應驗證 / 表單驗證）
+
+| 層 | 邊界 | 用什麼 | 為何 |
+|----|------|--------|------|
+| 合約型別 | API request/response shape | **codegen（openapi-typescript）** | 機器產不漂移、零 runtime、無痛 |
+| 回應 runtime 驗證 | 後端 → 前端 | 預設**不做**（後端是 SSoT + 有測試）；要才 zod-parse | 加 runtime 重量、投報率低 |
+| 表單輸入驗證 | 使用者 → 前端（**含跨欄位**） | **手寫 zod**（NuxtUI `<UForm :schema>`） | OpenAPI 無法表達跨欄位；confirmPassword 根本不在 API body |
+
+- **不選 zod-codegen**（openapi-zod-client / typed-openapi）：generated zod 仍無法表達跨欄位（沒省到手寫），
+  又給合約層加 runtime 重量——zod 的價值在表單層，不在合約層。
+- **表單 schema 是 API body 的超集**：`confirmPassword` 是 UI-only、不在 API body → 本就該手寫、不可能 codegen。
+  跨欄位驗證三個常見坑：
+  1. `.refine` 忘了帶 `path: ['confirmPassword']` → 錯誤掛 root、UForm 不顯示（最常見）。
+  2. `.refine()` 後變 `ZodEffects`、不能再 `.pick` / `.extend` → 先組好 object 再 refine。
+  3. 即時驗證時機 → 用 UForm `validate` prop 做跨欄位（schema 管單欄、`validate` 函式管跨欄位）。
+
+---
+
+## 3. gen:api 用法
+
+```bash
+npm run gen:api
+# = openapi-typescript spec/api/api-spec.yml -o app/types/api/_schema.d.ts
+```
+
+- `app/types/api/_schema.d.ts` 是**機器產、進版控、不手改**（檔頭已標 `Do not make direct changes`）。
+- PR 的 `_schema.d.ts` diff 本身就是「API 合約改了什麼」的 review 物件。
+- **重生時機**：首次進 OpenAPI 模式、每次後端更新 `api-spec.yml`（見 § 6 Sync）。
+- 無 `spec/api/api-spec.yml` 時不要跑（Feature 推導模式維持手寫，§ 開頭已述）。
+
+---
+
+## 4. View 型別 alias（手寫，疊在 `_schema` 上）
+
+envelope 成功回應的 `data` 是**具名 schema**（`$ref: AccountResponse`），所以 view 型別一行 alias 即可抽出：
+
+```typescript
+// app/types/api/accounts.ts —— view 型別（手寫 alias，命名照 openapi-conventions.md § 1）
+import type { components } from '~/types/api/_schema'
+
+type Schemas = components['schemas']
+
+export type AccountListItem = Schemas['AccountListItem']
+export type AccountDetail = Schemas['AccountDetail']
+export type CreateAccountBody = Schemas['CreateAccountRequest']
+export type AccountCreatedEvent = Schemas['AccountCreatedEvent']
+```
+
+- **命名仍照 `openapi-conventions.md § 1`**（`XxxListItem` / `XxxDetail` / `XxxBody` / `XxxEvent`），
+  alias 只是把後端 schema 名「翻譯」成前端語意名。
+- **列表 envelope**（`data: { items: [...] }`）：view 型別取 **item 的具名 schema**（`useHttp` 會把分頁
+  攤平成 `T[]`，見 `openapi-conventions.md § 3`）。
+- **改 spec → 重生 `_schema` → 若具名 schema 改名 / 刪欄 → 此 alias 編譯紅燈**，下游 client / page 連帶紅燈
+  → 早期發現（這正是 codegen 的價值，見 § 6）。
+- 下游（`app/api/*.api.ts`、store、page）一律 import 這些 **view 型別**，不直接 import `_schema`，
+  保留命名語意與替換彈性。
+
+---
+
+## 5. 合約 unit test（守 client × 型別 × mock）
+
+延續 `test/unit/useHttp.spec.ts` 模式（`@nuxt/test-utils` 的 `registerEndpoint` + vitest），對每個資源測三件事：
+
+1. **client function 打對 URL + method**（runtime：`registerEndpoint` 攔截，斷言回傳）
+2. **回傳型別 = view alias**（type-level：賦值給 alias 即受 `typelint` 守護）
+3. **mock 回傳符合 schema**（mock 賦值給 view alias，欄位不符 → `typelint` 紅燈）
+
+```typescript
+import type { AccountListItem } from '~/types/api/accounts'
+import { registerEndpoint } from '@nuxt/test-utils/runtime'
+import { describe, expect, it } from 'vitest'
+import { listAccounts } from '~/api/accounts.api'
+
+describe('accounts 合約', () => {
+  it('listAccounts 打 GET /api/v1/accounts，回 AccountListItem[]', async () => {
+    // (3) mock 賦值給 view alias → 欄位漂移即 typelint 紅燈
+    const mock: AccountListItem[] = [{ accountId: 'a1', accountName: '小明', isActive: true }]
+    registerEndpoint('/api/v1/accounts', () => ({ success: true, data: mock }))
+
+    // listAccounts 回 AsyncData<AccountListItem[]>；getOnce 版回 Promise，依實際 client 形態調整
+    const res = await listAccounts().then(d => d.data.value)
+    expect(res).toEqual(mock) // (1) URL/method 對 + envelope 已被 useHttp 拆封
+  })
+})
+```
+
+- **型別層紅燈**靠 `npm run typelint`（spec 一改、alias 一爆，連鎖到此檔）；**runtime 行為**靠 vitest。
+- 工具鏈本身的煙霧測試見 `test/unit/codegen.spec.ts`（不依賴專案生成碼，守 `openapi-typescript` 不腐化）。
+
+---
+
+## 6. 接進 feature-to-api（Phase 0 / Sync）
+
+### Phase 0（OpenAPI 模式）
+
+`phase-0-prep.md`「OpenAPI 模式執行步驟」第 3 步改為：
+
+1. 先跑 `npm run gen:api` 重生 `app/types/api/_schema.d.ts`。
+2. 從 `_schema` 的具名 schema **派生 view 型別 alias**（§ 4），而非逐欄手抄 YAML → TS。
+3. 命名、null、enum 仍照 `openapi-conventions.md § 1-2`。
+
+### Sync 模式（spec 變更）
+
+`phase-0-sync.md` OpenAPI 來源變更時：
+
+```
+spec/api/api-spec.yml 變更
+→ npm run gen:api          （重生 _schema，決定性、與 spec 永遠同步）
+→ npm run typelint         （breaking change → 所有用到處編譯紅燈）
+→ 依紅燈逐點修 view alias / client / page（codegen 只定位、不改寫呼叫端）
+→ 重跑 typelint 到綠
+```
+
+> **「自動修復」的誠實版本**：自動的只有「重生 `_schema`」。breaking change（改名 / 刪欄位）的呼叫端修復
+> **不自動**——這是刻意的：要編譯器尖叫，不要它默默編過（默默編過 = 把真實破綻藏起來，更危險）。
+> codegen + `typelint` 紅燈 + AI 逐點修，就是逼近「自動修復」的正解，機制已全備（hash diff、sync-report、合約測試）。
+
+---
+
+## 7. spec 變更迭代流（SDD 右分支）
+
+後端更新 `api-spec.yml` 時的完整鏈（修正 SDD 流程圖右分支）：
+
+```
+手動置入 api-spec
+→ /feature-to-api（Sync）   [含 gen:api 重生型別 + npm run typelint 紅燈修受影響呼叫端]
+→ /test e2e spec            （測試先行 → 紅；TDD 的「先寫測試」）
+→ /feature-to-ui（Sync）     （為通過 spec 而建 / 改 UI）
+→ /test e2e green            （迭代 UI 到綠）
+→ Gate 回歸（playwright.gate.config.ts，主 spec + vibe spec 全綠）
+```
+
+要點：
+- **不要同時放 `/test e2e spec` 與 `/test e2e pipeline`**（pipeline = spec→red→green，會重跑 spec）。
+- **最後的 Gate 不是「vibe 驗證」而是「回歸守門」**：合約變更可能打壞其他 feature 主 spec 與既有 vibe spec，
+  故 commit 前必跑全 gate（與 pre-push 同一份）。
+- **commit 前鐵律**：`npx eslint . --fix && npm run typelint`（型別 / 語法），與 playwright（行為）互補。
+
+---
+
+## 8. 自我檢查清單（OpenAPI 模式產出前必跑）
+
+- [ ] `_schema.d.ts` 由 `gen:api` 產、未手改、已進版控
+- [ ] view 型別是 `_schema` 的 alias，命名照 `openapi-conventions.md § 1`（Event / ListItem / Body / Detail）
+- [ ] 下游（client / store / page）import view 型別，不直接 import `_schema`
+- [ ] 表單跨欄位驗證走**手寫 zod**（不靠 codegen），`.refine` 帶對 `path`
+- [ ] 合約 test 綠（client URL/method + mock 賦值給 view alias 不爆）
+- [ ] Sync：spec 變 → 重生 → `typelint` 紅燈逐點修 → 綠
+- [ ] Feature 推導模式（無 spec）→ **不跑 codegen**，維持手寫 view 型別

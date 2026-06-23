@@ -69,6 +69,18 @@ export interface TeamCreatedEvent {
 }
 ```
 
+### 型別來源：手寫 interface vs codegen alias
+
+上表的「OpenAPI → TypeScript」對應有兩種落地方式，依模式決定：
+
+| 模式 | 底層型別 | view 型別 |
+|------|---------|----------|
+| **Feature 推導模式**（無 spec） | 無 | **手寫 interface**（依本節對應規則人工翻譯） |
+| **OpenAPI 模式**（`spec/api/api-spec.yml` 存在） | `npm run gen:api` 產 `_schema.d.ts`（機器產、不漂移） | **手寫 alias** 疊在 `_schema` 上：`export type TeamListItem = components['schemas']['TeamListItem']` |
+
+> 兩種模式的 **view 型別命名一致**（§ 1 的 Event / ListItem / Body / Detail），差別只在底層是「手抄」或「codegen」。
+> OpenAPI 模式詳見 [openapi-codegen.md](openapi-codegen.md)（含 alias、合約測試、Sync 重生 loop）。
+
 ---
 
 ## 3. Response shape（mock 端點回傳）

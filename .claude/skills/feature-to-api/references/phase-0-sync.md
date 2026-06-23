@@ -3,6 +3,12 @@
 > 僅當 `spec/report/route-map.yaml` 存在時進入此流程。
 > 全量模式步驟 → 詳見 [phase-0-prep.md](phase-0-prep.md)
 
+> **OpenAPI 模式 Sync（`spec/api/api-spec.yml` 存在）先做 codegen 重生**：
+> `npm run gen:api` 重生 `app/types/api/_schema.d.ts`（決定性、與 spec 永遠同步）→ `npm run typelint`
+> → breaking change 的 view alias / client / page 編譯紅燈 → 依紅燈逐點修 → 重跑到綠。
+> codegen 只定位不改寫（要編譯器尖叫，別默默編過）。完整 loop 見 [openapi-codegen.md](openapi-codegen.md) § 6。
+> 下方步驟 4 / 9 的「型別比對 / 更新」在 OpenAPI 模式即「比對重生後的 `_schema` 與既有 view alias」。
+
 ---
 
 ### 步驟 1：讀取 PM 設定 + 設定檔變更偵測
