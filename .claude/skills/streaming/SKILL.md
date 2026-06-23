@@ -28,7 +28,7 @@ metadata:
 
 不論 HLS / WebRTC media，這些鐵律一致。各傳輸具體寫法見 reference，但**原則不可違反**：
 
-1. **播放器掛載 client-only + 動態載入** — 播放器 lib 只在瀏覽器掛。進入點 `if (!import.meta.client) return`，並 `await import('hls.js')` 動態載入（避免 SSR、瘦 bundle）。原生可播（Safari `canPlayType('application/vnd.apple.mpegurl')`）就跳過 lib 直接綁 `src`。
+1. **播放引擎集中在 composable（`useHlsPlayer`），元件只渲染** — 掛載 / 重掛 / 看門狗 / 自救 / teardown 收進 composable，元件不持有播放器實例（對映 realtime「連線集中在 store」）。掛載一律 client-only + 動態載入：進入點 `if (!import.meta.client) return`，並 `await import('hls.js')` 動態載入（避免 SSR、瘦 bundle）；原生可播（Safari `canPlayType('application/vnd.apple.mpegurl')`）跳過 lib 直接綁 `src`。
 2. **src 變動 = 重新掛載；await 後須重驗** — `watch` src 重 setup。動態 `import()` 是 await 點，期間 src / 元素可能已變 → await 回來先重驗 `videoRef`/`src` 仍是當初那個，否則別掛（避免掛到舊流）。
 3. **錯誤自救分層，別第一錯就放棄** — fatal network → 重新載流（`startLoad`）；fatal media → `recoverMediaError`；其餘 fatal → teardown + 顯示「無法載入」；非 fatal stall → `seek` 回 live edge。
 4. **看門狗（stall watchdog）** — fatal error 攔不到「靜默卡死」（loop 死、`currentTime` 不前進、無錯可攔）。定時器每 N 秒比對 `currentTime` 是否前進，卡超過閾值 → `seek` live edge + 重啟拉流。沒這個只能手動重整才恢復。
