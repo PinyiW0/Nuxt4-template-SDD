@@ -1,0 +1,2459 @@
+openapi: 3.1.0
+info:
+  title: 忠孝國中棒球投球數據分析系統 API
+  description: |
+    本文件為忠孝國中棒球投球數據分析系統的後端 API 規格草稿（api_spec.yml）。
+
+    ### 設計原則
+    1. **RESTful API**: 遵循 RESTful 設計風格，資源路徑清晰。
+    2. **對外 API 統一版本**: `/api/v1` 開頭。
+    3. **命名風格**:
+       - 前端 API 欄位統一使用 `camelCase`。
+       - 內網 Ingestion API 接收的第三方 payload 維持 `snake_case`，後端設有防腐層（Anti-Corruption Layer）進行轉換。
+    4. **Response 包裝 (Envelope)**:
+       - 成功：`{ "success": true, "data": ..., "message": "...", "meta": ... }`
+       - 失敗：`{ "success": false, "code": "ERROR_CODE", "message": "...", "errors": ... }`
+    5. **分頁策略**: Page-based pagination。`page` 從 1 開始，`pageSize` 預設 20，最大 100。
+    6. **認證機制**: 對外 API 採用 Bearer JWT，JWT payload 僅包含 `sub` (accountId)、`exp`、`iat`、`type`。授權使用 CASBIN RBAC 機制即時查詢。
+       例外：SSE 端點 `GET /api/v1/events` 因原生 EventSource 無法夾帶 Authorization header，改以 `?token=<JWT>` query 參數認證（同一 access token）。
+    7. **內網 Ingestion API**: `/bt3d-data` 與 `/bsa-data` 為內網信任服務，不需經過 JWT 認證，外部環境需保證其不暴露於外網。
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: 本地開發伺服器
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ==========================================
+  # System 模組
+  # ==========================================
+  /api/v1/health:
+    get:
+      summary: 服務健康檢查
+      description: 回報服務存活狀態與檢查時間，供部署探針與監控使用。
+      tags:
+        - System
+      security: [] # 免認證
+      responses:
+        '200':
+          description: 服務正常
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - serviceStatus
+                          - redis
+                          - checkedAt
+                        properties:
+                          serviceStatus:
+                            type: string
+                            description: >-
+                              存活訊號，恆為 ok（Redis 故障時服務仍持續供應、ingestion 走降級，
+                              不因 Redis 翻轉本欄位）。
+                            example: ok
+                          redis:
+                            type: string
+                            enum: [ok, down, not_configured]
+                            description: >-
+                              Redis 連線探測結果（1 秒 ping 上限）：ok 正常、down 故障或逾時、
+                              not_configured 未配置（in-memory/dev 模式）。
+                            example: ok
+                          checkedAt:
+                            type: string
+                            format: date-time
+
+  # ==========================================
+  # Auth & Account 模組
+  # ==========================================
+  /api/v1/auth/login:
+    post:
+      summary: 帳號登入
+      description: >-
+        使用帳號與密碼進行登入，回傳短效 access token（JWT）與長效 refresh token
+        （opaque 隨機字串，非 JWT）。refresh token 僅能用於 /api/v1/auth/refresh 的
+        request body，嚴禁出現在任何 query 參數。此 API 錯誤訊息統一以降低帳號列舉攻擊風險。
+      tags:
+        - Auth & Account
+      security: [] # 免認證
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - account
+                - password
+              properties:
+                account:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  example: super_admin
+                password:
+                  type: string
+                  format: password
+                  minLength: 1
+                  maxLength: 128
+                  example: password123
+      responses:
+        '200':
+          description: 登入成功，回傳 access token 與 refresh token
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TokenPairData'
+        '401':
+          description: 認證失敗，統一回傳「帳號或密碼錯誤」
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/auth/refresh:
+    post:
+      summary: 換發 access token（refresh token rotation）
+      description: >-
+        以 refresh token 換發新的 access token 與 refresh token 一對（rotation：
+        舊 refresh token 作廢，新 token 生效並展期）。具 reuse detection：已被
+        rotate 的舊 token 於寬限期（30 秒，容忍多分頁併發刷新）外再次出現，視為
+        token 竊取，撤銷整個 token family，後續 refresh 一律 401。refresh token
+        僅能放在 request body，嚴禁出現在任何 query 參數。
+      tags:
+        - Auth & Account
+      security: [] # 免 Bearer 認證，以 body 中的 refresh token 認證
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  minLength: 1
+                  maxLength: 512
+      responses:
+        '200':
+          description: 換發成功，回傳新的 access token 與 refresh token
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TokenPairData'
+        '401':
+          description: refresh token 無效、已過期、已撤銷或偵測到重用（reuse detection）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/auth/logout:
+    post:
+      summary: 帳號登出
+      description: >-
+        登出並撤銷 refresh token：request body 帶 refreshToken 時，撤銷該 token
+        所屬的整個 token family（rotation 鏈），其後該 family 不可再換發。
+        access token 不做 blacklist，至自然到期前仍有效，前端收到 success 後自行丟棄。
+        不帶 body 仍回傳成功（向後相容既有前端）。
+      tags:
+        - Auth & Account
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  maxLength: 512
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+
+  /api/v1/auth/me:
+    get:
+      summary: 查詢當前登入者資訊
+      description: 以 Bearer JWT 取得當前認證主體的帳號資訊與角色，供前端在登入後補拉使用者資料。
+      tags:
+        - Auth & Account
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - accountId
+                          - account
+                          - name
+                          - roles
+                        properties:
+                          accountId:
+                            type: string
+                            format: uuid
+                          account:
+                            type: string
+                            description: 登入帳號
+                          name:
+                            type: string
+                            description: 使用者姓名
+                          roles:
+                            type: array
+                            items:
+                              type: string
+                            description: 角色清單，現行值為 super_admin / coach
+                            example: [coach]
+        '401':
+          description: 未帶 token 或 token 無效/過期
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/accounts/{accountId}/password:
+    post:
+      summary: 修改或重設帳號密碼
+      description: >-
+        coach 僅可修改自己的密碼，且必須提供現行密碼 oldPassword；super_admin 可重設他人密碼（免帶
+        oldPassword），但不得以此 API 變更自己的密碼。oldPassword 在規格上為 optional，「self 改密必填」屬
+        runtime 規則:coach 改自己時若未帶或帶錯 oldPassword 一律回 400 INVALID_OLD_PASSWORD。
+      tags:
+        - Auth & Account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newPassword
+              properties:
+                oldPassword:
+                  type: string
+                  format: password
+                  maxLength: 128
+                  description: 現行密碼。coach 改自己時必填;super_admin 重設他人密碼時免填。
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 128
+      responses:
+        '200':
+          description: 密碼修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '400':
+          description: self 改密時舊密碼錯誤/未提供（errorCode：INVALID_OLD_PASSWORD）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: 輸入驗證失敗，如 newPassword 長度不符（errorCode：VALIDATION_ERROR）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: super_admin 不得以此 API 變更自己的密碼（errorCode：CANNOT_CHANGE_OWN_PASSWORD）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/accounts:
+    get:
+      summary: 查詢帳號列表
+      description: 取得系統內所有帳號，僅 super_admin 可操作。支援 page-based pagination。
+      tags:
+        - Auth & Account
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/pageSizeParam'
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AccountResponse'
+    post:
+      summary: 建立新帳號
+      description: 僅 super_admin 可操作。
+      tags:
+        - Auth & Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - account
+                - password
+                - name
+                - roles
+              properties:
+                account:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: 帳號唯一標識，即便 soft delete 後，此帳號名亦不可重複使用。
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 128
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                roles:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                  example: [coach]
+      responses:
+        '201':
+          description: 建立成功，回傳完整帳號資料
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AccountResponse'
+        '409':
+          description: 帳號已存在（errorCode：ACCOUNT_ALREADY_EXISTS）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: 輸入驗證失敗，如密碼長度不符（errorCode：VALIDATION_ERROR）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/accounts/{accountId}:
+    get:
+      summary: 查詢指定帳號詳情
+      tags:
+        - Auth & Account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AccountResponse'
+    patch:
+      summary: 更新帳號資訊
+      description: >-
+        僅 super_admin 可更新他人資訊與角色。不得移除最後一個 active super_admin
+        的 super_admin 角色（errorCode：CANNOT_DOWNGRADE_LAST_SUPER_ADMIN，HTTP 409）。
+      tags:
+        - Auth & Account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                roles:
+                  type: array
+                  items:
+                    type: string
+                  example: [coach]
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AccountResponse'
+        '409':
+          description: 不得移除最後一個 active super_admin 的 super_admin 角色（errorCode：CANNOT_DOWNGRADE_LAST_SUPER_ADMIN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      summary: 軟刪除帳號
+      description: >-
+        僅 super_admin 可操作。限制：super_admin 不得刪除自己；亦不得刪除最後一個
+        active super_admin（errorCode：CANNOT_DELETE_LAST_SUPER_ADMIN，HTTP 409）。
+      tags:
+        - Auth & Account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '409':
+          description: 不得刪除最後一個 active super_admin（errorCode：CANNOT_DELETE_LAST_SUPER_ADMIN）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  # ==========================================
+  # Team & Player 模組
+  # ==========================================
+  /api/v1/teams:
+    get:
+      summary: 查詢球隊列表
+      tags:
+        - Team & Player
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/pageSizeParam'
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              allOf:
+                                - $ref: '#/components/schemas/TeamResponse'
+                                - type: object
+                                  required:
+                                    - playerCount
+                                  properties:
+                                    playerCount:
+                                      type: integer
+                                      description: 該隊未軟刪除球員數(僅列表回應提供)
+                                      example: 12
+    post:
+      summary: 建立球隊
+      tags:
+        - Team & Player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - teamName
+              properties:
+                teamName:
+                  type: string
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TeamResponse'
+
+  /api/v1/teams/{teamId}:
+    get:
+      summary: 查詢指定球隊詳情
+      tags:
+        - Team & Player
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TeamResponse'
+        '404':
+          description: 找不到該球隊或已被刪除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      summary: 更新球隊
+      tags:
+        - Team & Player
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - teamName
+              properties:
+                teamName:
+                  type: string
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TeamResponse'
+    delete:
+      summary: 刪除球隊 (Cascade Soft Delete)
+      description: 軟刪除球隊，並連帶軟刪除旗下的 Player、Practice 與 Pitch。
+      tags:
+        - Team & Player
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+
+  /api/v1/players:
+    get:
+      summary: 查詢球員列表
+      description: 取得球員列表，包含其所屬隊伍名稱。
+      tags:
+        - Team & Player
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/pageSizeParam'
+        - name: teamId
+          in: query
+          description: 篩選指定球隊
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/PlayerResponse'
+    post:
+      summary: 建立球員
+      tags:
+        - Team & Player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - playerName
+                - teamId
+                - jerseyNumber
+                - handedness
+                - height
+                - weight
+              properties:
+                playerName:
+                  type: string
+                teamId:
+                  type: string
+                  format: uuid
+                jerseyNumber:
+                  type: integer
+                handedness:
+                  type: string
+                  maxLength: 100
+                  description: 投打慣用手描述，任意字串，長度限制 100 個繁體中文字
+                height:
+                  type: number
+                  description: 球員身高 (cm)，為九宮格分析提供 hitter_height 參數
+                  example: 175.5
+                weight:
+                  type: number
+                  description: 球員體重 (kg)
+                  example: 70.2
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PlayerResponse'
+
+  /api/v1/players/{playerId}:
+    get:
+      summary: 查詢指定球員詳情
+      tags:
+        - Team & Player
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PlayerResponse'
+    put:
+      summary: 更新球員資訊
+      tags:
+        - Team & Player
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                playerName:
+                  type: string
+                teamId:
+                  type: string
+                  format: uuid
+                jerseyNumber:
+                  type: integer
+                handedness:
+                  type: string
+                  maxLength: 100
+                  description: 投打慣用手描述，任意字串，長度限制 100 個繁體中文字
+                height:
+                  type: number
+                  description: cm
+                weight:
+                  type: number
+                  description: kg
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PlayerResponse'
+    delete:
+      summary: 刪除球員 (Cascade Soft Delete)
+      description: 軟刪除球員，並連帶軟刪除該球員旗下的 Practice 與 Pitch。
+      tags:
+        - Team & Player
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+
+  # ==========================================
+  # Practice 模組
+  # ==========================================
+  /api/v1/practices:
+    get:
+      summary: 查詢練習列表
+      description: Page-based 分頁查詢練習列表，依建立時間新到舊排序，排除已軟刪除的練習。
+      tags:
+        - Practice
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/pageSizeParam'
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/PracticeResponse'
+    post:
+      summary: 新增練習
+      description: 僅能輸入練習名稱、球隊ID與球員ID。系統預設狀態為 `created`。
+      tags:
+        - Practice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - practiceName
+                - teamId
+                - playerId
+              properties:
+                practiceName:
+                  type: string
+                  example: 20260529 投球練習
+                teamId:
+                  type: string
+                  format: uuid
+                playerId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PracticeResponse'
+
+  /api/v1/practices/{practiceId}:
+    delete:
+      summary: 刪除練習 (Cascade Soft Delete)
+      description: >-
+        軟刪除練習，並連帶軟刪除該練習產生的所有 Pitch 資料（影片與 Raw 暫存不刪除，但不再提供觀看）。
+        允許刪除 `inProgress` 的練習；刪除屬資料層語意，不會呼叫外部 bt3d/bsa 服務停止擷取——
+        若需停止擷取請先呼叫 `/stop` 再刪除（MVP 決定）。
+      tags:
+        - Practice
+      parameters:
+        - name: practiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '404':
+          description: 找不到該練習或已被刪除（errorCode：PRACTICE_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/practices/{practiceId}/start:
+    post:
+      summary: 開始練習
+      description: |
+        將練習狀態改為 `inProgress`。
+        後端會呼叫外部 bt3d 與 bsa 的 `/start` 端點。
+        - 呼叫外部服務時，設有 5 秒 timeout，最多 retry 3 次。
+        - 若任一外部服務失敗，則此 API 宣告失敗，狀態維持 `created`。
+        - 同時間只允許有一場練習處於 `inProgress` 狀態。
+      tags:
+        - Practice
+      parameters:
+        - name: practiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 練習已成功啟動，狀態改為 inProgress
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PracticeResponse'
+        '409':
+          description: >-
+            當前已有其他 inProgress 的練習（errorCode：PRACTICE_ALREADY_IN_PROGRESS），
+            或練習狀態不符合啟動條件、非 created（errorCode：PRACTICE_NOT_IN_CREATED_STATE）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '502':
+          description: 外部 bt3d 或 bsa 服務啟動失敗 (Timeout 或呼叫失敗)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/practices/{practiceId}/stop:
+    post:
+      summary: 結束練習
+      description: |
+        將練習狀態改為 `ended`。
+        後端會呼叫外部服務的 `/stop` 以停止接收感測器數據。
+      tags:
+        - Practice
+      parameters:
+        - name: practiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 練習已結束，狀態改為 ended
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PracticeResponse'
+        '409':
+          description: 練習非處於 inProgress 狀態（errorCode：PRACTICE_NOT_IN_PROGRESS）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  # ==========================================
+  # Pitch 模組
+  # ==========================================
+  /api/v1/practices/{practiceId}/pitches:
+    get:
+      summary: 查詢指定練習的投球列表
+      description: 回傳該練習的所有 Pitch 列表，依時間由新到舊排序。
+      tags:
+        - Pitch
+      parameters:
+        - name: practiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/pageSizeParam'
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/PitchSummaryResponse'
+
+  /api/v1/pitches/{pitchId}:
+    get:
+      summary: 查詢單球詳情
+      description: |
+        取得指定投球的詳細 analysis 數據與影片 URL。
+        - 影片檔(MP4) 直接由後端提供相對/絕對 URL，交由 Nginx 處理，不經由 API stream 二進位傳輸。
+      tags:
+        - Pitch
+      parameters:
+        - name: pitchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PitchDetailResponse'
+    delete:
+      summary: 軟刪除指定單球投球資料
+      description: 單球 soft delete。被刪投球不再出現於列表、詳情、歷史查詢與 CSV 匯出。
+      tags:
+        - Pitch
+      parameters:
+        - name: pitchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '404':
+          description: 找不到該投球或已被刪除（errorCode：PITCH_NOT_FOUND）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/pitches/{pitchId}/favorite:
+    post:
+      summary: 收藏投球
+      description: 標註該投球為收藏。不需夾帶 practiceId。
+      tags:
+        - Pitch
+      parameters:
+        - name: pitchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 收藏成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+
+  /api/v1/pitches/{pitchId}/unfavorite:
+    post:
+      summary: 取消收藏投球
+      description: 取消該投球的收藏。不需夾帶 practiceId。
+      tags:
+        - Pitch
+      parameters:
+        - name: pitchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+
+  # ==========================================
+  # History & Export 模組
+  # ==========================================
+  /api/v1/history/dates:
+    get:
+      summary: 查詢有練習的日期 (依年月)
+      description: 輸入年與月，回傳當月哪些日期有練習記錄。
+      tags:
+        - History & Export
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 2026
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 5
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: string
+                          format: date
+                          example: 2026-05-29
+
+  /api/v1/history/daily-summary:
+    get:
+      summary: 查詢當日練習與總投球數
+      description: 輸入日期，回傳該日期所發生的練習列表、各練習的投手/球員，以及各練習的總投球數。
+      tags:
+        - History & Export
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+            example: 2026-05-29
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - practiceId
+                            - practiceName
+                            - teamId
+                            - teamName
+                            - playerId
+                            - playerName
+                            - status
+                            - totalPitches
+                            - createdAt
+                          properties:
+                            practiceId:
+                              type: string
+                              format: uuid
+                            practiceName:
+                              type: string
+                            teamId:
+                              type: string
+                              format: uuid
+                            teamName:
+                              type: string
+                            playerId:
+                              type: string
+                              format: uuid
+                            playerName:
+                              type: string
+                            status:
+                              type: string
+                              enum: [created, inProgress, ended]
+                            totalPitches:
+                              type: integer
+                              description: 該場練習的總投球數
+                            createdAt:
+                              type: string
+                              format: date-time
+        '422':
+          description: 日期格式錯誤（FastAPI 請求驗證，errorCode：VALIDATION_ERROR）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/history/daily-players:
+    get:
+      summary: 查詢當日有訓練的投手
+      description: 輸入日期，回傳當天有進行練習的投手(球員)清單。
+      tags:
+        - History & Export
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+            example: 2026-05-29
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - playerId
+                            - playerName
+                            - jerseyNumber
+                            - teamId
+                            - teamName
+                          properties:
+                            playerId:
+                              type: string
+                              format: uuid
+                            playerName:
+                              type: string
+                            jerseyNumber:
+                              type: integer
+                            teamId:
+                              type: string
+                              format: uuid
+                            teamName:
+                              type: string
+
+  /api/v1/history/pitches:
+    get:
+      summary: 歷史投球資料搜尋
+      description: 支援多條件複合篩選，取得歷史投球的列表資料（分頁）。
+      tags:
+        - History & Export
+      parameters:
+        - name: playerIds
+          in: query
+          description: 球員 ID 陣列 (可選)
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: startDate
+          in: query
+          description: 查詢開始日期 (可選)
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: 查詢結束日期 (可選)
+          required: false
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/pageSizeParam'
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/PitchHistorySummary'
+
+  /api/v1/exports/pitches/search:
+    get:
+      summary: 依搜尋條件匯出 CSV
+      description: >-
+        同步匯出符合搜尋條件的投球數據 CSV 檔。匯出列數上限為 50000;若符合條件的列數超過上限,
+        回 422(errorCode:EXPORT_TOO_LARGE),要求縮小日期或 playerIds 範圍,而非靜默截斷。
+        上限檢查在串流開始前以 count 預檢完成,故超限為 JSON 422 而非「截斷的 200」。
+      tags:
+        - History & Export
+      parameters:
+        - name: playerIds
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 匯出成功，同步回傳 CSV 內容
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="pitches_export.csv"
+          content:
+            text/csv; charset=utf-8:
+              schema:
+                type: string
+                description: CSV 二進位或文字內容。
+        '422':
+          description: >-
+            輸入不合法(playerIds 非 uuid),或符合條件的列數超過匯出上限 50000
+            (errorCode:EXPORT_TOO_LARGE)。為 JSON 錯誤,非截斷的 CSV。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/exports/pitches/selection:
+    post:
+      summary: 依選定投球 ID 匯出 CSV
+      description: >-
+        同步匯出選定 pitchId 清單的投球數據 CSV 檔。pitchIds 數量上限為 50000(與 search
+        匯出共用同一上限);超過上限回 422(errorCode:EXPORT_TOO_LARGE),非截斷的 CSV。
+      tags:
+        - History & Export
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pitchIds
+              properties:
+                pitchIds:
+                  type: array
+                  maxItems: 50000
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: 匯出成功，同步回傳 CSV 內容
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="pitches_selection.csv"
+          content:
+            text/csv; charset=utf-8:
+              schema:
+                type: string
+                description: CSV 二進位或文字內容。
+        '422':
+          description: >-
+            pitchIds 含非 uuid 值,或數量超過上限 50000(errorCode:EXPORT_TOO_LARGE)。
+            為 JSON 錯誤,非截斷的 CSV。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  # ==========================================
+  # Streaming & Camera 模組
+  # ==========================================
+  /api/v1/streams/{streamId}:
+    get:
+      summary: 查詢指定串流資訊
+      description: 查詢 DB 回傳 HLS playlist URLs 及當前串流狀態。
+      tags:
+        - Streaming & Camera
+      parameters:
+        - name: streamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StreamResponse'
+        '404':
+          description: 找不到該串流資源
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/cameras:
+    get:
+      summary: 查詢相機與串流狀態列表
+      description: |
+        回傳環境中所有設定的 Camera 狀態。
+        - 去除 legacy deviceId 欄位。
+        - camera id 與位置由後端從 `.env` JSON 格式(CAMERAS v2:`cameraId`/`position`/`source`)解析。
+        - `connectionStatus` 為即時狀態:後端背景輪詢上游(bt3d/bsa `/status`+`/cameras`、
+          recorder `/cameras`)寫入記憶體快取,本端點永遠讀快取秒回;
+          首輪輪詢完成前一律回 `disconnected`。
+        - 工業相機組(source 為 bt3d/bsa)額外透傳 `captureStatus`(上游原始服務狀態,
+          debug 線索);recorder 相機與上游不可達時「省略」該欄位(不以 null 佔位)。
+        - recorder 相機額外帶 `streamId`(該相機直播 stream 的參照 id):前端以
+          `/cameras` 取 `streamId` → `GET /streams/{streamId}` 取 `hlsUrl` 播放,
+          毋須(也不應)client-side 推導。bt3d/bsa 相機無直播,「省略」該欄位。
+          `hlsUrl` 維持僅由 streams 端點提供(單一真相來源)。
+      tags:
+        - Streaming & Camera
+      responses:
+        '200':
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - cameraId
+                            - position
+                            - connectionStatus
+                          properties:
+                            cameraId:
+                              type: string
+                              example: cam-01
+                            position:
+                              type: string
+                              description: 相機架設方位
+                              example: behind-home-plate
+                            connectionStatus:
+                              type: string
+                              enum: [connected, disconnected, error]
+                              example: connected
+                            captureStatus:
+                              type: string
+                              enum: [stopped, starting, running, stopping, error]
+                              description: |
+                                工業相機組(bt3d/bsa)上游原始服務狀態透傳,僅該組出現;
+                                recorder 相機與上游不可達時省略此欄位。
+                              example: running
+                            streamId:
+                              type: string
+                              format: uuid
+                              description: |
+                                recorder 相機的直播 stream 參照 id;僅 source=recorder
+                                相機出現(bt3d/bsa 省略,同 captureStatus 的 optional 慣例)。
+                                以此打 `GET /api/v1/streams/{streamId}` 取 `hlsUrl`。
+                              example: 550e8400-e29b-41d4-a716-446655440000
+
+  # ==========================================
+  # Events (SSE) 模組
+  # ==========================================
+  /api/v1/events:
+    get:
+      summary: SSE 即時事件推播
+      description: |
+        以 Server-Sent Events（`text/event-stream`）推播即時事件。
+
+        ### 認證
+        原生 EventSource 無法夾帶 Authorization header，本端點改以 **`?token=<JWT>` query 參數**
+        認證（同一 access token）。缺少或無效/過期 token 回 401。
+        注意：token 會出現在反向代理 access log 與瀏覽器歷史，僅限短效 access token 使用。
+
+        ### 頻道訂閱與授權
+        - 頻道命名：`account:{accountId}`（帳號個人頻道）、`practice:{practiceId}`（練習頻道）。
+        - 連線**必訂自己的 `account:{accountId}` 頻道**（預設頻道，毋須指定）。
+        - 可用 `?channels=` 以逗號分隔額外請求頻道，逐一過 RBAC 訂閱授權：
+          `account:*` 僅允許訂自己；`practice:*` 需具 practices 讀取權限。
+        - **無權限的頻道靜默剔除**（不擋整條連線）；實際訂閱結果以 `connected` 歡迎訊息的
+          `data.channels` 為準。
+
+        ### 訊息格式
+        每筆事件為一個 SSE `data:` 區塊，內容為 JSON 信封（見 `SseEventEnvelope`）：
+        `{ id, type, channel, timestamp, data }`。事件類型（`type`）：
+        - `connected`：連線歡迎訊息，`data: { "channels": [實際訂閱頻道] }`
+        - `pitchCreated`：新投球建立，`data: { "pitchId", "practiceId" }`
+        - `practiceAiStarted` / `practiceAiStopped`：練習 AI 採集啟動/停止，`data: { "practiceId" }`
+
+        ### 保活
+        無訊息時每 **30 秒**送一行 SSE 註解 `: heartbeat` 維持連線（非 JSON 訊息，客戶端應忽略）。
+        回應夾帶 `Cache-Control: no-cache`、`X-Accel-Buffering: no`（停用反向代理緩衝）。
+      tags:
+        - Events (SSE)
+      security: [] # 不走 Bearer header，改以 ?token= query 認證
+      parameters:
+        - name: token
+          in: query
+          required: true
+          description: JWT access token（取代 Authorization header）
+          schema:
+            type: string
+        - name: channels
+          in: query
+          required: false
+          description: 逗號分隔的額外訂閱頻道清單，例如 `practice:9a1f...,account:自己的accountId`
+          schema:
+            type: string
+            example: 'practice:6f1d2c34-0000-0000-0000-000000000000'
+      responses:
+        '200':
+          description: 連線成功，開始推播事件串流（首筆為 `connected` 歡迎訊息）
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-cache
+            X-Accel-Buffering:
+              schema:
+                type: string
+                example: no
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE 串流；每筆 `data:` 區塊為一個 SseEventEnvelope JSON。
+              examples:
+                connected:
+                  summary: 連線歡迎訊息
+                  value: |
+                    data: {"id":"3f2a...","type":"connected","channel":"account:1b2c...","timestamp":"2026-06-04T08:00:00Z","data":{"channels":["account:1b2c..."]}}
+                pitchCreated:
+                  summary: 新投球事件
+                  value: |
+                    data: {"id":"9d4e...","type":"pitchCreated","channel":"practice:6f1d...","timestamp":"2026-06-04T08:00:05Z","data":{"pitchId":"77aa...","practiceId":"6f1d..."}}
+        '401':
+          description: 未帶 token 或 token 無效/過期
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  # ==========================================
+  # Ingestion 模組 (內網專用，免 JWT 驗證)
+  # ==========================================
+  /bt3d-data:
+    post:
+      summary: 接收 bt3d 原始數據 (內網信任)
+      description: |
+        由內網 bt3d 採集服務呼叫（v2 契約，#86，breaking：舊版毫秒整數 timestamp 格式回 422）。
+        - 接收後端即時產生 UUID 作為 ID。
+        - `timestamp` 為 naive 字串（UTC+8 牆鐘時間），轉為 UTC 儲存並進行 Redis 2秒配對。
+        - 冪等重送：相同 `timestamp`（capture 時刻）視為同一顆球，回傳既有 `bt3dDataId`，
+          不重複建立 raw 紀錄、不重複建立 pitch。
+        - 完整原始 payload 以 JSONB 照存；裝置端附帶的舊版計算欄位（`pitch_trajectory`、
+          `strike_zone_point`、`pitch_velocity`、`raw_traj_2d` 等）寬鬆接收、照存不拆欄。
+        - 內網信任，不掛 JWT。
+        - Payload 為外部 snake_case，在此處做防腐層轉換。
+      tags:
+        - Ingestion
+      security: [] # 免認證
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bt3dRawPayload'
+      responses:
+        '200':
+          description: 數據接收並持久化成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - bt3dDataId
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  bt3dDataId:
+                    type: string
+                    format: uuid
+                    description: 後端產生的 UUID
+
+  /bsa-data:
+    post:
+      summary: 接收 bsa 原始數據 (內網信任)
+      description: |
+        由內網 bsa 採集服務呼叫（v2 契約，#86，breaking：舊版毫秒整數 timestamp 格式回 422）。
+        - 接收後端即時產生 UUID 作為 ID。
+        - `timestamp` 為 naive 字串（UTC+8 牆鐘時間），轉為 UTC 儲存。
+        - 冪等重送：相同 `timestamp`（capture 時刻）視為同一顆球，回傳既有 `bsaDataId`，
+          不重複建立 raw 紀錄。
+        - 將原始的 `axis` 陣列拆為 `axisX`, `axisY`, `axisZ` 存入資料庫；完整原始 payload
+          以 JSONB 照存，額外欄位寬鬆接收。
+        - 內網信任，不掛 JWT。
+        - Payload 為外部 snake_case，在此處做防腐層轉換。
+      tags:
+        - Ingestion
+      security: [] # 免認證
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BsaRawPayload'
+      responses:
+        '200':
+          description: 數據接收並持久化成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - bsaDataId
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  bsaDataId:
+                    type: string
+                    format: uuid
+                    description: 後端產生的 UUID
+
+components:
+  # ==========================================
+  # Security Schemes
+  # ==========================================
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ==========================================
+  # Parameters (Query, Headers, etc.)
+  # ==========================================
+  parameters:
+    pageParam:
+      name: page
+      in: query
+      description: 頁碼，從 1 開始
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    pageSizeParam:
+      name: pageSize
+      in: query
+      description: 每頁筆數，預設 20，最大限制 100
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  # ==========================================
+  # Schemas (Reusable Models)
+  # ==========================================
+  schemas:
+    # 成功與分頁 Response 封裝模型
+    SuccessEnvelope:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: 操作成功
+        data:
+          description: >-
+            成功回應的主體。基底不限定型別，由各端點以 allOf 特化為 object 或 array
+            （回傳陣列的端點覆寫為 array，分頁端點請改用 PaginatedSuccessEnvelope）。
+        meta:
+          type: object
+          description: 其他非分頁之元數據
+
+    PaginatedSuccessEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+        meta:
+          type: object
+          required:
+            - pagination
+          properties:
+            pagination:
+              type: object
+              required:
+                - page
+                - pageSize
+                - totalItems
+                - totalPages
+              properties:
+                page:
+                  type: integer
+                  example: 1
+                pageSize:
+                  type: integer
+                  example: 20
+                totalItems:
+                  type: integer
+                  example: 150
+                totalPages:
+                  type: integer
+                  example: 8
+
+    # 錯誤 Response 封裝模型
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - code
+        - message
+      properties:
+        success:
+          type: boolean
+          example: false
+        code:
+          type: string
+          description: CONSTANT_CASE 錯誤碼
+          example: RESOURCE_NOT_FOUND
+        message:
+          type: string
+          description: 提供給使用者閱讀的錯誤訊息
+          example: 找不到指定的資源
+        errors:
+          type: array
+          description: 欄位層級的驗證錯誤細節 (選填)
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                example: jerseyNumber
+              message:
+                type: string
+                example: 必須為大於 0 的整數
+
+    # Auth：login / refresh 共用的雙 token 回應主體
+    TokenPairData:
+      type: object
+      required:
+        - accessToken
+        - tokenType
+        - expiresAt
+        - accountId
+        - refreshToken
+        - refreshExpiresAt
+      properties:
+        accessToken:
+          type: string
+          description: Bearer JWT token（短效 access token）
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        tokenType:
+          type: string
+          example: Bearer
+        expiresAt:
+          type: string
+          format: date-time
+          description: access token 到期時間
+        accountId:
+          type: string
+          format: uuid
+        refreshToken:
+          type: string
+          description: >-
+            opaque refresh token（非 JWT），僅能用於 /api/v1/auth/refresh 的
+            request body，嚴禁出現在任何 query 參數。
+        refreshExpiresAt:
+          type: string
+          format: date-time
+          description: refresh token 到期時間（rotation 時展期，sliding window）
+
+    # Business Models (camelCase for Frontend)
+    AccountResponse:
+      type: object
+      required:
+        - accountId
+        - account
+        - name
+        - roles
+        - createdAt
+        - updatedAt
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        account:
+          type: string
+          description: 登入帳號
+        name:
+          type: string
+          description: 使用者姓名
+        roles:
+          type: array
+          items:
+            type: string
+          example: [coach]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TeamResponse:
+      type: object
+      required:
+        - teamId
+        - teamName
+        - isDeleted
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedByAccountId
+      properties:
+        teamId:
+          type: string
+          format: uuid
+        teamName:
+          type: string
+        isDeleted:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 軟刪除時間，未刪除為 null
+        deletedByAccountId:
+          type: [string, 'null']
+          format: uuid
+          description: 執行軟刪除的帳號，未刪除為 null
+
+    PlayerResponse:
+      type: object
+      required:
+        - playerId
+        - playerName
+        - teamId
+        - teamName
+        - jerseyNumber
+        - handedness
+        - height
+        - weight
+        - isDeleted
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedByAccountId
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        playerName:
+          type: string
+        teamId:
+          type: string
+          format: uuid
+        teamName:
+          type: string
+          description: 所屬球隊名稱
+        jerseyNumber:
+          type: integer
+        handedness:
+          type: string
+          maxLength: 100
+          description: 投打慣用手描述，任意字串，長度限制 100 個繁體中文字
+        height:
+          type: number
+          description: cm
+        weight:
+          type: number
+          description: kg
+        isDeleted:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 軟刪除時間，未刪除為 null
+        deletedByAccountId:
+          type: [string, 'null']
+          format: uuid
+          description: 執行軟刪除的帳號，未刪除為 null
+
+    PracticeResponse:
+      type: object
+      required:
+        - practiceId
+        - practiceName
+        - teamId
+        - teamName
+        - playerId
+        - playerName
+        - status
+        - startedAt
+        - endedAt
+        - isDeleted
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedByAccountId
+      properties:
+        practiceId:
+          type: string
+          format: uuid
+        practiceName:
+          type: string
+        teamId:
+          type: string
+          format: uuid
+        teamName:
+          type: string
+          description: 所屬球隊名稱。已軟刪除的球隊仍解析名稱（比照歷史查詢 join 語意）。
+        playerId:
+          type: string
+          format: uuid
+        playerName:
+          type: string
+          description: 球員姓名。已軟刪除的球員仍解析名稱（比照歷史查詢 join 語意）。
+        status:
+          type: string
+          enum: [created, inProgress, ended]
+        startedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 練習開始時間（/start 成功後寫入），未開始為 null
+        endedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 練習結束時間（/stop 成功後寫入），未結束為 null
+        isDeleted:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 軟刪除時間，未刪除為 null
+        deletedByAccountId:
+          type: [string, 'null']
+          format: uuid
+          description: 執行軟刪除的帳號，未刪除為 null
+
+    PitchSummaryResponse:
+      type: object
+      required:
+        - pitchId
+        - practiceId
+        - pitchSpeed
+        - isFavorite
+        - timestamp
+      properties:
+        pitchId:
+          type: string
+          format: uuid
+        practiceId:
+          type: string
+          format: uuid
+        pitchSpeed:
+          type: [number, 'null']
+          description: 釋放球速 (km/h)
+          example: 135.8
+        isFavorite:
+          type: boolean
+          example: false
+        timestamp:
+          type: string
+          format: date-time
+          description: 投球時間戳記 (UTC)
+
+    PitchHistorySummary:
+      type: object
+      required:
+        - pitchId
+        - practiceId
+        - practiceName
+        - playerId
+        - playerName
+        - pitchSpeed
+        - isFavorite
+        - timestamp
+      properties:
+        pitchId:
+          type: string
+          format: uuid
+        practiceId:
+          type: string
+          format: uuid
+        practiceName:
+          type: string
+        playerId:
+          type: string
+          format: uuid
+        playerName:
+          type: string
+        pitchSpeed:
+          type: [number, 'null']
+          description: km/h
+        isFavorite:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
+    PitchDetailResponse:
+      type: object
+      required:
+        - pitchId
+        - practiceId
+        - pitchType
+        - isBt3dOnly
+        - isFavorite
+        - timestamp
+        - metrics
+        - media
+        - zoneImage
+        - isStrike
+      properties:
+        pitchId:
+          type: string
+          format: uuid
+        practiceId:
+          type: string
+          format: uuid
+        pitchType:
+          type: [string, 'null']
+          description: 由分析產出的球種，例如 Fastball, Slider, Curveball, Changeup 等。isBt3dOnly=true（未配對）時無分析結果，為 null。
+          example: Fastball
+        isBt3dOnly:
+          type: boolean
+          description: 是否為未配對成功、僅有 bt3d 資料的投球
+          example: false
+        isFavorite:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        metrics:
+          type: object
+          description: 投球分析數據。各欄位於 isBt3dOnly=true（未配對、僅 bt3d）時無分析結果，值為 null。
+          required:
+            - pitchSpeed
+            - spinRate
+            - spinAxis
+            - verticalBreak
+            - horizontalBreak
+            - strikeZonePointX
+            - strikeZonePointY
+            - strikeZonePointZ
+            - vaa
+            - haa
+            - sswVb
+            - sswHb
+            - spinEff
+            - trueSpin
+            - gyro
+          properties:
+            pitchSpeed:
+              type: [number, 'null']
+              description: 球速 (km/h)
+              example: 135.8
+            spinRate:
+              type: [number, 'null']
+              description: 轉速 (rpm)
+              example: 2200
+            spinAxis:
+              type: [number, 'null']
+              description: 旋轉軸 (degree)
+              example: 215.5
+            verticalBreak:
+              type: [number, 'null']
+              description: 垂直位移量 (cm)
+              example: 45.2
+            horizontalBreak:
+              type: [number, 'null']
+              description: 水平位移量 (cm)
+              example: -25.4
+            strikeZonePointX:
+              type: [number, 'null']
+              description: 進壘點 X 座標 (cm)，水平方向（3D 向量 [0]）
+              example: 12.5
+            strikeZonePointY:
+              type: [number, 'null']
+              description: 進壘點 Y 座標 (cm)，縱深方向（3D 向量 [1]；analyze 於本壘板平面取值時可為 null）
+              example: 0.0
+            strikeZonePointZ:
+              type: [number, 'null']
+              description: 進壘點 Z 座標 (cm)，高度方向（3D 向量 [2]）(#86 新增)
+              example: 75.3
+            vaa:
+              type: [number, 'null']
+              description: 垂直進壘角度 (degree)，負值代表向下 (#86 新增)
+              example: -5.8
+            haa:
+              type: [number, 'null']
+              description: 水平進壘角度 (degree) (#86 新增)
+              example: 1.2
+            sswVb:
+              type: [number, 'null']
+              description: Seam-Shifted Wake 垂直分量 (cm) (#86 新增)
+              example: 3.1
+            sswHb:
+              type: [number, 'null']
+              description: Seam-Shifted Wake 水平分量 (cm) (#86 新增)
+              example: -1.4
+            spinEff:
+              type: [number, 'null']
+              description: 旋轉效率 (0.0–1.0) (#86 新增)
+              example: 0.92
+            trueSpin:
+              type: [number, 'null']
+              description: 有效轉速 (rpm) (#86 新增)
+              example: 2050.0
+            gyro:
+              type: [number, 'null']
+              description: Gyro 角 (degree) (#86 新增)
+              example: 18.5
+        media:
+          type: object
+          required:
+            - videoStatus
+            - frontVideoUrl
+            - sideVideoUrl
+          properties:
+            videoStatus:
+              type: string
+              enum: [processing, ready, failed]
+              description: 影片非同步處理狀態 (processing:處理中, ready:已就緒, failed:失敗)
+              example: processing
+            frontVideoUrl:
+              type: [string, 'null']
+              format: uri
+              description: 前視角 MP4 影片路徑（處理中為 null，就緒後由 Nginx 服務）
+              example: 'https://media.jsjh-baseball.edu/videos/practices/uuid123/front.mp4'
+            sideVideoUrl:
+              type: [string, 'null']
+              format: uri
+              description: 側視角 MP4 影片路徑（處理中為 null，就緒後由 Nginx 服務）
+              example: 'https://media.jsjh-baseball.edu/videos/practices/uuid123/side.mp4'
+        zoneImage:
+          type: [string, 'null']
+          description: |
+            即時九宮格 (strike zone) 圖片，base64 PNG 的 data URI
+            （`data:image/png;base64,...`，可直接放入 `<img src>`）。後端依球員身高
+            (hitter_height) 與進壘點即時呼叫外部九宮格服務取得 (#86)。外部服務逾時/失敗、
+            或該球尚無進壘點（無 analyze 結果）時降級為 null，不影響單球詳情其餘欄位回傳。
+          example: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...'
+        isStrike:
+          type: [boolean, 'null']
+          description: |
+            九宮格服務的好壞球判定 (#86)。與 zoneImage 同源：外部服務逾時/失敗、或該球
+            尚無進壘點時降級為 null。
+          example: true
+
+    StreamResponse:
+      type: object
+      required:
+        - streamId
+        - name
+        - status
+        - hlsUrl
+        - createdAt
+      properties:
+        streamId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: 一壘側相機直播
+        status:
+          type: string
+          enum: [active, inactive, error]
+          example: active
+        hlsUrl:
+          type: string
+          format: uri
+          example: 'https://stream.jsjh-baseball.edu/live/cam1/index.m3u8'
+        createdAt:
+          type: string
+          format: date-time
+
+    # SSE 訊息信封（GET /api/v1/events 的每筆 data: 區塊內容）
+    SseEventEnvelope:
+      type: object
+      required:
+        - id
+        - type
+        - channel
+        - timestamp
+        - data
+      properties:
+        id:
+          type: string
+          description: 事件唯一識別碼（uuid hex）
+          example: 3f2a1b4c5d6e7f8090a1b2c3d4e5f607
+        type:
+          type: string
+          enum: [connected, pitchCreated, practiceAiStarted, practiceAiStopped]
+          description: 事件類型，前端依此分流
+        channel:
+          type: string
+          description: 來源頻道，`account:{accountId}` 或 `practice:{practiceId}`
+          example: 'practice:6f1d2c34-0000-0000-0000-000000000000'
+        timestamp:
+          type: string
+          format: date-time
+          description: 事件時間（UTC，秒級精度，`...Z` 結尾）
+        data:
+          type: object
+          description: >-
+            事件酬載（camelCase）。connected：{ channels: [...] }；pitchCreated：{ pitchId, practiceId }；
+            practiceAiStarted / practiceAiStopped：{ practiceId }。
+
+    # ==========================================
+    # Ingestion Payloads (snake_case from External Services)
+    # ==========================================
+    Bt3dRawPayload:
+      type: object
+      description: >-
+        v2 契約（#86）。額外欄位（裝置端舊版計算欄位等）寬鬆接收，僅存入完整原始
+        payload JSONB，不拆欄。
+      required:
+        - timestamp
+        - raw_traj
+        - traj_start_ts
+        - traj_end_ts
+        - pitch_traj_Xc0
+        - pitch_traj_Xc1
+        - pitch_traj_Xc2
+        - pitch_traj_Yc0
+        - pitch_traj_Yc1
+        - pitch_traj_Yc2
+        - pitch_traj_Zc0
+        - pitch_traj_Zc1
+        - pitch_traj_Zc2
+      properties:
+        timestamp:
+          type: string
+          description: >-
+            naive datetime 字串，一律視為 UTC+8 牆鐘時間（不得帶時區 offset），
+            後端轉為 UTC 儲存。支援 `T` 與空格兩種分隔、最高微秒精度。
+            為冪等鍵：相同 timestamp 重送視為同一顆球。bt3d 與 bsa 須使用
+            同一時間基準以確保 2 秒配對窗正確。
+          example: '2026-06-05T14:30:00.123456'
+        raw_traj:
+          type: array
+          description: 3D 原始軌跡點列表，每點為 `[x, y, z, t_rel]` 四元素陣列（t_rel 為相對軌跡起點的秒數）
+          items:
+            type: array
+            items:
+              type: number
+            minItems: 4
+            maxItems: 4
+          example: [[0.1, 18.4, 1.8, 0.0], [0.05, 14.2, 1.6, 0.1]]
+        traj_start_ts:
+          type: number
+          description: 軌跡起點相對時間（秒）
+          example: 0.0
+        traj_end_ts:
+          type: number
+          description: 軌跡終點相對時間（秒）
+          example: 0.46
+        pitch_traj_Xc0:
+          type: number
+          description: X 軸二次擬合係數 c0（f(t) = c0 + c1*t + c2*t²；Y、Z 軸同形）
+        pitch_traj_Xc1:
+          type: number
+        pitch_traj_Xc2:
+          type: number
+        pitch_traj_Yc0:
+          type: number
+        pitch_traj_Yc1:
+          type: number
+        pitch_traj_Yc2:
+          type: number
+        pitch_traj_Zc0:
+          type: number
+        pitch_traj_Zc1:
+          type: number
+        pitch_traj_Zc2:
+          type: number
+
+    BsaRawPayload:
+      type: object
+      description: >-
+        v2 契約（#86）。額外欄位寬鬆接收，僅存入完整原始 payload JSONB，不拆欄。
+      required:
+        - timestamp
+        - axis
+        - rpm
+        - spin_dir
+        - spin_tilt
+      properties:
+        timestamp:
+          type: string
+          description: >-
+            naive datetime 字串，一律視為 UTC+8 牆鐘時間（不得帶時區 offset），
+            後端轉為 UTC 儲存。支援 `T` 與空格兩種分隔、最高微秒精度。
+            為冪等鍵：相同 timestamp 重送視為同一顆球。須與 bt3d 使用同一時間
+            基準以確保 2 秒配對窗正確。
+          example: '2026-06-05 14:30:00.223456'
+        axis:
+          type: array
+          description: 旋轉軸單位向量 `[x, y, z]`，後端拆解為 axisX/axisY/axisZ 儲存
+          items:
+            type: number
+          minItems: 3
+          maxItems: 3
+          example: [1.0, 0.0, 0.0]
+        rpm:
+          type: number
+          description: 總轉速 (rpm)
+          example: 2200.0
+        spin_dir:
+          type: object
+          description: 旋轉方向（時鐘表示法 + 角度）
+          required:
+            - hhmm
+            - degrees
+          properties:
+            hhmm:
+              type: string
+              example: '12:00'
+            degrees:
+              type: number
+              example: 0.0
+        spin_tilt:
+          type: object
+          description: 旋轉傾角（時鐘表示法 + 角度）
+          required:
+            - hhmm
+            - degrees
+          properties:
+            hhmm:
+              type: string
+              example: '12:00'
+            degrees:
+              type: number
+              example: 0.0

@@ -5,7 +5,8 @@ export default withNuxt(
   antfu({
     vue: true,
     typescript: true,
-    ignores: ['.claude/**', 'spec/**'],
+    // _schema.d.ts 為 openapi-typescript 機器產（進版控、不手改），排除於 lint 之外；手寫 view 型別仍照 lint
+    ignores: ['.claude/**', 'spec/**', 'app/types/api/_schema.d.ts'],
   }),
   // 專案框架慣例（對應 CLAUDE.md，pre-push lint 即可擋下，免 AI）
   {
