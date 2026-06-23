@@ -35,7 +35,7 @@ metadata:
 5. **teardown 要完整** — unmount / src 變動時：`destroy` 播放器實例 + 清看門狗 timer + 移除 listener。少一樣就洩漏記憶體 / timer。
 6. **直播延遲 vs 穩定的取捨** — 低延遲模式緊貼 live edge、緩衝極小，網路抖動吃光緩衝即卡死。穩定優先就**關低延遲 + 加 liveSync / backBuffer**，換 1–2s 延遲換不凍結。依場景調，不要照抄預設值。
 7. **多路同步用 PDT 軟對齊（控速不 seek）** — 多路直播用各路 PROGRAM-DATE-TIME（wallclock）量時間差，微調 `playbackRate` 放慢超前那路被落後追平；容差內不動（hysteresis）避免抖動；離場還原 rate。點播多路改用 `currentTime` 對齊。**不 seek → 不跳畫面**。
-8. **播放狀態對使用者可見** — 無訊號 / 載入失敗 / LIVE 指示要有可辨識的業務語意文字（呼應 flow business invariants：直播狀態可見）。
+8. **播放狀態對使用者可見** — 無訊號 / 載入失敗 / LIVE 指示用可辨識的文字呈現。這是 **UI / vibe 範疇的體驗建議，不是 flow 凍結的業務不變式**（真實 flow 不凍結影片畫面呈現，要不要顯示 LIVE / 怎麼呈現是 vibe 自由）。串流的合約在 OpenAPI 的播放 URL 端點（如 `/streams` → `hlsUrl`），不在 flow。
 9. **直播自動播放須靜音 + playsinline** — 瀏覽器自動播放政策：`autoplay` 必須 `muted`；iOS 要 `playsinline` 否則被劫持成全螢幕。
 10. **播放源就緒 ≠ 進頁時機** — 直播常晚於進頁才開推流（URL 尚未產生或端點暫 404）。解析到 `null` 不能就放棄，要**重試**（可由 realtime 事件驅動，如收到新事件才重抓）直到解析出可播 URL。
 

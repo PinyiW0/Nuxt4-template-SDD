@@ -70,7 +70,7 @@ spec/gherkin-feature/*.feature（Given event / When command / Then event）
 
 > **即時連線（條件式）**：flow 含即時需求（即時 / 推播 / 通知 / live / 斷線重連）時，Business Invariants 段須捕捉「連線狀態對使用者可見」（連線中 / 已連線 / 已斷線）與「斷線重連後資料不遺漏」這兩條業務不變式（UX-agnostic：不指定用什麼元件呈現）。實作知識（傳輸選型、重連補抓、cleanup）由 `realtime` skill 提供，連線端點與信封型別由 feature-to-api Phase 0「Realtime 偵測」寫入 route-map。
 
-> **影音串流（條件式）**：flow 含直播 / 即時影像 / 串流播放（HLS / `.m3u8` / live 畫面）時，Business Invariants 段須捕捉「直播狀態對使用者可見」（無訊號 / 載入失敗 / 直播中 LIVE）這條業務不變式（UX-agnostic：不指定播放器與版面）。實作知識（播放器掛載、看門狗、延遲調校、多路對齊、teardown）由 `streaming` skill 提供，播放 URL 端點由 feature-to-api Phase 0「Streaming 偵測」寫入 route-map。
+> **影音串流（條件式，與即時連線不同）**：與「連線狀態」不同，**影音播放的畫面呈現屬 UI / vibe 範疇，flow 不凍結它**——真實 flow 通常只以路由暗示直播頁（如 `/practice/live` 的「live」字），不寫「直播狀態可見」這類不變式（影片要不要顯示 LIVE / 無訊號 / 載入失敗，是 vibe 可自由迭代的呈現）。串流的合約在 OpenAPI 的播放 URL 端點（`/streams` → `hlsUrl`），由 feature-to-api Phase 0「Streaming 偵測」寫入 route-map；實作知識（播放器掛載、看門狗、延遲調校、多路對齊、teardown）由 `streaming` skill 提供。**flow 層不需為串流新增業務不變式**（對比：相機「連線中 / 已斷線」屬即時連線領域，那才是 flow 該捕捉的；見上一條 realtime note）。
 
 ---
 

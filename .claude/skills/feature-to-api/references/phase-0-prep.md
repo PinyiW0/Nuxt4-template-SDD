@@ -116,10 +116,11 @@ grep 來源訊號（命中任一即「有即時需求」）：
 
 > SDD workflow 對影音串流中立——**偵測到才提示**，無訊號的專案完全不碰。影音播放的實作知識（播放器掛載、錯誤自救、看門狗、延遲調校、多路對齊、teardown、傳輸選型）由 `streaming` skill 提供。
 
-grep 來源訊號（命中任一即「有串流播放需求」）：
+grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI 是主訊號**——串流合約住在 spec 與 UI，flow 通常只以路由暗示（如 `/practice/live`），故 flow 側訊號弱、僅供參考：
 
-- HLS：OpenAPI 有 `hlsUrl` 欄位、`/streams` 端點、描述含「HLS」、或 `.m3u8`；mock / 原始碼有 `application/vnd.apple.mpegurl`、`application/x-mpegurl`；`.feature`/`.flow.md` 有「直播 / 即時影像 / 串流 / live 畫面」scenario
+- HLS：OpenAPI 有 `hlsUrl` 欄位、`/streams` 端點、描述含「HLS」、或 `.m3u8`；mock / 原始碼有 `application/vnd.apple.mpegurl`、`application/x-mpegurl`
 - WebRTC media：`RTCPeerConnection` + `ontrack` / `addTrack` / `addTransceiver`
+- （flow 側弱訊號）`.flow.md` 出現名為 `live` 的路由 / 頁面（如 `/practice/live`）——僅暗示可能有直播頁，**不據此要求 flow 寫串流不變式**（畫面呈現屬 vibe）
 
 **偵測到 → 寫入 `route-map.yaml > streaming` 區塊**（`transport: hls | webrtc-media`、`url_source`（提供播放 URL 的端點，如 `/streams/{streamId}` 取 `hlsUrl`）、`url_field`（URL 欄位名，如 `hlsUrl`））**並在報告提示「建議套用 `streaming` skill」**。播放 URL 多由獨立端點提供（單一真相來源），型別走 codegen alias（如 `StreamResponse`），實作見 streaming/references/hls.md。
 
