@@ -39,6 +39,14 @@ Phase 0 再檢查 `spec/report/route-map.yaml`：
 
 ---
 
+## 偵測總則（下方所有偵測器都適用）
+
+> 下方各偵測器（path 前綴 / auth / realtime / streaming）列出的訊號是**常見範例，不是窮舉白名單**。判準是**語意**——「這份 spec 是否描述了該能力」，而非「有沒有出現某個字串」。命名 / 結構不同但語意相同一樣要命中（例：登入端點未必叫 `/auth/login`，可能是 `/sessions`、`/oauth/token`；前綴未必住在 `servers.url`）。
+>
+> **多個來源衝突時，以實際端點 / schema 為準**，不以單一宣告來源為準。依現況判斷；訊號模糊、來源互相矛盾、或無法判定時 → **停下來問使用者，不要默默猜**。
+
+---
+
 ## Path 前綴偵測（兩種模式皆執行，先做）
 
 > **目的**：path 前綴（如 `/api/v1`、`/v1`、`/api`、空）由後端習慣決定，各專案不同。Phase 0 偵測一次後鎖定在 `route-map.yaml > api_contract.path_prefix`，**後續執行不重抽**，SoT 模式切換時（OpenAPI ↔ Feature 推導）也不變。詳細原則見 `openapi-conventions.md § 6.0 / 6.1`。
@@ -51,9 +59,18 @@ Phase 0 再檢查 `spec/report/route-map.yaml`：
      → 否 → 繼續
 
 2. spec/api/api-spec.yml 存在？
-     → 是 → 讀 servers.url，取 path 段（去掉 protocol+host+port）
-            例：servers.url = "https://api.example.com/v1" → path_prefix = "/v1"
-            例：servers.url = "/api/v1"                    → path_prefix = "/api/v1"
+     → 是 → 前綴的真相是「端點實際住在哪」；servers.url 只是線索之一（常只有 host 無 path，
+            或與 paths 不一致）。取兩份證據再和解，不要只信 servers.url：
+              a. servers.url 的 path 段（去掉 protocol+host+port）
+              b. 所有 paths keys 的最長共同前綴
+                 （如 /api/v1/auth/login + /api/v1/teams → /api/v1）
+            和解規則：
+              - (a) 與 (b) 一致 → 用該值
+              - servers.url 無 path 段、或 (a) 與 (b) 衝突 → 以 (b) paths 共同前綴為準
+                （端點真的住的地方；servers 的 host-only / 環境別 URL 不代表前綴）
+              - 兩者皆空 → 前綴為空字串
+            例：servers.url="https://api.example.com/v1"、paths 以 /v1 開頭 → /v1
+            例：servers.url="http://localhost:8000"（無 path）、paths 以 /api/v1 開頭 → /api/v1
             寫入 route-map.yaml，停止
      → 否 → 繼續
 

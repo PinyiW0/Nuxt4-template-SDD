@@ -194,7 +194,7 @@ server / mock 端依模式拋錯：
 > - `app/api/*.ts`、`server/api/**/*.ts`、`route-map.yaml` 的 `path:`、type 註解內的 endpoint 範例 ——**一律寫相對 path**
 > - **絕不寫絕對 URL**：產出檔案中不得出現 `http://`、`https://`、host name、port
 > - Runtime domain 由 env (`NUXT_PUBLIC_API_BASE`) 注入 `runtimeConfig.public.apiBase`，`app/composables/useHttp.ts` 自動套上 baseURL
-> - 若 OpenAPI `servers.url` 含絕對 URL（例：`https://api.example.com/v1`），**只取其 path 段**（`/v1`）作為前綴，host / port / protocol 全部丟棄
+> - 前綴取法見 `phase-0-prep.md`「Path 前綴偵測」：前綴的真相是**端點實際住在哪**，`servers.url` 只是線索之一（常只有 host 無 path）。取 servers.url path 段與 paths keys 最長共同前綴和解，衝突或 servers 無 path 段時以 **paths 共同前綴**為準。無論來源為何，產出只寫 path 段，host / port / protocol 全部丟棄
 > - 換 domain = 改 `.env.production` 一行；spec、型別、產出程式碼**完全不動**
 
 ### 6.1 Path 樣式由專案決定
@@ -203,7 +203,7 @@ server / mock 端依模式拋錯：
 >
 > 各專案後端習慣不同，常見前綴包括 `/api/v1`、`/v1`、`/api`、`/api/v2024-01`、空字串等。Prompt **不評價、不強制**任何形式：
 >
-> - **若 `spec/api/api-spec.yml` 存在**：以 `servers.url` 的 path 段為前綴（去掉 host）
+> - **若 `spec/api/api-spec.yml` 存在**：和解 `servers.url` path 段與 `paths` keys 最長共同前綴；servers 無 path 段或兩者衝突 → 以 paths 共同前綴為準（詳見 `phase-0-prep.md`「Path 前綴偵測」步驟 2）
 > - **若已有 `server/api/` 既有結構**：沿用其最長共同前綴，**不因 SoT 模式切換而重抽**
 > - **完全空專案**：停下來詢問使用者前綴形式，不要默默猜
 >
