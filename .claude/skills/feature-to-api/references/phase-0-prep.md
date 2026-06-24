@@ -1,5 +1,20 @@
 # Phase 0: 準備工作
 
+## 前置（必做，先於下方一切判斷）：定位並正規化 spec 檔名
+
+下游所有判斷（來源判斷、Path 前綴偵測、codegen）只認 canonical **`spec/api/api-spec.yml`（連字號）**。
+進 Phase 0 的第一件事，先把後端交付的別名收斂成這個 canonical 檔名：
+
+1. `spec/api/api-spec.yml` 已存在 → 直接用，跳過本步。
+2. 不存在，但 `spec/api/api_spec.yml`（底線版，後端最常見）存在 → `mv spec/api/api_spec.yml spec/api/api-spec.yml` 改名成 canonical，再繼續。
+3. 其他別名（`.yaml` 副檔名、`openapi.yml` / `swagger.yml` 等）→ **依語意**判斷是否為本專案 OpenAPI 來源（底線只是最常見範例，非白名單）；是則同樣 `mv` 成 canonical。命名不尋常、無法確定是不是 spec 時，列出候選請操作者確認，**別默默猜、也別硬比字面**。
+4. canonical 與別名**同時存在且內容不同** → 不確定哪份才是最新，停下來問操作者要用哪份，再 `mv` 覆蓋。
+
+> 為何 rename 而非保留兩份：canonical 是單一 SoT，避免兩份漂移；後端下次再匯出別名版，置入後本步驟會再次收斂（覆蓋更新）。
+> 此步只在 skill 流程內執行——不透過 skill、直接手跑 `npm run gen:api` 而當下只有別名版，仍會「找不到來源」（先 `mv` 或先跑一次 feature-to-api）。
+
+---
+
 ## 必讀規範
 
 ```

@@ -54,8 +54,9 @@ npm run gen:api
 - PR 的 `_schema.d.ts` diff 本身就是「API 合約改了什麼」的 review 物件。
 - **重生時機**：首次進 OpenAPI 模式、每次後端更新 `api-spec.yml`（見 § 6 Sync）。
 - 無 `spec/api/api-spec.yml` 時不要跑（Feature 推導模式維持手寫，§ 開頭已述）。
-- **檔名統一 `api-spec.yml`（連字號）**：後端若交付 `api_spec.yml`（底線）等別名，置入時改名對齊，
-  否則 `gen:api` 會「找不到來源」。
+- **檔名統一 canonical `api-spec.yml`（連字號）**：後端若交付 `api_spec.yml`（底線）等別名，
+  feature-to-api Phase 0 前置步驟會自動 `mv` 成連字號 canonical（見 [phase-0-prep.md](phase-0-prep.md)「定位並正規化 spec 檔名」），之後 `gen:api` 才找得到來源。
+  **限制**：此正規化在 skill 流程內執行；不透過 skill、直接手跑 `npm run gen:api` 而當下只有別名版，仍會「找不到來源」——先手動 `mv`，或先跑一次 feature-to-api。
 - 來源是 **OpenAPI 3.1 也 OK**：openapi-typescript v7 支援；3.1 的 `type: [string, 'null']` 會產 `string | null`、
   `enum` 產 literal union、`allOf` 產交集，皆自動處理。
 
