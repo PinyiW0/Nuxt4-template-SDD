@@ -106,7 +106,9 @@ grep 來源訊號（命中任一即「有即時需求」）：
 - WebSocket：`wss://`、`ws://`、WebSocket 端點描述
 - WebRTC：`RTCPeerConnection`、signaling、datachannel
 
-**偵測到 → 寫入 `route-map.yaml > realtime` 區塊**（`transport: sse | websocket | webrtc-data`、`events`（端點路徑）、`event_types`（信封 `type` 列舉，供前端手寫 discriminated union））**並在報告提示「建議套用 `realtime` skill」**。SSE 信封的 `data` 多半是鬆散型別（codegen 給 `Record<string, never>`），型別語意由前端手寫 discriminated union 補（見 openapi-codegen.md §8、realtime/references/sse.md）。
+**偵測到 → 寫入 `route-map.yaml > realtime` 區塊**（`transport: sse | websocket | webrtc-data`、`events`（端點路徑）、`event_types`（信封 `type` 列舉，供前端手寫 discriminated union）、`auth`（連線端點認證方式：`query-token | cookie | header`））**並在報告提示「建議套用 `realtime` skill」**。SSE 信封的 `data` 多半是鬆散型別（codegen 給 `Record<string, never>`），型別語意由前端手寫 discriminated union 補（見 openapi-codegen.md §8、realtime/references/sse.md）。
+
+> `auth` 判定（**別假設一律 query**）：讀連線端點的 `security` 與 `parameters`——`token`/`access_token` 類參數 `in: query` 且 `security: []` → `query-token`；靠 cookie（cookie security scheme 或描述提及）→ `cookie`；走 Bearer header（少數，前端需改用 `@microsoft/fetch-event-source`）→ `header`。realtime skill 依此值實作連線 URL / 認證。
 
 **沒偵測到 → route-map 不寫 realtime 區塊、不提示。** Sync 模式下後來才出現即時端點一樣補上。
 
