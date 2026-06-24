@@ -80,7 +80,7 @@ And 系統顯示 "帳號或密碼錯誤"
 
 | DSL Then | UI 處理 |
 |----------|---------|
-| `操作成功` | Toast success +（寫入類）**`await refresh()`** + 導向 |
+| `操作成功` | Toast success + 刷新畫面或導向（依情境，見「資料新鮮度」） |
 | `操作失敗` | Toast error |
 | `系統顯示 "..."` | 顯示錯誤訊息 |
 | `系統回傳 ...` | 儲存到 state |
@@ -95,8 +95,18 @@ And 系統顯示 "帳號或密碼錯誤"
 **三條鐵律：**
 
 1. **要保持最新的 list / detail 一律用 `get()`（reactive），不要用 `getOnce` 把資料存進 local `ref`** —— `getOnce` 是一次性的，存進 ref 後沒有刷新管道。
-2. **任何 `post / patch / delete` 成功後 `await refresh()`** —— `refresh` 取自同元件 `get()` 的回傳。
+2. **寫入（`post / patch / delete`）後要讓畫面反映最新** —— 做法依「寫完去哪」而定，見下方情境表（不是每種都要手動 `refresh`）。
 3. **跨元件（子 modal 寫、父層列表讀）用 `refreshNuxtData(key)`** —— 列表的 `get()` 帶穩定 `key`，子元件寫完後 `await refreshNuxtData(key)` 觸發父層重抓。
+
+**依「寫完去哪」選刷新方式：**
+
+| 寫完的去向 | 怎麼拿到最新 | 為何 |
+|-----------|------------|------|
+| **跨頁導航**：編輯頁 `navigateTo` 回列表頁（最常見的「編輯完回列表」） | 列表頁用 `get({ key })` 即可，**不必手動 refresh** | client 端導航會重新掛載列表頁、`useFetch` 預設重抓；只有 hydration 當下才吃 payload 快取 |
+| **同頁** inline / modal 寫入（不離開列表頁） | 寫完 `await refresh()`（同元件 `get()` 的 refresh） | 沒有重新掛載 → 不會自動重抓，要手動觸發 |
+| **子元件寫、父層列表讀**（不離開頁面） | 子元件寫完 `await refreshNuxtData(key)` | 跨元件沒有共享的 refresh 控制權，用 key 觸發父層重抓 |
+
+> ⚠️ 真正會「編輯完回頁面卻還是舊資料」的，是把 list 用 `getOnce` / `$fetch` 抓一次塞進 `useState` / `ref` / Pinia 當快取——回頁面時看到快取就跳過重抓（違反鐵律#1）。一律用 `get()`，別自建列表快取層。
 
 **同元件範例（列表 + 建立 modal）：**
 
