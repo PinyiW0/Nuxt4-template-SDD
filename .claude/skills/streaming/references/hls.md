@@ -416,7 +416,7 @@ watch(() => notifications.pitchList.length, async (len, prevLen) => {
 
 ## 9. 型別來源（OpenAPI codegen）
 
-HLS URL 多半由獨立端點提供（單一真相來源），型別走 codegen alias（見 `feature-to-api/references/openapi-codegen.md`）。實戰 spec 範例：
+HLS URL 的住處由 api-spec 決定——可能獨立端點（如下例 `/streams`，單一真相來源）、也可能內嵌在資源物件裡；欄位名也未必叫 `hlsUrl`。以實際 spec 為準，型別走 codegen alias（見 `feature-to-api/references/openapi-codegen.md`）。下為**本範例 spec** 的佈局：
 
 ```yaml
 # api-spec.yml（節錄）
@@ -436,7 +436,7 @@ import type { components } from './_schema'
 export type StreamResponse = components['schemas']['StreamResponse']
 ```
 
-> 相機 recorder 帶 `streamId` 參照 → 前端以 `GET /streams/{streamId}` 取 `hlsUrl`（hlsUrl 單一真相來源在 streams 端點，相機端點不重複給）。
+> 相機 recorder 帶 `streamId` 參照 → 前端以 `GET /streams/{streamId}` 取 `hlsUrl`（hlsUrl 單一真相來源在 streams 端點，相機端點不重複給）。**此為本範例 spec 的資料佈局；端點 / 欄位名、以及「是否獨立端點 vs 內嵌資源物件」依各專案 api-spec 而定。**
 
 ---
 

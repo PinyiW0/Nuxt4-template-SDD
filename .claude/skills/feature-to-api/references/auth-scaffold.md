@@ -8,16 +8,16 @@
 
 ---
 
-## 1. 偵測（確定性，grep 訊號，非 AI 猜）
+## 1. 偵測（語意判準；grep 訊號起手，AI 依現況收尾）
 
-Phase 0 判斷是否需要 auth —— 命中任一即視為「需要」：
+判準是**語意**——「這份 spec 描述的是一個需要登入守門的 app 嗎」，不是「有沒有出現某個字串」。下表訊號是**常見範例非窮舉白名單**，命名不同但語意相同一樣命中。命中任一即視為「需要」：
 
-| 來源 | 訊號 |
+| 來源 | 訊號（範例，依語意判斷） |
 |---|---|
-| OpenAPI `spec/api/api-spec.yml` | `paths` 同時含 `/auth/login` 與 `/auth/refresh`；或 `components.securitySchemes` 有 `bearer`（`type: http, scheme: bearer`） |
-| `.feature` / `.flow.md` | 有登入 scenario（「登入」「login」「帳號 + 密碼」「未登入導向」） |
+| OpenAPI `spec/api/api-spec.yml` | 語意上存在「收憑證換 token」+「刷新 token」的端點對（端點名 `/auth/login`、`/sessions`、`/oauth/token` 等皆為範例，依 path 語意 + requestBody / response 形狀判斷）；或 `components.securitySchemes` 有 `bearer` / `oauth2` |
+| `.feature` / `.flow.md` | 有登入 scenario（「登入」「login」「帳號 + 密碼」「未登入導向」等語意，非限定字串） |
 
-偵測到 → 寫入 `route-map.yaml > auth`（§2）並套用 §3。**沒偵測到 → 完全略過本檔。**
+偵測到 → 寫入 `route-map.yaml > auth`（§2）並套用 §3。**沒偵測到 → 完全略過本檔。** 訊號模糊、命名超出範例、或來源互相矛盾時 → **不默默猜、也不硬比字面，列出研判與操作者確認再定**（與 `phase-0-prep.md`「偵測總則」一致）。
 
 ---
 
@@ -30,7 +30,9 @@ auth:
   home_path: /                # 登入後首頁（依專案，root redirect 目標）
   public_paths:               # 免驗證白名單（務必含 login_path）
     - /login
-  token_endpoints:            # 這些端點 handleUnauthorized:false（避免自身 401 迴圈）
+  token_endpoints:            # handleUnauthorized:false 的端點（避免自身 401 迴圈）
+                              # 依 §1 實際偵測到的「登入 / 刷新 / 登出 / me」端點填入；
+                              # 下列 /auth/* 僅範例，後端命名不同（/sessions、/oauth/token…）就換成實際端點
     - POST /auth/login
     - POST /auth/refresh
     - POST /auth/logout
@@ -184,7 +186,8 @@ export const useAuthStore = defineStore(
       name.value = null
       roles.value = []
       // SSR：Set-Cookie 延遲到 app:rendered；登出後立刻 navigateTo 會讓清除送不出去 → 壞 token 殘留造成迴圈。
-      // 故在 server 直接對 H3 event 寫刪除 header（cookie 名 = store id 'auth'）。
+      // 故在 server 直接對 H3 event 寫刪除 header。cookie 名須對齊 persist 實際使用的 key
+      // （預設 = store id 'auth'；若 persist 自訂 key 則改用該值，否則刪錯 cookie → 壞 token 殘留成迴圈）。
       if (import.meta.server) {
         const event = useRequestEvent()
         if (event)

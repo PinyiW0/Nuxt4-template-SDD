@@ -183,6 +183,8 @@ vibe diff 中使用了 N 個不在主 spec 合約白名單的 testid，已自動
 
 每個 sub-pattern 對應一份模板。Claude 依 hunk 內容填入具體 locator、變數。
 
+> **模板裡的固定值都是示意，落地前依當前專案替換**：`login(page, 'admin', 'admin888')` 的憑證取自該專案 flow.md 前置條件 / mock 種子帳號；`page.route('**/api/v1/...')`、`request.delete('/api/v1/...')` 的 `/api/v1` 前綴別假設，依專案 API base 推（OpenAPI `servers.url` / 既有 `server/api/` 路徑，見 `feature-to-api/references/phase-0-prep.md`）；清空集合也依專案刪除 / reset 慣例（逐筆 DELETE 或 reset endpoint）。**照抄固定值會讓 route 攔截 / 登入靜默失效（假綠）。**
+
 ### `toggle`（折疊/展開）
 
 ```ts
