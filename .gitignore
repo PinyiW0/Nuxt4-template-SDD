@@ -22,9 +22,9 @@ logs
 .claude/settings.local.json
 
 # Local env files
-# .env
-# .env.*
-# !.env.example
+.env
+.env.*
+!.env.example
 
 # Nuxt test-utils 自動產生的 setup 標記
 .nuxtrc
