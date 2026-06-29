@@ -72,6 +72,8 @@ spec/gherkin-feature/*.feature（Given event / When command / Then event）
 
 > **影音串流（條件式，與即時連線不同）**：與「連線狀態」不同，**影音播放的畫面呈現屬 UI / vibe 範疇，flow 不凍結它**——真實 flow 通常只以路由暗示直播頁（如 `/practice/live` 的「live」字），不寫「直播狀態可見」這類不變式（影片要不要顯示 LIVE / 無訊號 / 載入失敗，是 vibe 可自由迭代的呈現）。串流的合約在 OpenAPI 的播放 URL 端點（`/streams` → `hlsUrl`），由 feature-to-api Phase 0「Streaming 偵測」寫入 route-map；實作知識（播放器掛載、看門狗、延遲調校、多路對齊、teardown）由 `streaming` skill 提供。**flow 層不需為串流新增業務不變式**（對比：相機「連線中 / 已斷線」屬即時連線領域，那才是 flow 該捕捉的；見上一條 realtime note）。
 
+> **角色分層 / 授權（條件式）**：feature 含**不同角色看到 / 能做的事不一樣**（「以管理員登入」vs「以教練登入」清單或可操作不同、「僅…可」「無權限」語意）時，Business Invariants 須捕捉兩條 **UX-agnostic** 不變式：① 「{操作 / 資源} 僅 {role} 可達」；② 「無權角色被擋——看不到入口、或被導離、或操作被拒（任一語意反饋皆可）」。**不指定守門形式**（403 頁 / 導回首頁 / 入口隱藏由 vibe 決定）。角色名用 feature 實際出現的詞、不寫死。授權的合約（端點存取 / 列表 ACL / 單筆 object 歸屬（BOLA）/ 受保護路由）由 feature-to-api Phase 0「授權（RBAC）偵測」萃取進 `route-map.rbac`，實作範本見 [rbac-scaffold.md](../feature-to-api/references/rbac-scaffold.md)；flow 只負責把「角色可見性」立成業務不變式（含「只能操作自己的」這類單筆歸屬語意），讓 spec 有依據產拒絕場景。
+
 ---
 
 ## 現有檔案

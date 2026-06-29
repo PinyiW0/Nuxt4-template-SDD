@@ -63,6 +63,9 @@ Phase 2 增量更新完成
    - **`auth.required: true`** → 確保 `app/middleware/auth.global.ts` 存在（範本見下方「Auth middleware 範本」）且 `authPublicPaths` 含 `login_path`，
      並有 `app/pages/login.vue`（範本見 [page-builder.md](page-builder.md)「登入表單」）。API 層（useHttp auth 版 / store / auth.api / types / nuxt.config 追加）由 feature-to-api 依 [auth-scaffold.md](../../feature-to-api/references/auth-scaffold.md) §3a 套用。
      **不可默默跳過**——缺守門要報錯補上。防迴圈六道與收尾 checklist 見 auth-scaffold.md §4 / §5。
+2.5. **RBAC route guard（條件式）**：檢查 `route-map.yaml > rbac.protected_routes`
+   - **無 `rbac` 區塊 / 無 `protected_routes`** → 跳過，本專案不做角色路由守門
+   - **有 `protected_routes`** → 確保 `app/middleware/rbac.global.ts` 存在（範本見下方「RBAC route guard 範本」），並建立守門目標頁空殼（如 `/403`，若 `route-map.routes` 未含則一併補一個 `app/pages/403.vue` 空殼）。角色名用 `rbac` 實際值、不寫死。入口 / 操作鈕的角色隱藏由 Phase 5 依 [rules.md](rules.md)「角色導向 UI 可見性」實作。
 3. **檢查 `spec/e2e-flows/pages/` 是否存在 elements.md 檔案**
    - 存在 → 讀取對應頁面的 elements.md，提取 testid
    - 不存在 → 按命名規則定義 testid
@@ -183,6 +186,38 @@ export default defineNuxtRouteMiddleware((to) => {
     return navigateTo(homePath)
 })
 ```
+
+## RBAC route guard 範本（僅 `route-map.rbac.protected_routes` 時產出）
+
+> 條件式：無 `rbac.protected_routes` 不產此檔。角色守門以 auth 為前提——檔名 `rbac.global.ts` 在 `auth.global.ts` 之後（字母序），auth 先處理未登入，rbac 再判角色。
+> `PROTECTED_ROUTES` 陣列**由 route-map.rbac.protected_routes 生成寫入**（角色名照 route-map 實際值，不寫死）。守門目標 `/403` 頁需存在（Phase 2 補空殼）。
+
+```ts
+// app/middleware/rbac.global.ts
+import { useAuthStore } from '~/stores/auth'
+
+// 由 route-map.rbac.protected_routes 生成；path 前綴比對，allow = 允許角色
+const PROTECTED_ROUTES: { path: string, allow: string[] }[] = [
+  { path: '/accounts', allow: ['super_admin'] },
+]
+
+const DENIED_PATH = '/403'
+
+export default defineNuxtRouteMiddleware((to) => {
+  const authStore = useAuthStore()
+
+  const rule = PROTECTED_ROUTES.find(r => to.path === r.path || to.path.startsWith(`${r.path}/`))
+  if (!rule)
+    return // 非受保護路由
+
+  const allowed = authStore.roles.some(role => rule.allow.includes(role))
+  // 無權且不在目標頁 → 導離（never-nav-to-current，避免 /403 → /403 自彈）
+  if (!allowed && to.path !== DENIED_PATH)
+    return navigateTo(DENIED_PATH)
+})
+```
+
+> ⚠️ 這是 UX 守門（前端可繞過）——真正的安全邊界在 mock / 後端的 `requireRole`（回 403）。兩層並存：middleware 擋導航、API 擋資料。
 
 ## 輸出結構
 

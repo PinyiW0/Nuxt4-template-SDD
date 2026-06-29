@@ -9,6 +9,7 @@
 - spec/report/route-map.yaml > api_contract.path_prefix（API 路徑前綴，決定 server/api/ 資料夾結構）
 - spec/report/route-map.yaml > api_contract.endpoints（端點規格）
 - spec/report/route-map.yaml > enabled_features（若含 dragAndDrop → 需建 sort API；若含 fileUpload → 需建 upload API）
+- spec/report/route-map.yaml > rbac（**若存在** → 角色守門：endpoints 套 requireRole 回 403（BFLA）、ownership 套列表過濾、object_ownership 套單筆歸屬檢查（BOLA）、多角色種子；範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a）
 - spec/e2e-flows/*.flow.md（操作流程中引用的實體名稱、資料值）
 - ui-config.yaml > testAccounts（測試帳號）
 - rules.md [P1] 段落（Server API 類型規範）
@@ -107,13 +108,15 @@ Phase 1 增量更新完成
    > ⚠️ 違反此規則會導致 `.flow.md` 預期值與 mock 不一致，E2E 測試被迫偏離 SSoT 鏈（`.feature` → `.flow.md` → `.spec.ts`）
 
 6. **建立 API 端點**（回傳格式必須嚴格符合 `types/api/` 合約）
-   - **角色過濾判斷**：讀取對應 `.feature` 的 Background/Rule，若出現角色區分（如「以教練身份登入」vs「以管理員身份登入」對同一資源有不同存取範圍），該資源的列表 API 必須實作角色過濾：
-     1. mock data 需包含 `createdBy` 欄位（值為 username 或 accountId）
-     2. API handler 使用 `getMockCurrentUser()` 取得當前登入者
-     3. **受限角色**（只能看自己建立的，如本例「教練」）：`items.filter(i => i.createdBy === currentUser.username)`
-     4. **全權角色**（可存取所有資料，如本例「管理員」）：不過濾
-     > 「教練 / 管理員」是本範例的角色名；實作時用該專案 `.feature` 實際出現的角色詞（可能是 `coach`/`admin`、`member`/`owner` 等），判準是「受限 vs 全權」的語意，非字面角色名。
-   - 若 `.feature` 沒有角色區分（所有角色看到的資料相同），則不需要角色過濾
+   - **角色守門（讀 `route-map.rbac`，非臨場猜）**：phase-0 授權偵測已把角色規則萃取進 `route-map.yaml > rbac`（單一 SoT）。此處**一律讀該區塊套用**，不再從 `.feature` 散文重新偵測（避免漂移）。範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a：
+     1. **先建橋接 util** `server/mock/auth-context.ts`（`getMockCurrentUser` / `requireRole` / `requireOwnership`，由 Bearer mock-token 反查當前使用者 roles）——這是 token → 角色的唯一橋樑
+     2. **多角色種子**：`mockUsers` 帶 `roles: string[]`，`rbac.roles` 每個角色**至少一帳號**（否則無從以該角色登入看差異）
+     3. **`rbac.endpoints`**（端點存取控制 / OWASP BFLA）：對應 handler **首行** `requireRole(event, allow, message)` → 不在 allow 內的角色直接 403
+     4. **`rbac.ownership`**（列表級 ACL）：用 `getMockCurrentUser(event)` 取當前角色，`restricted_roles` 內的角色過濾 `owner_field === me.accountId`，其餘角色不過濾；該資源 mock data 需含 `owner_field`（如 `createdBy`，值為 accountId）
+     5. **`rbac.object_ownership`**（單筆 object 級 ACL / **OWASP API #1 BOLA**）：`/{id}` 端點 handler 內**先查到該筆 object → `requireOwnership(event, obj.owner_field, restricted_roles)` → 才動作**，受限角色帶他人 id → 403（`notfound: true` 則 404）；mock data 同需含 `owner_field`。**最常漏、卻是 OWASP 排名第 1**
+     6. **`rbac.business_guards`** 只是登錄、不在此自動生（last-super-admin 409、self-vs-others 改密疊加條件等留手寫）
+     > 角色名一律用 `rbac.roles` 的實際值，**不寫死** `super_admin`/`coach`；判準是「受限 vs 全權」「哪些角色 allow」的語意。
+   - **沒有 `rbac` 區塊** → 此專案無角色分層，所有端點不加守門、不加 ownership 過濾。
 7. **詢問用戶確認**
 
 ## 輸出結構
@@ -177,12 +180,13 @@ export type { CreateTeamBody, TeamCreatedEvent, TeamListItem } from './teams'
 ```typescript
 // server/mock/data/users.ts
 export const mockUsers = [
-  { accountId: 'acc-001', username: 'admin', password: 'pass123', name: '管理員', role: '管理者', deletedAt: null },
-  { accountId: 'acc-002', username: 'coach1', password: 'pass123', name: '王教練', role: '教練', deletedAt: null },
+  { accountId: 'acc-001', account: 'admin', password: 'admin888', name: '系統管理員', roles: ['super_admin'], deletedAt: null },
+  { accountId: 'acc-002', account: 'coach1', password: 'pass123', name: '王教練', roles: ['coach'], deletedAt: null },
 ]
 ```
 
-> ⚠️ 若 `.feature` 有角色區分（不同角色看到不同資料），mock data **必須包含 `createdBy` 欄位**（值為 accountId / username），且資料需分配給不同帳號，確保角色過濾可測試。無角色區分的資源不需要此欄位。
+> ⚠️ **角色用 `roles: string[]`**（對齊 OpenAPI / auth-scaffold 的 `MeResponse.roles`），不要用單數 `role: 'x'`。
+> ⚠️ **有 `route-map.rbac` 時**：`rbac.roles` 每個角色**至少一帳號**（否則無從以該角色登入看差異）；出現在 `rbac.ownership` 的資源其 mock data 需含 `owner_field`（如 `createdBy`，值為 accountId），分配給不同帳號以利過濾可測。詳見 [rbac-scaffold.md](rbac-scaffold.md) §3a。無 rbac 區塊的資源不需要這些欄位。
 >
 > ⚠️ 軟刪除用 `deletedAt: string | null`，不要用 `status: 'active' | 'deleted'`（對齊 OpenAPI 慣例）。
 
@@ -297,36 +301,57 @@ export default defineEventHandler((event: H3Event) => {
 })
 ```
 
-### 列表端點範例（有角色過濾）
+### 角色守門範例（讀 route-map.rbac）
 
-> 當 `.feature` 有角色區分時（如教練只能查自己建立的資源），API 必須加入角色過濾。
+> **完整範本（橋接 util + 端點 403 + ownership 過濾 + 多角色種子）住在 [rbac-scaffold.md](rbac-scaffold.md) §3a**，此處只摘要兩種落地形狀。角色名用 `rbac.roles` 實際值，勿寫死。
+
+**① 端點存取控制**（對應 `rbac.endpoints`）——handler 首行擋：
 
 ```typescript
-// server/api/trainings/index.get.ts
-import type { H3Event } from 'h3'
-import type { TrainingListItem } from '../../../app/types/api/trainings'
-
-import { mockTrainings } from '../../mock/data/trainings'
-import { getMockCurrentUser } from '../../mock/data/users'
-
-export default defineEventHandler((event: H3Event): TrainingListItem[] => {
-  let items = mockTrainings.filter(t => !t.deletedAt)
-
-  // 角色過濾：教練只能查詢自己建立的資源
-  const currentUser = getMockCurrentUser()
-  if (currentUser?.role === '教練') {
-    items = items.filter(t => t.createdBy === currentUser.username)
-  }
-
-  return items.map(t => ({
-    trainingId: t.trainingId,
-    trainingName: t.trainingName,
-    // ...只挑 TrainingListItem 欄位
-  }))
+// server/api/v1/accounts/index.get.ts
+import { requireRole } from '../../../mock/auth-context'
+// ...
+export default defineEventHandler((event: H3Event): AccountListItem[] => {
+  requireRole(event, ['super_admin'], '僅 super_admin 可操作') // 不在 allow 內 → 403
+  return mockUsers.filter(u => !u.deletedAt).map(/* ...挑欄位 */)
 })
 ```
 
-> ⚠️ 角色過濾後直接回過濾後的陣列；E2E 測試的斷言基於過濾後的資料量。
+**② 擁有權過濾**（對應 `rbac.ownership`）——受限角色只看自己 `owner_field` 的：
+
+```typescript
+// server/api/v1/notes/index.get.ts（notes 為假想資源：本 spec 無 ownership 端點，僅示意寫法；勿把無 ownership 散文的真實端點硬套）
+import { getMockCurrentUser } from '../../../mock/auth-context'
+// ...
+export default defineEventHandler((event: H3Event): NoteListItem[] => {
+  const me = getMockCurrentUser(event)
+  let items = mockNotes.filter(n => !n.deletedAt)
+
+  // restricted_roles（來自 route-map.rbac.ownership）內的角色才過濾；全權角色不過濾
+  const restricted = ['coach']
+  if (me && me.roles.some(r => restricted.includes(r)))
+    items = items.filter(n => n.createdBy === me.accountId)
+
+  return items.map(n => ({ noteId: n.noteId, title: n.title }))
+})
+```
+
+**③ 單筆 object 歸屬**（對應 `rbac.object_ownership`，OWASP **BOLA / API #1**）——`/{id}` 端點先查 object 再驗歸屬：
+
+```typescript
+// server/api/v1/notes/[noteId].patch.ts （notes 為假想資源，僅示意；完整範本見 rbac-scaffold §3a）
+export default defineEventHandler(async (event: H3Event) => {
+  const note = mockNotes.find(n => n.noteId === getRouterParam(event, 'noteId') && !n.deletedAt)
+  if (!note)
+    throw createError({ statusCode: 404, statusMessage: '資源不存在' })
+  requireOwnership(event, note.createdBy, ['coach']) // 受限角色帶他人 id → 403；全權角色放行
+  // ...才動作
+})
+```
+
+> ⚠️ `getMockCurrentUser(event)` / `requireOwnership(event, ...)` 由 `server/mock/auth-context.ts` 提供（rbac-scaffold §3a），**需傳入 `event`** 才能從 Authorization header 反查角色——舊版無參數的寫法已失效。
+> ⚠️ BOLA 順序鐵律：**先查到 object → 再驗歸屬 → 才動作**。先動作或只比對 id 不查 owner，就是 OWASP #1 漏洞。
+> ⚠️ 守門 / 過濾後直接回結果；E2E 斷言基於「該登入角色實際拿到的資料量」（見 spec.md 的多角色推算）。
 
 ## Auth Store 範例
 

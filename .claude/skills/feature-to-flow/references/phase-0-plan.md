@@ -117,6 +117,15 @@ find spec/gherkin-feature -maxdepth 1 -type f -name '*.feature'
 > - **完全無 UI 結果**（如純後端資料轉換 `bt3d → pitch fusion`，使用者完全感覺不到）→ **仍要在 flow.md 列出該 Feature 名稱與一句話說明，標註「無 UI 觀察點，本 flow 不產 scenario」**，避免後續維護者誤以為被遺漏
 > - 不可預設 system event 一律 skip，也不可全部產出——按上述兩條判斷
 
+### 4.5 角色分層偵測（條件式）
+
+掃描各 Feature / Scenario，判斷是否有**不同角色看到 / 能做的事不一樣**的語意（利用步驟 1 已抽的 `actor` + scenario 內「僅…可」「無權限」「被拒」、或同資源不同 actor 結果不同）：
+
+- **偵測到** → 在計畫表對應 module 的「備註」標 `⚠️ 角色分層`，並在「待確認」段列出研判的角色與受限端點，提醒 Phase 1 為該 module 寫**角色可見性不變式**（「僅 {role} 可達」「無權角色被擋」，UX-agnostic；見 [flow-template.md](flow-template.md) Business Invariants）。
+- **沒偵測到** → 不寫角色不變式（中立預設）。
+
+> 授權的**可執行合約**（端點存取 / 列表 ACL / 受保護路由的 403、過濾、守門）不在 flow 層落地——由 feature-to-api Phase 0「授權（RBAC）偵測」萃取進 `route-map.rbac`、實作見 rbac-scaffold.md。flow 只負責把「角色可見性」立成業務不變式，讓 `/test e2e spec` 有依據產拒絕場景。角色名用 feature 實際出現的詞、不寫死。
+
 ### 5. 輸出計畫表
 
 以 markdown 表格回報給使用者，不寫入任何檔案。格式：

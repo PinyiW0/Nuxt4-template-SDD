@@ -209,6 +209,34 @@ await authStore.login(account, password)
 
 ---
 
+## 角色導向 UI 可見性 `[P2, P5]`
+
+**條件式**：僅當 `route-map.yaml` 有 `rbac` 區塊時套用（偵測規則與合約見 `/feature-to-api` 的 [rbac-scaffold.md](../../feature-to-api/references/rbac-scaffold.md)）。無 rbac 區塊 → 不加任何角色守門。
+
+角色來自 auth-scaffold 的 store（`authStore.roles`，由 `/auth/me` 填入）。**雙層守門**：入口隱藏（看不到）+ 路由 middleware（直接打 URL 也進不去），mock `requireRole` 在 API 層兜底回 403。
+
+### 入口 / 操作鈕隱藏 `[P5]`
+
+選單入口與危險操作鈕依角色 `v-if` 隱藏。角色名用 `route-map.rbac` 的實際值，**不寫死**：
+
+```vue
+<!-- [O] 受保護路由的選單入口：無權角色不顯示 -->
+<NuxtLink v-if="authStore.roles.includes('super_admin')" to="/accounts">帳號管理</NuxtLink>
+
+<!-- [O] 危險操作鈕：依角色顯示 -->
+<UButton v-if="authStore.roles.includes('super_admin')" color="error" @click="handleDelete">刪除帳號</UButton>
+
+<!-- [X] 顯示鈕但點了才說無權（壞 UX，且依賴 API 才知道擋） -->
+```
+
+> ⚠️ 入口隱藏是 UX，不是安全邊界——真正擋住靠下方 middleware + mock requireRole。但仍要隱藏，避免使用者點到死路。
+
+### 路由守門 `[P2]`
+
+`app/middleware/rbac.global.ts` 讀 `route-map.rbac.protected_routes`，當前角色不在 `allow` → 導向 `/403`（never-nav-current、別導到自己造成 loop，比照 `auth.global.ts`）。範本見 [phase-2-skeleton.md](phase-2-skeleton.md)「RBAC route guard」段。
+
+---
+
 ## 程式碼品質檢查規範 `[P5]`
 
 每個頁面實作完成後，**必須依序執行以下三項檢查**，針對本次新增或修改的檔案：
