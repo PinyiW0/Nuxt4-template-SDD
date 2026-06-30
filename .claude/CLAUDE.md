@@ -48,6 +48,8 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 `/test e2e spec`（測試先行 → 紅）→ `/feature-to-ui`（Sync）→ `/test e2e green` →
 Gate 回歸（`playwright.gate.config.ts` 全綠）。詳見 `.claude/skills/feature-to-api/references/openapi-codegen.md`。
 
+**條件式跨切面關注點（偵測到才生，預設中立）**：auth（認證）、realtime（即時連線）、streaming（影音）、**rbac（授權 / 角色分層）**。四者皆由 `/feature-to-api` Phase 0 偵測 → 寫入 `route-map.yaml` 對應區塊 → 下游各 phase 消費。授權的 SoT 在 `route-map.rbac`，合約與範本（端點 403 / 列表 ACL / 單筆 object 歸屬（OWASP BOLA）/ 受保護路由守門 / token→角色橋接）見 `.claude/skills/feature-to-api/references/rbac-scaffold.md`；角色名一律從 spec 萃取、不寫死。
+
 ---
 
 ## Vibe UI 守則（v2）
