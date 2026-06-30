@@ -10,6 +10,25 @@
 
 ---
 
+## 觸發與消費鏈（一覽）
+
+> 全貌索引；偵測在 **Phase 0**、SoT 是 **`route-map.rbac`**、下游讀到才消費。細節見各段與下游 phase 的 reference。
+
+```text
+flow  P0  立角色可見性不變式
+api   P0  【主偵測】寫 route-map.rbac  ← SoT
+api   P1  mock 套 requireRole / requireOwnership / ownership 過濾（§3a）
+spec      產多角色登入 + 拒絕場景：403 / 導離 / BOLA
+ui    P2  rbac.global.ts 路由守門（§3b）
+ui    P5  入口 / 按鈕 v-if 角色隱藏（§3b）
+```
+
+**無 `rbac` 區塊 → 全部略過（中立預設）。**
+
+> **守門落點（別越層）**：middleware 只管**路由級**（`protected_routes`）；**端點級**（BFLA）與**物件級**（BOLA）都在 API（`requireRole` / `requireOwnership`）—— BOLA 不放 middleware（導航階段不知道要動哪一筆 object）。**JWT 只負責認證**，roles 經 `/auth/me` 單向流入 `authStore.roles`，前端不解 JWT。
+
+---
+
 ## 1. 偵測（語意判準；grep 訊號起手，AI 依現況收尾）
 
 判準是**語意**——「這份 spec 描述的是一個**不同角色看到 / 能做的事不一樣**的 app 嗎」，不是「有沒有出現某個字串」。下表訊號是**常見範例非窮舉白名單**，命名不同但語意相同一樣命中。命中任一即視為「有角色分層」：
