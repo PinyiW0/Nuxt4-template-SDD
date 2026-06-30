@@ -57,6 +57,6 @@ metadata:
 
 - **被動**（本 skill 的 `description`）：寫 `EventSource` / `useEventSource` / `WebSocket` / `RTCPeerConnection` 等程式碼時自動載入。
 - **主動**（接進 SDD 流程）：`feature-to-api` Phase 0 與 `feature-to-flow` 掃到即時訊號時，在報告提示「建議套用 realtime skill」並寫入 route-map：
-  - SSE：OpenAPI 有 `text/event-stream` content type、`/events` 端點；`.feature`/`.flow.md` 有「即時 / 推播 / 通知 / live」scenario
+  - SSE：OpenAPI 有 `text/event-stream` content type（**主訊號**）；端點名 `/events` 等僅為範例，以實際標 `text/event-stream` 的端點為準（後端可能叫 `/stream`、`/notifications/subscribe`…）；`.feature`/`.flow.md` 有「即時 / 推播 / 通知 / live」scenario
   - WebSocket：`wss://`、`ws://`、WebSocket 端點描述
   - WebRTC：`RTCPeerConnection`、signaling、datachannel

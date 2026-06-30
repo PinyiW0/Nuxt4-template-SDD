@@ -52,5 +52,5 @@ metadata:
 
 - **被動**（本 skill 的 `description`）：寫 `hls.js` / `.m3u8` / `<video>` 播放器 / `RTCPeerConnection` + media track 等程式碼時自動載入。
 - **主動**（接進 SDD 流程）：`feature-to-api` Phase 0 與 `feature-to-flow` 掃到串流訊號時，在報告提示「建議套用 streaming skill」並寫入 route-map：
-  - HLS：OpenAPI 有 `hlsUrl` 欄位、`/streams` 端點、描述含「HLS」、或 `.m3u8`；mock / 原始碼有 `application/vnd.apple.mpegurl`、`application/x-mpegurl`
+  - HLS（**主訊號** = `.m3u8` 副檔名、`application/vnd.apple.mpegurl` / `application/x-mpegurl` mime——標準常數最可靠）；`hlsUrl` 欄位、`/streams` 端點、描述含「HLS」僅為**常見命名範例**，實際以「回傳 `.m3u8` URL 的欄位 / 端點」為準（可能叫 `playbackUrl`、或內嵌於相機物件…）
   - WebRTC media：`RTCPeerConnection` + `ontrack` / `addTrack` / `addTransceiver`

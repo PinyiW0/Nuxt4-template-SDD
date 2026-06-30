@@ -110,8 +110,9 @@ Phase 1 增量更新完成
    - **角色過濾判斷**：讀取對應 `.feature` 的 Background/Rule，若出現角色區分（如「以教練身份登入」vs「以管理員身份登入」對同一資源有不同存取範圍），該資源的列表 API 必須實作角色過濾：
      1. mock data 需包含 `createdBy` 欄位（值為 username 或 accountId）
      2. API handler 使用 `getMockCurrentUser()` 取得當前登入者
-     3. 教練角色：`items.filter(i => i.createdBy === currentUser.username)`
-     4. 管理員角色：不過濾（可存取所有資料）
+     3. **受限角色**（只能看自己建立的，如本例「教練」）：`items.filter(i => i.createdBy === currentUser.username)`
+     4. **全權角色**（可存取所有資料，如本例「管理員」）：不過濾
+     > 「教練 / 管理員」是本範例的角色名；實作時用該專案 `.feature` 實際出現的角色詞（可能是 `coach`/`admin`、`member`/`owner` 等），判準是「受限 vs 全權」的語意，非字面角色名。
    - 若 `.feature` 沒有角色區分（所有角色看到的資料相同），則不需要角色過濾
 7. **詢問用戶確認**
 
