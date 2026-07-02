@@ -18,7 +18,7 @@ metadata:
 
 | 傳輸 | 用在 | 典型延遲 | 不要用在 | 掛載方式 |
 |------|------|----------|----------|----------|
-| **HLS**（hls.js，Safari 原生） | 直播、長片、自適應碼率、可規模化廣播 | 數秒（LL-HLS 可到 ~2s） | 需 <1s 互動延遲 | 非 Safari 動態載 `hls.js` `attachMedia`；Safari `canPlayType` 直接綁 `src` |
+| **HLS**（hls.js，原生 fallback） | 直播、長片、自適應碼率、可規模化廣播 | 數秒（LL-HLS 可到 ~2s） | 需 <1s 互動延遲 | 動態載 `hls.js` `attachMedia`（MSE 優先）；`Hls.isSupported()` 為假才原生綁 `src` |
 | **WebRTC media** | 超低延遲直播、視訊通話、雲端遊戲 | <500ms | 大規模廣播（每連線成本高）、長片點播 | `RTCPeerConnection` + `ontrack` → `srcObject` |
 | **原生 `<video>`**（MP4/WebM） | 點播短片、已完整檔案 | 不適用 | 直播、自適應碼率 | 直接綁 `src`，不引 lib |
 
@@ -28,16 +28,16 @@ metadata:
 
 不論 HLS / WebRTC media，這些鐵律一致。各傳輸具體寫法見 reference，但**原則不可違反**：
 
-1. **播放引擎集中在 composable（`useHlsPlayer`），元件只渲染** — 掛載 / 重掛 / 看門狗 / 自救 / teardown 收進 composable，元件不持有播放器實例（對映 realtime「連線集中在 store」）。掛載一律 client-only + 動態載入：進入點 `if (!import.meta.client) return`，並 `await import('hls.js')` 動態載入（避免 SSR、瘦 bundle）；原生可播（Safari `canPlayType('application/vnd.apple.mpegurl')`）跳過 lib 直接綁 `src`。
-2. **src 變動 = 重新掛載；await 後須重驗** — `watch` src 重 setup。動態 `import()` 是 await 點，期間 src / 元素可能已變 → await 回來先重驗 `videoRef`/`src` 仍是當初那個，否則別掛（避免掛到舊流）。
+1. **播放引擎集中在 composable（`useHlsPlayer`），元件只渲染** — 掛載 / 重掛 / 看門狗 / 自救 / teardown 收進 composable，元件不持有播放器實例（對映 realtime「連線集中在 store」）。掛載一律 client-only + 動態載入：進入點 `if (!import.meta.client) return`，並 `await import('hls.js')` 動態載入（避免 SSR、瘦 bundle）。**MSE（hls.js）優先**：`Hls.isSupported()` 為假才 fallback 原生綁 `src`（無 MSE 環境如 iOS Safari）——**別先問 `canPlayType`**，Chrome 145+ 對 HLS mime 回 `'maybe'`（truthy）但實播黑畫面。
+2. **src 變動 = 重新掛載；await 後須重驗** — `watch` src 重 setup，且**必須 `{ flush: 'post' }`**：`<video>` 常掛在 `v-if="src"` 下，src 從 null 變 URL 的同次更新才建立元素，pre-flush 時 `videoRef` 仍 null → 掛載被跳過且無人重試。動態 `import()` 是 await 點，期間 src / 元素可能已變 → await 回來先重驗 `videoRef`/`src` 仍是當初那個，否則別掛（避免掛到舊流）。
 3. **錯誤自救分層，別第一錯就放棄** — fatal network → 重新載流（`startLoad`）；fatal media → `recoverMediaError`；其餘 fatal → teardown + 顯示「無法載入」；非 fatal stall → `seek` 回 live edge。
 4. **看門狗（stall watchdog）** — fatal error 攔不到「靜默卡死」（loop 死、`currentTime` 不前進、無錯可攔）。定時器每 N 秒比對 `currentTime` 是否前進，卡超過閾值 → `seek` live edge + 重啟拉流。沒這個只能手動重整才恢復。
 5. **teardown 要完整** — unmount / src 變動時：`destroy` 播放器實例 + 清看門狗 timer + 移除 listener。少一樣就洩漏記憶體 / timer。
 6. **直播延遲 vs 穩定的取捨** — 低延遲模式緊貼 live edge、緩衝極小，網路抖動吃光緩衝即卡死。穩定優先就**關低延遲 + 加 liveSync / backBuffer**，換 1–2s 延遲換不凍結。依場景調，不要照抄預設值。
 7. **多路同步用 PDT 軟對齊（控速不 seek）** — 多路直播用各路 PROGRAM-DATE-TIME（wallclock）量時間差，微調 `playbackRate` 放慢超前那路被落後追平；容差內不動（hysteresis）避免抖動；離場還原 rate。點播多路改用 `currentTime` 對齊。**不 seek → 不跳畫面**。
 8. **播放狀態對使用者可見** — 無訊號 / 載入失敗 / LIVE 指示用可辨識的文字呈現。這是 **UI / vibe 範疇的體驗建議，不是 flow 凍結的業務不變式**（真實 flow 不凍結影片畫面呈現，要不要顯示 LIVE / 怎麼呈現是 vibe 自由）。串流的合約在 OpenAPI 的播放 URL 端點（如 `/streams` → `hlsUrl`），不在 flow。
-9. **直播自動播放須靜音 + playsinline** — 瀏覽器自動播放政策：`autoplay` 必須 `muted`；iOS 要 `playsinline` 否則被劫持成全螢幕。
-10. **播放源就緒 ≠ 進頁時機** — 直播常晚於進頁才開推流（URL 尚未產生或端點暫 404）。解析到 `null` 不能就放棄，要**重試**（可由 realtime 事件驅動，如收到新事件才重抓）直到解析出可播 URL。
+9. **直播自動播放須靜音 + playsinline，attach 後補 play()** — 瀏覽器自動播放政策：`autoplay` 必須 `muted`；iOS 要 `playsinline` 否則被劫持成全螢幕。`autoplay` attr 在元素先於 MSE attach 建立的時序下偶不觸發 → `attachMedia` 後主動補 `video.play().catch(() => {})`。
+10. **播放源就緒 ≠ 進頁時機；拿到 URL ≠ 就緒** — 直播常晚於進頁才開推流（URL 尚未產生或端點暫 404）。解析到 `null` 不能就放棄，要**重試**（可由 realtime 事件驅動，如收到新事件才重抓）；且就緒判準要**驗流狀態**（如 `status === 'active'`）而非 URL 存在——冷 URL 會誤停重試、載 404 manifest 卡死，且 inactive→active 間 URL 字串不變、src watch 不觸發。
 
 ## References
 
