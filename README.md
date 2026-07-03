@@ -34,6 +34,20 @@ npm run eslint // 檢查 eslint 規則
 npm run typelint // 檢查 typelint 規則
 ```
 
+### 多 issue 並行開發（git worktree）
+
+一個 issue 一個 worktree，多個 CLI session 才不會在同一目錄互踩（source、`.nuxt`、git 分支天然隔離）：
+
+```bash
+git worktree add ../nuxt4-template-issue-40 'feature/#40-xxx'
+cd ../nuxt4-template-issue-40 && npm install
+```
+
+- `.env` 是 git tracked，worktree checkout 自帶，無需手動複製
+- E2E dev server port 由 worktree 路徑自動推導（3100–3499）：各 worktree 不互撞，同 worktree 重跑重用同一 server（快）；萬一兩個 worktree 撞到同一個 port（機率 1/400），換個 worktree 目錄名即換 port
+- pre-push gate 走 Docker（`scripts/docker-gate.sh`，production build 隔離 + ephemeral port），多 session 同時 push 也不互撞；Docker 沒開時自動 fallback 本機模式並警告
+- 收工清理：`git worktree remove ../nuxt4-template-issue-40`
+
 ## 專案建立步驟
 
 ### GitHub 設定
