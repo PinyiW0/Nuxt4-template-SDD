@@ -50,6 +50,10 @@ Gate 回歸（`playwright.gate.config.ts` 全綠）。詳見 `.claude/skills/fea
 
 **條件式跨切面關注點（偵測到才生，預設中立）**：auth（認證）、realtime（即時連線）、streaming（影音）、**rbac（授權 / 角色分層）**。四者皆由 `/feature-to-api` Phase 0 偵測 → 寫入 `route-map.yaml` 對應區塊 → 下游各 phase 消費。授權的 SoT 在 `route-map.rbac`，合約與範本（端點 403 / 列表 ACL / 單筆 object 歸屬（OWASP BOLA）/ 受保護路由守門 / token→角色橋接）見 `.claude/skills/feature-to-api/references/rbac-scaffold.md`；角色名一律從 spec 萃取、不寫死。
 
+**多 session 並行開發（git worktree）**：一個 issue 一個 worktree（`git worktree add ../<專案>-issue-N feature/#N-xxx` + `npm install`），source / `.nuxt` / 分支天然隔離。
+E2E dev server port 由 worktree 路徑自動推導（3100–3499，見 `playwright.config.ts`）：各 worktree 不互撞、同 worktree 重跑重用同一 server。
+pre-push gate 走 Docker（`scripts/docker-gate.sh`，production build + ephemeral port），多 session 同時 push 也不互撞。詳見 README「多 issue 並行開發」。
+
 ---
 
 ## Vibe UI 守則（v2）
@@ -61,7 +65,7 @@ Gate 回歸（`playwright.gate.config.ts` 全綠）。詳見 `.claude/skills/fea
 - **不得破壞 Business Invariants**：實體必須可被使用者識別（用業務語意如 username、playerName、deviceId）、業務狀態文字必須保留語意（「連線中」「已斷線」「進行中」「已結束」「建立成功」「已刪除」等）、業務操作必須可被觸發（不一定要按鈕，但要有可達路徑）
 - **不得修改** `test/e2e/specs/`（主 spec 凍結，SSOT 政策）
 - **不得修改** `spec/gherkin-feature/`、`spec/e2e-flows/`（主 spec 來源凍結）
-- **vibe 完 commit 前必跑** `npx playwright test --config playwright.gate.config.ts`（綠燈 = vibe 安全，pre-push 跑同一份）
+- **vibe 完 commit 前必跑** `npx playwright test --config playwright.gate.config.ts`（綠燈 = vibe 安全；pre-push 跑同一份 config，但在 Docker production build 內執行，Docker 不可用時 fallback 本機同款）
 - vibe spec（`test/e2e/vibe/`）不凍結，但刪改去留是使用者的決定——紅燈時列選項詢問，不可擅自刪改
 
 可以自由改：顏色、間距、字體、icon、layout、按鈕位置與形式（toolbar / icon-only / menu）、modal vs inline form、列表呈現（table / card / list）、折疊、動畫、新增 testid（建議 `vibe-*` 前綴）、新增頁面與互動。
