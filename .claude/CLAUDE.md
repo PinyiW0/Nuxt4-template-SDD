@@ -12,7 +12,7 @@ Nuxt 4（Vue 3 Composition API）+ NuxtUI + TypeScript strict + Playwright E2E +
 Spec-Driven Development：從 Feature 規格驅動開發。
 
 ```
-.dsl.feature（業務規格，外部產出，手動放入 spec/gherkin-feature/）
+.feature（業務規格，外部產出置入 spec/gherkin-feature/，含 .dsl.feature 變體）
        ↓
 /feature-to-flow → .flow.md（business invariant + UX-agnostic E2E 流程）
        ↓
@@ -88,7 +88,7 @@ server/
 ├── api/                        # API 端點
 └── mock/                       # Mock 資料
 spec/
-├── gherkin-feature/            # .dsl.feature（凍結）
+├── gherkin-feature/            # .feature（凍結）
 ├── e2e-flows/                  # .flow.md（凍結）
 ├── ui-config/                  # UI 設定
 └── report/                     # route-map.yaml 等

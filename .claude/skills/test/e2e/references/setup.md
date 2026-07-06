@@ -13,9 +13,9 @@
 
 | 檢查項 | 說明 |
 |--------|------|
-| `spec/e2e-flows/_common.flow.md` | 外部產出，手動放入 |
+| `spec/e2e-flows/_common.flow.md` | 由 `/feature-to-flow` Phase 1 產出（共用前置流程） |
 
-> 不存在？提示「請先將 `_common.flow.md` 放入 `spec/e2e-flows/`」
+> 不存在？提示「請先執行 `/feature-to-flow` 產出 `_common.flow.md`」
 
 ---
 
@@ -170,7 +170,7 @@ export async function confirmDelete(page: Page) {
 ```typescript
 // test/e2e/helpers/fixtures.ts
 export const TestUsers = {
-  admin: { account: 'admin', password: 'pass123', role: '管理者' },
+  admin: { account: 'admin', password: 'admin888', role: '管理者' },
   coach: { account: 'coach1', password: 'pass123', role: '教練' },
   coach2: { account: 'coach2', password: 'pass123', role: '教練' },
   locked: { account: 'locked1', password: 'pass123', role: '教練' },

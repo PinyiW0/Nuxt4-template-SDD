@@ -160,6 +160,10 @@ E2E Handwritten 已建立 / 更新：
 
 ---
 
+> ⚠️ **執行範圍**：`test/e2e/handwritten/` 不在任何 playwright config 的 testDir / gate 範圍內（設計如此）——只能手動 `npx playwright test test/e2e/handwritten/` 執行，pre-push gate 不會跑它。
+
+---
+
 ## 與 spec 的分工速查
 
 | 情境 | 寫在哪 |

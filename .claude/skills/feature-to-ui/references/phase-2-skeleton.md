@@ -14,7 +14,7 @@ Sync 模式額外讀取：
 - spec/report/sync-report.md（變更報告的「路由變更」段落）
 ```
 
-> ⚠️ 若 `pages/*.elements.md` 存在，頁面骨架的 `data-testid` **必須**使用該檔案定義的 testid，不可自行命名。
+> ⚠️ 若 `pages/*.elements.md` 存在（選配：目前無 skill 產出此檔），頁面骨架的 `data-testid` **必須**使用該檔案定義的 testid，不可自行命名。
 > 若不存在，按 [rules.md](rules.md) > testid 規範 的命名規則自行定義。
 
 ---

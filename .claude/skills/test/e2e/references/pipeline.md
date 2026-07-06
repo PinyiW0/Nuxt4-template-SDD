@@ -211,11 +211,12 @@ E2E Pipeline 完成：04-建立球隊
 Pipeline 中每個產出程式碼的階段結束前，**必須執行 lint 修復並確認零錯誤**：
 
 ```bash
-npm run lint --fix
-npm run lint    # 確認 0 errors
+npm run eslint -- --fix
+npm run eslint      # 確認 0 errors
+npm run typelint    # 型別零錯誤（CLAUDE.md 紅線：兩者都要過）
 ```
 
-> **阻塞條件**：lint 不通過則該階段視為失敗，pipeline 停止。不通過 lint 的程式碼會導致 pre-commit hook 失敗，無法 commit。
+> **阻塞條件**：lint 不通過則該階段視為失敗，pipeline 停止。lint / typelint 零錯誤是完成的硬條件（CLAUDE.md 紅線）——git hook 不會攔 lint 錯誤，不自跑就會一路帶進 PR。
 
 ---
 
@@ -224,6 +225,6 @@ npm run lint    # 確認 0 errors
 - [ ] 前置條件已滿足（.flow.md 存在、helpers/actions.ts 存在）
 - [ ] fixtures.ts 已包含所需的路由和測試帳號
 - [ ] .spec.ts 已產出（從 helpers import 共用操作，不含本地定義）
-- [ ] `npm run lint` 零錯誤
+- [ ] `npm run eslint` + `npm run typelint` 零錯誤
 - [ ] 輸出摘要包含成功/失敗/跳過數量
 - [ ] pipeline 模式：紅燈報告 + 綠燈修復完成

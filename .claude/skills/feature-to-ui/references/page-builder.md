@@ -14,7 +14,7 @@
 Background:
   Given 系統中有以下使用者：
     | account | password | role   |
-    | admin   | pass123  | 管理者 |
+    | admin   | admin888 | 管理者 |
 ```
 
 → TypeScript 型別：
