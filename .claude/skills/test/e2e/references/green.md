@@ -342,17 +342,18 @@ E2E 綠燈批次報告：01 → 05
 所有修復完成後，**必須執行 lint 修復並確認零錯誤**：
 
 ```bash
-npm run lint --fix
-npm run lint    # 確認 0 errors
+npm run eslint -- --fix
+npm run eslint      # 確認 0 errors
+npm run typelint    # 型別零錯誤（CLAUDE.md 紅線：兩者都要過）
 ```
 
-> **重要**：修改 Vue 頁面或 spec 檔案後可能引入 lint 問題（未使用 import、未使用變數等）。不通過 lint 的程式碼會導致 pre-commit hook 失敗，無法 commit。
+> **重要**：修改 Vue 頁面或 spec 檔案後可能引入 lint 問題（未使用 import、未使用變數等）。lint / typelint 零錯誤是完成的硬條件（CLAUDE.md 紅線）——git hook 不會攔 lint 錯誤，不自跑就會一路帶進 PR。
 
 ---
 
 ## 檢查清單
 
-- [ ] `npm run lint` 零錯誤
+- [ ] `npm run eslint` + `npm run typelint` 零錯誤
 - [ ] 執行紅燈收集失敗（或確認已全部通過）
 - [ ] 每個失敗測試都有根因分析
 - [ ] 修復遵循最小侵入原則

@@ -30,6 +30,10 @@ Sync 模式額外讀取：
 > - 例：`path_prefix = /api` + endpoint `/api/teams` → 檔案 `server/api/teams/index.get.ts`
 > - 下方所有範例為示意，**實際資料夾與 endpoint 路徑以本專案 `route-map.yaml > api_contract.path_prefix` 為準**
 
+> ⚠️ **Business Invariant 常數檔**：滿足 [invariants.md](invariants.md) 適用條件時，Phase 1 須一併建立／更新 `app/constants/invariants.ts`（來源：`.flow.md` Business Invariants 段；與 mock data 並列產出，UI 與 spec 是消費端）。
+
+> ⚠️ **Envelope helper（模式 A）**：首次建 mock 前，若 `server/mock/envelope.ts` 不存在，先依 [openapi-conventions.md](openapi-conventions.md) §3 的定義建立（`ok` / `page` helper），所有端點統一 import 使用。
+
 ---
 
 ## 增量模式判斷
@@ -214,7 +218,7 @@ export default defineEventHandler(async (event: H3Event): Promise<CoachLoggedInE
     throw createError({ statusCode: 401, statusMessage: '帳號或密碼錯誤' })
   }
 
-  // [O] 直接回 schema 物件，不包裝
+  // [O] 模式 B 示意：直接回 schema 物件（模式 A 用 ok() 包裝，見 openapi-conventions §3）
   return {
     accountId: user.accountId,
     accessToken: `mock-token-${user.accountId}-${Date.now()}`,
@@ -225,11 +229,11 @@ export default defineEventHandler(async (event: H3Event): Promise<CoachLoggedInE
 > ⚠️ **Server 端 import 必須用相對路徑**，不能用 `~/`
 > ⚠️ **event 必須標註 H3Event**、**陣列索引存取須處理 undefined** → 詳見 [rules.md](../references/rules.md)
 > ⚠️ **錯誤用 `statusMessage`，不要用 `message`**（讓前端統一從 `e.statusMessage` 讀取）
-> ⚠️ **回傳直接是 schema 物件，無 `{ status, data }` 包裝**
+> ⚠️ **回應外層依 `route-map.yaml > response_conventions.envelope` 模式（A：`ok()` 包裝／B：裸回；本頁範例為模式 B 示意）**，絕不自創 `{ status, data }` 第三種包裝
 
 ### 列表端點範例（CRUD 標準模式）
 
-> ⚠️ **直接 return mock 陣列 / 物件，不包裝、不挑欄位** → 詳見 [openapi-conventions.md](../references/openapi-conventions.md) § 3
+> ⚠️ **依 §3 模式回傳（A：`ok(陣列)`／B：裸陣列），不挑欄位** → 詳見 [openapi-conventions.md](../references/openapi-conventions.md) § 3
 
 ```typescript
 // server/api/teams/index.get.ts

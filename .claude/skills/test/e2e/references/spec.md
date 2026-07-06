@@ -632,8 +632,9 @@ import { confirmDelete, login } from '../helpers'
 生成後**必須執行**：
 
 ```bash
-npm run lint --fix
-npm run lint    # 確認 0 errors
+npm run eslint -- --fix
+npm run eslint      # 確認 0 errors
+npm run typelint    # 型別零錯誤（CLAUDE.md 紅線：兩者都要過）
 ```
 
 常見問題：
@@ -650,7 +651,7 @@ npm run lint    # 確認 0 errors
 - [ ] 共用操作從 `../helpers` import，spec 內無本地定義
 - [ ] `test.beforeEach` 呼叫 reset + 背景調整（Feature Background vs mock 全集已比對）
 - [ ] 每個 test 有 Given/When/Then 註解
-- [ ] `npm run lint` 零錯誤
+- [ ] `npm run eslint` + `npm run typelint` 零錯誤
 
 ### v2 抽象化合規
 - [ ] **flow 沒寫 testid 的地方，spec 也沒用 testid**（沒越權）

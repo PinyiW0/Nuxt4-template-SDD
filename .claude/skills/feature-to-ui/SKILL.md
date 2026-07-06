@@ -105,7 +105,7 @@ flowchart LR
 ### E2E 測試合約（Phase 2, 5 需要）
 
 - `test/e2e/specs/*.spec.ts` - **Phase 5 的唯一 UI 合約**（testid、互動模式、斷言預期全在這裡）
-- `spec/e2e-flows/pages/*.elements.md` - Phase 2 路由骨架的 testid 來源
+- `spec/e2e-flows/pages/*.elements.md` - Phase 2 路由骨架的 testid 來源（**選配**：目前無 skill 產出此檔；不存在時 Phase 2 依 testid 命名規則自行命名）
 
 > ⚠️ Phase 5 **直接從 `.spec.ts` 的 `getByTestId()` 複製 testid**，不讀 `.flow.md` / `elements.md`。
 > 這確保 UI 的 testid 與測試合約完全一致，消除版本不同步的問題。
@@ -157,5 +157,5 @@ flowchart LR
 - 所有設定從 `ui-config.yaml` 讀取
 - Phase 5 禁止定義 local interface，必須 import `~/types/api/`
 - Phase 5 每個功能必須先讀取 API 原始碼、共用元件、store
-- **Phase 2 若 `spec/e2e-flows/pages/*.elements.md` 存在，testid 以該檔案為準**
+- **Phase 2 若 `spec/e2e-flows/pages/*.elements.md` 存在，testid 以該檔案為準**（選配檔，通常不存在 → 走 testid 命名規則）
 - **Phase 5 testid 直接從 `test/e2e/specs/*.spec.ts` 的 `getByTestId()` 複製**，不讀 `.flow.md` / `elements.md`

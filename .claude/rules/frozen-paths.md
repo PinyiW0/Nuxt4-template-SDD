@@ -12,7 +12,7 @@ paths:
 | 凍結路徑 | 內容 | 誰能改 |
 |----------|------|--------|
 | `test/e2e/specs/` | 主 spec（測試合約，UI 的唯一真理） | 只有 `/test e2e spec` 流程在使用者確認下產出；vibe / UI 修改絕不可動 |
-| `spec/gherkin-feature/` | `.dsl.feature` 業務規格（外部產出） | 使用者手動置入，AI 不改 |
+| `spec/gherkin-feature/` | `.feature` 業務規格（外部產出，含 `.dsl.feature` 變體與上游 codegen 匯出） | 外部置入（使用者手動或上游腳本產出），AI 不改 |
 | `spec/e2e-flows/` | `.flow.md`（business invariant + E2E 流程） | 只有 `/feature-to-flow` 流程產出，下游不回頭改 |
 
 如果任務看起來「不改凍結檔就做不到」：

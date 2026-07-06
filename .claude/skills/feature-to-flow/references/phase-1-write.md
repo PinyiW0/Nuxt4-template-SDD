@@ -20,6 +20,19 @@
 
 ---
 
+## 步驟 0：`_common.flow.md`（共用前置流程，首次必建）
+
+寫任何 module flow 前，先檢查 `spec/e2e-flows/_common.flow.md`：
+
+- **不存在** → 先產出。內容為跨 module 共用的前置合約（消費端是 `/test e2e` 的 helpers / fixtures，欄位合約見 test skill 的 [setup.md](../../test/e2e/references/setup.md)）：
+  1. **登入步驟**：角色 × 帳號表（引用 `ui-config.yaml > testAccounts`，不寫死密碼）＋「{role} "{account}" 已登入」的操作步驟
+  2. **確認彈窗**：確認／取消的通用互動與 testid
+  3. **資料重置約定**：每個測試前的 mock 重置方式（reset endpoint 或逐筆清除）
+  4. **共用路由**：登入頁、首頁等跨 module 起點
+- **已存在** → 只在本次 feature 引入新的共用步驟（新角色、新彈窗模式）時增補，不重寫
+
+---
+
 ## 寫檔流程
 
 對每個 module 執行以下步驟：
