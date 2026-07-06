@@ -42,11 +42,18 @@ issue #N 自動關閉
 
 ### 2. 收集 issue 資訊
 
-依序備齊四項，缺的就問使用者：
+依序備齊五項，缺的就問使用者：
 
 1. **標題**：取自 `$ARGUMENTS`；沒有就問。一句話講清楚要做什麼。
 2. **內文 body**：問使用者，可留空。**不強塞模板**——有內容就寫，沒有就空著（本專案無 issue 模板）。
-3. **前綴**：用 AskUserQuestion 列四個選項讓使用者選（單選）：
+3. **驗收標準**：讓讀 issue 的人不用回頭問「做到什麼程度算完成」就能直接開發與驗收。使用者提供，或依標題與內文**代擬草案讓使用者確認增刪**。採 **rule-oriented checklist**——Given/When/Then 情境展開不放 issue，那屬於下游 `.dsl.feature` / spec 層（issue AC 停在 Problem/Solution 分界點）。寫法要求：
+   - checklist 格式（`- [ ]`），建立 issue 時以 `## 驗收標準` 段落附在 body 末尾
+   - 每條可獨立判 **Pass / Fail**，寫結果不寫實作（What not How）：feature 類寫使用者可觀察的行為結果；chore / 基礎建設類寫產出物與檢查方式
+   - 可測量、不含糊：「2 秒內載入」而非「載入很快」，禁「功能正常」這種模糊描述
+   - 條數 3–7 為宜，塞不下代表 issue 範圍太大、考慮拆 issue
+   - 規範 / 文件 / 流程類條目要**接回實際消費點**（誰會讀、何時生效）——寫了沒人用等於沒寫
+   - 使用者明說不要 → 略過此段，不硬塞
+4. **前綴**：用 AskUserQuestion 列四個選項讓使用者選（單選）：
 
    | 選項 | 用途 | 對應 label |
    |------|------|-----------|
@@ -55,7 +62,7 @@ issue #N 自動關閉
    | `chore` | 雜務 / 設定 / 維護 | `chore` |
    | `fix` | 修 bug | `bug` |
 
-4. **分支描述**：把標題轉成 kebab-case（小寫、空白換 `-`、去掉 `#`/`:`/標點等特殊字元、取 3–5 個關鍵詞）。
+5. **分支描述**：把標題轉成 kebab-case（小寫、空白換 `-`、去掉 `#`/`:`/標點等特殊字元、取 3–5 個關鍵詞）。
    組出分支名 `<prefix>/#<N>-<kebab-desc>`，其中 `#<N>` **待 issue 建立後回填真實編號**（此刻先以 `#N` 佔位展示）。
 
 #### label 存在性檢查（重要）
@@ -82,6 +89,11 @@ label：<label 或「略過」>
 內文：
 <body，或「（空）」>
 
+驗收標準：
+- [ ] <可驗證的行為>
+- [ ] ...
+（或「略過」）
+
 綁定分支：<prefix>/#N-<kebab-desc>   （base：main，建立後不自動切換）
 ```
 
@@ -91,7 +103,7 @@ label：<label 或「略過」>
 
 ```
 # 1) 建 issue，從回傳 URL 取出真實編號
-url=$(gh issue create --title "<標題>" --body "<body>" --label "<label>")
+url=$(gh issue create --title "<標題>" --body-file "<body 暫存檔>" --label "<label>")
 num=${url##*/}                       # URL 結尾即 issue 編號，如 .../issues/15 → 15
 
 # 2) 用真實編號回填分支名後，綁定 linked 分支（# 一律單引號包住，避免被 shell 當註解）
@@ -100,6 +112,7 @@ gh issue develop "$num" --name '<prefix>/#'"$num"'-<kebab-desc>' --base main
 
 - **不加 `--checkout`**：依設計只建立、不切換，當前工作區與分支不受影響。
 - `gh issue develop` 會在遠端建立分支並掛到 issue 的 **Development** 側欄（真 linked branch，雙向可追溯）。
+- body 含驗收標準等多行內容時，先把完整 body（含 `## 驗收標準` 段）寫入暫存檔再用 `--body-file`，避免引號、反引號、`#` 的 shell 逃逸問題；body 為空就兩者都不帶。
 - 略過 label 時，`gh issue create` 就不要帶 `--label`。
 
 ### 5. 收尾
