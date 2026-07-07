@@ -121,7 +121,7 @@ gh issue develop "$num" --name '<prefix>/#'"$num"'-<kebab-desc>' --base main
 
 - issue URL 與編號 `#N`
 - 已綁定的 linked 分支名
-- 一句提示：要切過去開工就跑 `git fetch && git switch <分支名>`
+- 一句提示：要切過去開工就跑 `git fetch && git switch <分支名>`；SDD 開發則在置入 `.feature` 至 `spec/gherkin-feature/` 後從 `/feature-to-flow` 開始
 
 ## 注意
 

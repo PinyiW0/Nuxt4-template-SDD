@@ -52,6 +52,16 @@ git diff --staged
 - **同階段但夾帶不相干的隨手修正**（如順手修了個無關 bug）→ 把那塊獨立成 `fix` commit。
 - vibe 改動若已跑過 `/vibe-setup` 分層：純 visual → `style(ui)`；互動/結構 → `feat(vibe)`。
 
+### 2.5 vibe 覆蓋提醒（非阻塞）
+
+分群後檢查：若本次 diff 含 `app/pages/`、`app/components/`、`app/layouts/` 的**互動或結構**改動（分類判準見 [../vibe-setup/classification.md](../vibe-setup/classification.md)），且 `test/e2e/vibe/` 沒有對應同來源檔的 vibe spec → 在分群草案末尾加一行：
+
+```
+⚠️ 本次有 N 處互動/結構改動尚無 vibe spec，建議先跑 /vibe-e2e（不阻擋 commit）
+```
+
+純提醒，不阻擋、不追問，使用者仍可直接確認提交；純 visual 改動不提醒。
+
 ### 3. 定 type / scope
 
 階段指紋表已給預設值，再依實際內容微調：
@@ -137,7 +147,7 @@ git commit -m "type(scope): 描述"
 
 ### 6. 收尾
 
-commit 完跑 `git log --oneline -n <群數>`，一行帶過給使用者看。
+commit 完跑 `git log --oneline -n <群數>`，一行帶過給使用者看，並提示下一步：「要發 PR 就跑 `/pr`」。
 
 ## 注意
 
