@@ -31,7 +31,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 ## 紅線（一律生效）
 
-- `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/` 凍結——修改這些路徑時 `rules/frozen-paths.md` 會載入，照它處理（唯讀不受限）
+- `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/` 凍結——PreToolUse hook 強制擋既有檔修改（含 subagent；新增放行），處理方式見 `rules/frozen-paths.md`（唯讀不受限）
 - 修改 UI 檔案時遵守 `rules/vibe-ui.md`（Business Invariants 不可破壞）
 - 完成程式碼修改後必跑 `npm run eslint` + `npm run typelint`；vibe 完 commit 前必跑 gate config
 
@@ -71,9 +71,9 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 |------|------|----------|
 | 程式碼品質驗證 | [rules/code-quality.md](rules/code-quality.md) | 修改 app/、server/ 程式碼時（自動） |
 | UI 實作規範 | [rules/ui-conventions.md](rules/ui-conventions.md) | 修改 pages/、components/、layouts/ 時（自動） |
-| Vibe UI 守則 | [rules/vibe-ui.md](rules/vibe-ui.md) | 同上（paths 觸發，未實測） |
-| 主 spec 凍結 | [rules/frozen-paths.md](rules/frozen-paths.md) | 修改凍結區時（paths 觸發，未實測） |
-| 框架 skill 裁決 | [rules/framework-skills.md](rules/framework-skills.md) | 修改 .vue／store／composable 時（paths 觸發，未實測） |
+| Vibe UI 守則 | [rules/vibe-ui.md](rules/vibe-ui.md) | 同上（paths 觸發；subagent 內不注入，2026-07-06 實測） |
+| 主 spec 凍結 | [rules/frozen-paths.md](rules/frozen-paths.md) | 修改凍結區時（hook 強制擋既有檔，含 subagent） |
+| 框架 skill 裁決 | [rules/framework-skills.md](rules/framework-skills.md) | 修改 .vue／store／composable 時（paths 觸發；subagent 內不注入，2026-07-06 實測） |
 | UI 設定 | `spec/ui-config/ui-config.yaml` | UI 實作時讀取 |
 | Business Invariants | `spec/e2e-flows/*.flow.md` 開頭段 | Vibe UI 前必讀 |
 
