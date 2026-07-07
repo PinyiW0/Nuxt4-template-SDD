@@ -25,7 +25,6 @@
 ### 啟動指令
 ```
 npm install // 安裝套件
-npm run customize // 客製化專案設定
 npm run dev // 啟動專案
 npm run build // 使用 CSR 或 SSR 模式打包專案
 npm run generate // 使用 SSG 模式打包專案
@@ -46,6 +45,7 @@ cd ../nuxt4-template-issue-40 && npm install
 - `.env` 是 git tracked，worktree checkout 自帶，無需手動複製
 - E2E dev server port 由 worktree 路徑自動推導（3100–3499）：各 worktree 不互撞，同 worktree 重跑重用同一 server（快）；萬一兩個 worktree 撞到同一個 port（機率 1/400），換個 worktree 目錄名即換 port
 - pre-push gate 走 Docker（`scripts/docker-gate.sh`，production build 隔離 + ephemeral port），多 session 同時 push 也不互撞；Docker 沒開時自動 fallback 本機模式並警告
+- 兩條線都動了 API 層時，`spec/report/route-map.yaml`（機器產的單檔 SoT）merge 必衝突：**不手動解衝突**——晚合併的分支先 rebase main，再重跑 `/feature-to-api` 重新產出 route-map
 - 收工清理：`git worktree remove ../nuxt4-template-issue-40`
 
 ## 專案建立步驟
@@ -57,7 +57,7 @@ cd ../nuxt4-template-issue-40 && npm install
 
 ### 開發步驟
 - 建立 `feature/#1-basic` 分支
-  - 執行 `npm run customize` 進行專案客製化設定或手動執行以下步驟
+  - 手動執行以下專案客製化步驟
     - package.json
       - name : `${GitHub 專案名稱}`
     - README.md
@@ -67,7 +67,6 @@ cd ../nuxt4-template-issue-40 && npm install
       - 若專案結束，輸入 `/github unsubscribe ${owner}/${repo}` 即可解除綁定。
       - 若要綁定其他 Slack 群組，需要在該群組選項 `Integrations/Apps` 中新增 `Github`，並重複以上操作即可。
   - Azure Blob Website 自動部署功能（可選）
-    - 執行 `npm run customize:blob` 進行自動部署設定
     - Azure Storage Account 設定
       - 請先自行在指定 resource group 底下開設 storage account，並且設置 static website active
       - 確認 resource group 位置後，需要向 resource group 權限管理者去索取一個 JSON 檔來進行 RBAC
