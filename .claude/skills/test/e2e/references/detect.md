@@ -313,6 +313,8 @@ E2E 執行完成
 | 03-查詢球隊列表 | red → green | ✅ 通過 |
 
 全量煙霧測試：✅ 全部通過（25 specs）
+
+下一步：有 vibe 改動先跑 /vibe-check，否則 /commit
 ```
 
 ---
