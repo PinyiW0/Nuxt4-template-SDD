@@ -106,7 +106,7 @@ cat test/e2e/test-results/.last-run.json 2>/dev/null
 |----|---------|
 | flow | 該 `{NN}-{slug}.flow.md` 存在（模組定義本身；OpenAPI 模式無 flow → 標 `—`，不計入「卡在」） |
 | spec | `test/e2e/specs/{NN}-{slug}.spec.ts` 存在（與 flow 同 `NN-slug`，精確對齊） |
-| api | flow 標頭「涵蓋頁面」對到的 route-map route 有 `api_endpoints`（API 已規劃）。全涵蓋 ✅／部分 🟡 |
+| api | 該模組有對應 client 包裝 `app/api/{slug}.api.ts`（feature-to-api 一資源一檔、命名穩定）。有 ✅／無（可能與他模組共用型別，如公開頁）標 `?` 不判缺。**api 屬整批產物（types/mock/client 一次產齊），精度低於 flow/spec/ui，卡點以後三者為準** |
 | ui | flow 標頭「涵蓋頁面」的**每個 route** → `app/pages` 檔（`{route}.vue`，不存在再試 `{route}/index.vue`；動態段 `[x]` 原樣）都存在。全在 ✅／部分 🟡。無「涵蓋頁面」標頭才退回 route-map `routes[].page` |
 
 **對不上的鐵律**：flow.md 缺標頭、feature 在 route-map 找不到、或 `route.page` 對不到 → 標 `? 需人工確認`，**絕不判為缺／半途**——「找不到同名」≠「不存在」，那正是假半途的根源。
