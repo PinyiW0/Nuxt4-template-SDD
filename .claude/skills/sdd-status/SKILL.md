@@ -61,7 +61,7 @@ find test/e2e/specs -name '*.spec.ts' 2>/dev/null
 cat test/e2e/test-results/.last-run.json 2>/dev/null
 ```
 
-若 `spec/report/route-map.yaml` 存在，另讀其 `routes` 區塊（`path` + `page` 欄位）供 Step 3 對比。
+若 `spec/report/route-map.yaml` 存在，另讀其 `routes` 區塊（`path` + `page` + `features[].file` 欄位）供 Step 3 / 3.5 對比。另讀每個 feature flow.md 開頭的 `> 對應規格：…`（來源 feature 檔）與 `> 涵蓋頁面：…`（route）標頭，作為模組 → route-map 的結構化對應橋。
 
 ### Step 2：七站判定
 
@@ -98,18 +98,20 @@ cat test/e2e/test-results/.last-run.json 2>/dev/null
 
 > 為何不以 route-map 為主鍵：route-map 是 API 站產物，「剛置入 / 剛產 flow 但還沒跑 feature-to-api」的模組不在其中；用它當主鍵會漏掉正處於半途的模組——正是接手最該看到的。
 
-**每個模組四格判定**（對齊鍵＝模組 slug；跨產物命名對不上時標 `? 無法對應`，**不硬猜、不魔術字串**）：
+**每個模組四格判定（走 route-map / flow 標頭的結構化對應，不猜檔名）**：
+
+> ⚠️ **不要用模組 slug 去子字串比對 type / page 檔名。** 真實專案 `auth↔login/register`、`cakebox↔cake-box`、`rsvp-config↔rsvp/questions`、`thankyou-public` 共用 `thankyou.ts`——slug 對齊會把「其實有、只是名字不同」誤判成缺（**假半途**）。改用 flow.md 開頭的 `> 對應規格`（feature 清單）＋ `> 涵蓋頁面`，接到 route-map 的 `routes[].features[].file` 與 `page`。
 
 | 格 | ✅ 依據 |
 |----|---------|
-| flow | `spec/e2e-flows/` 有檔名含該 slug 的 `*.flow.md` |
-| api | `route-map.yaml` 存在且有屬於該模組的 route（模組已納入合約） |
-| spec | `test/e2e/specs/` 有檔名含該 slug 的 `*.spec.ts` |
-| ui | 該模組 route 的 `page` 實檔存在（無 route-map 時看 `app/pages/{slug}/` 有無 `.vue`） |
+| flow | 該 `{NN}-{slug}.flow.md` 存在（模組定義本身；OpenAPI 模式無 flow → 標 `—`，不計入「卡在」） |
+| spec | `test/e2e/specs/{NN}-{slug}.spec.ts` 存在（與 flow 同 `NN-slug`，精確對齊） |
+| api | flow 標頭「涵蓋頁面」對到的 route-map route 有 `api_endpoints`（API 已規劃）。全涵蓋 ✅／部分 🟡 |
+| ui | flow 標頭「涵蓋頁面」的**每個 route** → `app/pages` 檔（`{route}.vue`，不存在再試 `{route}/index.vue`；動態段 `[x]` 原樣）都存在。全在 ✅／部分 🟡。無「涵蓋頁面」標頭才退回 route-map `routes[].page` |
 
-> **OpenAPI 模式例外**（`spec/api/api-spec.yml` 存在）：該模式直接從 api-spec 產型別 / route-map、**免 flow**。flow 欄標 `—`，**不計入「卡在」**（否則整表誤報卡在 flow）。
+**對不上的鐵律**：flow.md 缺標頭、feature 在 route-map 找不到、或 `route.page` 對不到 → 標 `? 需人工確認`，**絕不判為缺／半途**——「找不到同名」≠「不存在」，那正是假半途的根源。
 
-「卡在」＝由左至右第一個非 ✅（`—` 不算缺）的站；四格全 ✅ ＝「全貫通」。此表**與站級表並存**，不取代——站級給整體概覽、貫通表給逐模組落點。
+「卡在」＝由左至右第一個非 ✅（`—`、`?` 不算缺）的格；四格全 ✅ ＝「全貫通」。此表**與站級表並存**，不取代——站級給整體概覽、貫通表給逐模組落點。
 
 ### Step 4：輸出報告
 
