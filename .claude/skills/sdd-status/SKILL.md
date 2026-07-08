@@ -50,6 +50,7 @@ flowchart LR
 一次跑完所有存在性檢查（用 `find` 不用 shell glob——zsh 下 glob 沒命中會噴 no matches found；空輸出屬正常，不是錯誤）：
 
 ```bash
+ls spec/api/api-spec.yml 2>/dev/null                      # OpenAPI 模式判定（影響貫通表 flow 欄）
 find spec/gherkin-feature -name '*.feature' 2>/dev/null
 find spec/e2e-flows -name '*.flow.md' 2>/dev/null
 ls spec/report/route-map.yaml spec/report/sync-report.md 2>/dev/null
@@ -84,6 +85,32 @@ cat test/e2e/test-results/.last-run.json 2>/dev/null
 
 `route-map.yaml` 存在時才做：逐條取 `routes[].page` 檢查實檔是否存在，列「已實作／待實作」兩類。route-map 缺時站 7 依據標「無 route-map.yaml 可對比」，不列頁面表。
 
+### Step 3.5：Feature 貫通度（橫向 per-module）
+
+站級判定回答「整條線走到第幾站」；但**開發到一半 / 別人接手**更需要知道「**哪個模組做到哪、卡在哪站**」。站級用存在性（有檔就算完成）會把參差**抹平成「都完成」**——跑完一輪後追加的 feature 會被藏住。此步橫向逐模組對比，補上這個視角。
+
+**選定模組清單（主鍵優先鏈，取第一個成立者——一律取「最上游可拆層」的完整集合，才看得到上游已有、下游未跟上的模組）**：
+
+1. 有 feature flow（`spec/e2e-flows/*.flow.md`，排除 `_common.flow.md`）→ 以 flow 模組為清單，模組名取 slug（`{NN}-{module}` 的 `{module}`）。**最全**：能顯示「有 flow 但還沒 api / spec / ui」的模組。
+2. 無 flow 但 **OpenAPI 模式**（`spec/api/api-spec.yml` 存在）→ 以 `route-map.yaml routes[]`（排除根路由 `/`）為清單；模組名取 `page` 目錄段或 route path 末段（該模式免 flow，route-map 是模組來源）。
+3. 無 flow、非 OpenAPI、`spec/gherkin-feature/` 是**多個** `{NN}-*.feature` → 以各 feature 檔為清單。
+4. gherkin 為**單一大檔**（多個 `Feature:` 塞一檔）且尚無 flow → **無法逐 feature 拆**：不列貫通表，改標「站 1 為單一大檔（N 個 Feature），尚未 /feature-to-flow 拆模組」，下一步回退站級判定。
+
+> 為何不以 route-map 為主鍵：route-map 是 API 站產物，「剛置入 / 剛產 flow 但還沒跑 feature-to-api」的模組不在其中；用它當主鍵會漏掉正處於半途的模組——正是接手最該看到的。
+
+**每個模組四格判定**（對齊鍵＝模組 slug；跨產物命名對不上時標 `? 無法對應`，**不硬猜、不魔術字串**）：
+
+| 格 | ✅ 依據 |
+|----|---------|
+| flow | `spec/e2e-flows/` 有檔名含該 slug 的 `*.flow.md` |
+| api | `route-map.yaml` 存在且有屬於該模組的 route（模組已納入合約） |
+| spec | `test/e2e/specs/` 有檔名含該 slug 的 `*.spec.ts` |
+| ui | 該模組 route 的 `page` 實檔存在（無 route-map 時看 `app/pages/{slug}/` 有無 `.vue`） |
+
+> **OpenAPI 模式例外**（`spec/api/api-spec.yml` 存在）：該模式直接從 api-spec 產型別 / route-map、**免 flow**。flow 欄標 `—`，**不計入「卡在」**（否則整表誤報卡在 flow）。
+
+「卡在」＝由左至右第一個非 ✅（`—` 不算缺）的站；四格全 ✅ ＝「全貫通」。此表**與站級表並存**，不取代——站級給整體概覽、貫通表給逐模組落點。
+
 ### Step 4：輸出報告
 
 ```
@@ -91,34 +118,45 @@ cat test/e2e/test-results/.last-run.json 2>/dev/null
 
 | # | 站 | 狀態 | 判定依據 |
 |---|-----|------|----------|
-| 1 | 規格置入 | ✅ 完成 | spec/gherkin-feature/ 有 2 個 .feature |
-| 2 | Flow | ⬜ 未開始 | spec/e2e-flows/ 無 .flow.md |
-| 3 | API 合約 | 🟡 部分 | route-map.yaml 存在；app/types/api/ 無型別檔（_schema.d.ts 骨架不計） |
-| 4 | Mock/Server | ⬜ 未開始 | server/api/、server/mock/ 無檔 |
-| 5 | Client API | ⬜ 未開始 | app/api/ 無 *.api.ts |
-| 6 | 主 spec | ⬜ 未開始 | test/e2e/specs/ 無 .spec.ts |
-| 7 | UI/Green | ⬜ 未開始 | 無 route-map.yaml 可對比 |
+| 1 | 規格置入 | ✅ 完成 | spec/gherkin-feature/ 有 4 個 .feature |
+| 2 | Flow | ✅ 完成 | spec/e2e-flows/ 有 4 個 .flow.md（另含 _common.flow.md 共用流程） |
+| 3 | API 合約 | ✅ 完成 | route-map.yaml + app/types/api/ 型別檔皆有 |
+| 4 | Mock/Server | ✅ 完成 | server/api/、server/mock/ 皆有檔 |
+| 5 | Client API | ✅ 完成 | app/api/ 有 *.api.ts |
+| 6 | 主 spec | ✅ 完成 | test/e2e/specs/ 有 2 個 .spec.ts（站級只看存在性；per-module 落差見下方貫通表） |
+| 7 | UI/Green | 🟡 部分 | 部分頁面存在；.last-run.json status=passed（頁面未全齊，僅供參考） |
 
 頁面進度（route-map 存在時才列）：
 | route | 頁面 | 狀態 |
 |-------|------|------|
-| /login | app/pages/login.vue | ✅ 已實作 |
-| /teams | app/pages/teams/index.vue | ⬜ 待實作 |
-green：.last-run.json status=passed（頁面未全齊，僅供參考）
+| /accounts | app/pages/accounts/index.vue | ✅ 已實作 |
+| /teams | app/pages/teams/index.vue | ✅ 已實作 |
+| /camera | app/pages/camera/index.vue | ⬜ 待實作 |
+
+Feature 貫通度（主鍵：flow 模組）：
+| 模組 | flow | api | spec | ui | 卡在 |
+|------|------|-----|------|-----|------|
+| accounts | ✅ | ✅ | ✅ | ✅ | 全貫通 |
+| teams | ✅ | ✅ | ✅ | ✅ | 全貫通 |
+| camera | ✅ | ✅ | ⬜ | ⬜ | 主 spec |
+| report | ✅ | ⬜ | ⬜ | ⬜ | API 合約 |
 
 ⚠️ Sync 進行中（spec/report/sync-report.md 存在）
 
-下一步：`/feature-to-flow`（產出 .flow.md）
+下一步：report 卡在「API 合約」→ `/feature-to-api`（Sync 補 report 型別與 route）
 ```
 
 - `⚠️ Sync 進行中` 一行只在 `spec/report/sync-report.md` 存在時顯示，不展開內容
 - 「下一步」**只輸出一行**，不列多個選項
+- **Feature 貫通度表**：情況 1–3 列逐模組表；情況 4（單一大檔無 flow）改列一行說明，不列表
 
 ---
 
 ## 下一步決策表
 
-取**最早狀態非「完成」的站**，對應建議：
+**有 Feature 貫通表時（Step 3.5 情況 1–3）**：下一步取「**卡在最早站的模組**」，用下表的站別對應給指令（例：某模組卡在 API 合約 → `/feature-to-api`）。多個模組卡同一最早站時取編號最小者。
+
+**無貫通表時（情況 4：單一大檔無 flow）**：退回站級——取**最早狀態非「完成」的站**，對應建議：
 
 | 最早未完成站 | 建議下一步 |
 |--------------|------------|
