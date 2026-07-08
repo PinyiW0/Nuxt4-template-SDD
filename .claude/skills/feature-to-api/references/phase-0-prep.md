@@ -56,9 +56,21 @@ Phase 0 再檢查 `spec/report/route-map.yaml`：
 
 ## 偵測總則（下方所有偵測器都適用）
 
-> 下方各偵測器（path 前綴 / auth / realtime / streaming）列出的訊號是**常見範例，不是窮舉白名單**。判準是**語意**——「這份 spec 是否描述了該能力」，而非「有沒有出現某個字串」。命名 / 結構不同但語意相同一樣要命中（例：登入端點未必叫 `/auth/login`，可能是 `/sessions`、`/oauth/token`；前綴未必住在 `servers.url`）。
+> 下方各偵測器（path 前綴 / auth / rbac / realtime / streaming）列出的訊號是**常見範例，不是窮舉白名單**。判準是**語意**——「這份 spec 是否描述了該能力」，而非「有沒有出現某個字串」。命名 / 結構不同但語意相同一樣要命中（例：登入端點未必叫 `/auth/login`，可能是 `/sessions`、`/oauth/token`；前綴未必住在 `servers.url`）。
 >
 > **多個來源衝突時，以實際端點 / schema 為準**，不以單一宣告來源為準。依現況判斷；訊號模糊、來源互相矛盾、或無法判定時 → **停下來問使用者，不要默默猜**。
+
+### 偵測索引（導覽，判準以下方各段語意為準，不得退化成字面比對）
+
+| 關注點 | 一句話語意判準 | route-map 區塊 | 詳段 / 範本 |
+|---|---|---|---|
+| path 前綴 | 端點實際住在哪個共同前綴 | `api_contract.path_prefix` | §Path 前綴偵測 |
+| auth | 有沒有登入主體 | `auth` | auth-scaffold.md |
+| rbac | 不同角色能做的事不同嗎 | `rbac` | rbac-scaffold.md |
+| realtime | 有伺服器推送 / 雙向連線嗎 | `realtime` | `realtime` skill |
+| streaming | 有影音播放 / 直播嗎 | `streaming` | `streaming` skill |
+
+> rbac 以 auth 為前提；各關注點無訊號則該區塊**完全不生**（中立預設）。索引只為防漏——五個都要逐一過，判準一律回到下方各段的語意描述。
 
 ---
 

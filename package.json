@@ -17,6 +17,8 @@
     "gen:api": "openapi-typescript spec/api/api-spec.yml -o app/types/api/_schema.d.ts",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "test:gate": "playwright test --config playwright.gate.config.ts",
+    "test:vibe": "playwright test --config playwright.vibe.config.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui"
   },

@@ -124,7 +124,7 @@ npx playwright test --config playwright.vibe.config.ts {新檔名} --repeat-each
 === Vibe E2E 通過 ===
 
 產生 5 個 vibe spec（覆蓋 1 個同來源舊檔、保留 6 個既有檔、0 個產到 unstable/）
-跑了：8 cases，8 passed ✅（含 2 .skip 為 pattern 不確定）
+跑了：8 cases，6 passed ✅，2 skipped ⚠️（明細見下方「被 .skip 清單」）
 新生成 spec --repeat-each=3 連跑：全綠 ✅（已可進守門）
 
 涵蓋：
@@ -162,19 +162,30 @@ vibe 改動的互動/結構驗證通過，可以 commit。
 - 若 pattern 推測明顯不適用，請手動跑 /vibe-check 確認主 spec 仍綠，並考慮 vibe 改動是否要保留
 ```
 
-**孤兒 testid 警告**（無論綠紅都要列於 Step 5 輸出末尾）：
+**被 .skip 清單**（無論綠紅都要列於 Step 5 輸出末尾；**每個 .skip 都要有一列，不可只報數字**）：
+
+.skip 不是通過——它代表**這塊 UI 沒被測到**。四種原因類別都要能對應：
+
+- `orphan-testid`：用了不在主 spec 合約白名單的 testid
+- `no-locator`：新增元素無語意 role/name、也無 testid
+- `unknown-trigger`：條件渲染推不出「怎麼觸發」
+- `hover-visual`：hover 類效果，自動測意義低（通常維持 skip）
 
 ```
-⚠️ 孤兒 testid 警告：
+⚠️ 被 .skip 清單（2 個）：
 
-vibe diff 中使用了 N 個不在主 spec 合約白名單的 testid，已自動 .skip：
-
-  - app/components/Sidebar.vue:30 → 'sidebar-collapse-button'
-    建議：
+[orphan-testid] app/components/Sidebar.vue:30 → 'sidebar-collapse-button'
+  來源 hunk：app/components/Sidebar.vue:28-34　pattern：toggle
+  解除：
     (a) 改用 getByRole('button', { name: /折疊/ }) — 推薦
-    (b) 若這是長期合約，請改 .flow.md → /test e2e spec → 主 spec 收進後再啟用此 vibe spec
+    (b) 若這是長期合約，改 .flow.md → /test e2e spec → 主 spec 收進後再啟用
+
+[unknown-trigger] app/pages/practice/index.vue:120 → 條件渲染推不出觸發步驟
+  來源 hunk：app/pages/practice/index.vue:118-130　pattern：conditional-render
+  解除：補上觸發條件的操作步驟（例：篩選某類別 / 改某輸入），再重跑 /vibe-e2e
 
 合約 testid 是業務合約的可定位表面，不應由 vibe 階段自由擴張。
+逐條決定「補定位 / 補觸發」或「維持 skip」，不要靜默略過。
 ```
 
 ---
