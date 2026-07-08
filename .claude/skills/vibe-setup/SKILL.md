@@ -86,6 +86,8 @@ git diff <base> -- app/pages/ app/components/ app/layouts/ \
 
 ### Step 3：輸出報告
 
+**預期 .skip 預標**：任一「需 e2e」的互動 / 結構 hunk，若 locator hint 找不到可用定位——白名單外 testid、無語意 role/name、或條件渲染推不出觸發——在該 hunk 末補一行 `⚠ 預期 /vibe-e2e 會 .skip（原因：orphan-testid / no-locator / unknown-trigger）`。讓分層報告與 `/vibe-e2e` 的「被 .skip 清單」提前對齊，決策時就知道哪些改動目前無法自動測、要不要補定位。
+
 格式（純 console，不寫檔）：
 
 ```
