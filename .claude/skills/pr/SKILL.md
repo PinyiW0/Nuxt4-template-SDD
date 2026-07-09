@@ -1,7 +1,7 @@
 ---
 name: pr
 description: 把當前 feature 分支發成對 default branch（通常 main）的 PR — push + 產繁中標題/內文草案 + gh pr create。一律先出草案待確認才開 PR；偵測未 commit 改動或人在 default branch 上會停下來引導，不越界。Use when 使用者要發 PR、開 PR、送出 pull request、或說「幫我發 PR」「開個 PR」時。
-argument-hint: "[reviewer / label / draft / copilot / 補充說明(選填)]"
+argument-hint: "[reviewer / assignee / label / draft / copilot / 補充說明(選填)]"
 ---
 
 # PR
@@ -33,7 +33,7 @@ argument-hint: "[reviewer / label / draft / copilot / 補充說明(選填)]"
 | 取得 default branch（下稱 `<default>`） | `gh repo view --json defaultBranchRef -q .defaultBranchRef.name` | 取不到 → 預設 `main` |
 | 不在 `<default>` 上 | `git branch --show-current` | **停**，引導先開 feature 分支（見下） |
 | 工作區乾淨（無未 commit） | `git status --short` | **停**，叫先跑 `/commit`，不自己 commit |
-| 是否已有對應 PR | `gh pr view --json url,state` | 有 → 轉「只 push 更新」不重開 |
+| 是否已有對應 PR | `gh pr view --json url,state` | 命令報錯＝無 PR → 正常往下建；state=OPEN → 轉「只 push 更新」不重開；state=MERGED/CLOSED → 照常開新 PR |
 
 **在 default branch 上是硬紅線**：開發一律走 feature 分支，不可直接動 default branch。此時停下來引導使用者建分支，命名慣例：
 
@@ -143,7 +143,8 @@ Closes #2
 ```
 擬發 PR：
 標題：<繁中標題>
-base：main  ←  <當前分支>
+base：<default>  ←  <當前分支>
+assignee：<"@me" / 指定者 / 不指派>
 
 內文：
 <完整 markdown 內文>
@@ -155,11 +156,13 @@ base：main  ←  <當前分支>
 
 ```
 git push -u origin <branch>        # 沒 upstream 才需 -u；已有就 git push
-gh pr create --base <default> --title "<標題>" --body "<內文>"
+gh pr create --base <default> --title "<標題>" --body "<內文>" --assignee "<assignee>"
 gh pr view --web                   # 開瀏覽器
 ```
 
 - push 被拒（non-fast-forward，隊友先推過）→ **停**，說明分支上有他人更新，引導使用者 `git pull --rebase origin <branch>` 解完再重跑；**絕不 `--force`**。
+- assignee **預設 `"@me"`**（發 PR 者即負責人；預設值與 `/new-issue` 相同）；使用者透過 `$ARGUMENTS` 指定其他人則改帶指定者，明說不指派則整個 `--assignee` 旗標拿掉（同 reviewer/label 的處理）。指定他人須為 repo collaborator，否則 `gh pr create` 會整個失敗——失敗時改不帶 assignee 先建 PR，成功後再 `gh pr edit <N> --add-assignee <人>` 補。
+- `$ARGUMENTS` 只給裸名字（如 `alice`）無法判斷是 reviewer 還是 assignee → **停下來問**，不猜。
 - 使用者透過 `$ARGUMENTS` 指定了 reviewer / label 才加 `--reviewer <人>` / `--label <標籤>`（預設不帶；label 須 repo 已存在）；提到 draft／草稿 → 加 `--draft`。
 - 提到 copilot（要 Copilot review）→ Copilot reviewer 是 bot 帳號，`--reviewer` 對它解析常失敗，一律在 PR 建立後補 API call（`<N>` 取自 `gh pr create` 回傳 URL 結尾）：
 
@@ -177,5 +180,5 @@ gh pr view --web                   # 開瀏覽器
 
 - base 一律取 repo 的 default branch（步驟 1 已查得；本模板為 `main`），不寫死。**GitHub 只在 PR merge 進 default branch 時才會自動關閉 `Closes` 的 issue**——base 不是 default branch 時 `Closes` 不生效。
 - 絕不在 default branch 上發 PR 或代 commit —— 該停就停，列選項問使用者。
-- `$ARGUMENTS` 有值 → 視為 reviewer / label / 內文補充提示，納入判斷。
+- `$ARGUMENTS` 有值 → 視為 reviewer / assignee / label / 內文補充提示，納入判斷。
 - 不確定（標題怎麼下、要不要拆 PR）→ 照樣列草案問使用者，不擅自決定。

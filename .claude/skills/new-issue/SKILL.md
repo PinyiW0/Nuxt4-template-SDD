@@ -67,7 +67,7 @@ issue #N 自動關閉
 6. **分支描述**：把標題轉成 kebab-case（小寫、空白換 `-`、去掉 `#`/`:`/標點等特殊字元、取 3–5 個關鍵詞）。
    組出分支名 `<prefix>/#<N>-<kebab-desc>`，其中 `#<N>` **待 issue 建立後回填真實編號**（此刻先以 `#N` 佔位展示）。
 
-7. **assignee**（可選，**預設自己**）：預設 `@me`（開 issue 者即認領者，讓隊友一眼看出誰在做）。repo 有其他 collaborator（`gh api repos/<owner>/<repo>/collaborators --jq '.[].login'`）→ 用 AskUserQuestion 列出讓使用者選（預設選項 `@me`，含「不指派」）；單人 repo 不問，直接 `@me`。
+7. **assignee**（可選，**預設自己**）：預設 `@me`（開 issue 者即認領者，讓隊友一眼看出誰在做）。repo 有其他 collaborator（`gh api repos/<owner>/<repo>/collaborators --jq '.[].login'`）→ 用 AskUserQuestion 列出讓使用者選（預設選項 `@me`，含「不指派」；清單排除自己與 bot 帳號，自己已由 `@me` 代表）；單人 repo 不問，直接 `@me`。
 
 #### label 存在性檢查（僅自填新 label 時）
 
