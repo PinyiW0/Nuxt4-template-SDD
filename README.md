@@ -140,6 +140,7 @@ cd ../nuxt4-template-issue-40 && npm install
   - 右下角點擊 `Create a branch`
   - Main 分支改動 : `feature/#${issue_number}-${description}`
   - 特定 Release 分支改動 : `feature/${主版號}.${次版號}-#${issue_number}-${description}`
+  - GitHub 原生 `${issue_number}-${description}` 格式（Create a branch 預設名）`/pr` 也能解析，但慣例以上列格式為準
 
 ### Commits
 - 只開發對應 Issue 的內容，不相關的內容請另開 Issue

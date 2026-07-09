@@ -6,7 +6,7 @@ argument-hint: "[範圍提示或 message 補充(選填)]"
 
 # Commit
 
-分析目前工作區改動，依 **SDD 階段**分群，套 **Conventional Commits v1.0.0** 產生精簡繁中 message。
+分析目前工作區改動，依 **SDD 階段**分群，套 **Conventional Commits v1.0.0** 產生精簡英文 message。本 skill 為**模板衍生專案通用**——階段指紋表假設模板目錄結構，結構不符時見「判斷原則」的校準提醒。
 
 **核心規則：永遠先列出「分群 + 訊息草案」給使用者確認，得到同意後才 `git commit`。** 不先斬後奏。
 
@@ -50,11 +50,12 @@ git diff --staged
 - **單一階段** → 一個 commit，**不拆**（即使跨目錄）。
 - **跨多階段** → 每階段一個 commit。
 - **同階段但夾帶不相干的隨手修正**（如順手修了個無關 bug）→ 把那塊獨立成 `fix` commit。
+- **指紋表大面積不命中**（如超過半數檔案只能落到 `chore`）→ 不硬分：提示使用者本 repo 結構與模板指紋不符，建議先校準指紋表（改本檔的階段指紋表）再分群。
 - vibe 改動若已跑過 `/vibe-setup` 分層：純 visual → `style(ui)`；互動/結構 → `feat(vibe)`。
 
 ### 2.5 vibe 覆蓋提醒（非阻塞）
 
-分群後檢查：若本次 diff 含 `app/pages/`、`app/components/`、`app/layouts/` 的**互動或結構**改動（分類判準見 [../vibe-setup/classification.md](../vibe-setup/classification.md)），且 `test/e2e/vibe/` 沒有對應同來源檔的 vibe spec → 在分群草案末尾加一行：
+分群後檢查：若本次 diff 含 `app/pages/`、`app/components/`、`app/layouts/` 的**互動或結構**改動（分類判準見 [../vibe-setup/classification.md](../vibe-setup/classification.md)；該檔不存在＝非模板衍生專案，整節跳過），且 `test/e2e/vibe/` 沒有對應同來源檔的 vibe spec → 在分群草案末尾加一行：
 
 ```
 ⚠️ 本次有 N 處互動/結構改動尚無 vibe spec，建議先跑 /vibe-e2e（不阻擋 commit）
