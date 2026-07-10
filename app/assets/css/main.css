@@ -1,2 +1,20 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* 全域 reduced-motion guard（a11y 恆定層，任何 preset／頁面不得繞過） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* motion token（動效恆定層——creative-direction.md §4 硬原則強制引用，素體即需存在） */
+@theme static {
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+}
