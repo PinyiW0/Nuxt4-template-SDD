@@ -34,9 +34,12 @@ const RULES = [
     publicMessage: 'text-8xl 以上——公開頁 display 上限 text-7xl（creative-direction.md §3）',
   },
   {
+    // 行判定：替代指示需與 outline-none 同行（focus-visible / focus-within 皆可過關）。
+    // 容器 focus-within＋內部 input outline-none 的合法模式，input 同行帶 focus-within 相關
+    // class（如 group-focus-within:*）即放行。
     pattern: /\boutline-none\b/,
-    message: 'outline-none 未補 focus-visible 替代——鍵盤使用者會失去焦點指示',
-    exempt: line => line.includes('focus-visible'),
+    message: 'outline-none 未補 focus-visible 替代（需同行）——鍵盤使用者會失去焦點指示',
+    exempt: line => line.includes('focus-visible') || line.includes('focus-within'),
   },
   {
     pattern: /-\[(?:#[0-9a-fA-F]{3,8}\b|(?:rgba?|hsla?|oklch|oklab|lch|lab|hwb|color)\()/,
@@ -57,6 +60,10 @@ const RULES = [
   {
     pattern: /\b(?:duration|ease|delay)-\[/,
     message: 'duration/ease/delay 任意值——duration 用內建三檔（150/250/400），easing 用 @theme motion token（creative-direction.md §4）',
+  },
+  {
+    pattern: /\bduration-(?!150\b|250\b|400\b)\d/,
+    message: 'duration 檔位外——只用 duration-150/250/400 三檔（creative-direction.md §4）',
   },
   {
     pattern: /\bbg-clip-text\b/,
@@ -80,14 +87,19 @@ function walk(dir) {
   })
 }
 
-const PUBLIC_PREFIX = join(SCAN_DIR, 'pages', '(public)')
+// 公開頁路徑（依專案校準：模板慣例是 (public) route group；
+// 真實專案若以 middleware 定義公開性，把對應頁面目錄加進此陣列）
+const PUBLIC_PATHS = [join(SCAN_DIR, 'pages', '(public)')]
+// 共用元件僅公開頁使用且需要 display 級時，檔頭前 5 行加此註記豁免
+const PUBLIC_MARKER = 'visual-hierarchy: public'
 
 const files = walk(SCAN_DIR)
 const violations = []
 
 for (const file of files) {
-  const isPublic = file.startsWith(PUBLIC_PREFIX)
   const lines = readFileSync(file, 'utf8').split('\n')
+  const isPublic = PUBLIC_PATHS.some(p => file.startsWith(p))
+    || lines.slice(0, 5).some(l => l.includes(PUBLIC_MARKER))
   lines.forEach((line, i) => {
     for (const rule of RULES) {
       const pattern = isPublic && rule.publicPattern ? rule.publicPattern : rule.pattern
