@@ -17,6 +17,6 @@ paths:
 - **vibe 完 commit 前必跑** `npx playwright test --config playwright.gate.config.ts`（綠燈 = vibe 安全；pre-push 跑同一份 config，但在 Docker production build 內執行，Docker 不可用時 fallback 本機同款）
 - vibe spec（`test/e2e/vibe/`）不凍結，但刪改去留是使用者的決定——紅燈時列選項詢問，不可擅自刪改
 
-可以自由改：顏色、間距、字體、icon、layout、按鈕位置與形式（toolbar / icon-only / menu）、modal vs inline form、列表呈現（table / card / list）、折疊、動畫、新增 testid（建議 `vibe-*` 前綴）、新增頁面與互動。字體與按鈕尺寸的預設值見 `spec/ui-config/visual-hierarchy.md`——使用者未明確指示改動時維持預設。
+可以自由改：顏色、間距、字體、icon、layout、按鈕位置與形式（toolbar / icon-only / menu）、modal vs inline form、列表呈現（table / card / list）、折疊、動畫、新增 testid（建議 `vibe-*` 前綴）、新增頁面與互動。字體與按鈕尺寸的預設值見 `spec/ui-config/visual-hierarchy.md`——使用者未明確指示改動時維持預設。使用者要求「好看一點」「有質感」「換風格」時，先讀 `spec/ui-config/creative-direction.md` 確認風格方向再動手；加動畫時遵守其 §4 動效規範。
 
 如果你發現非破壞合約無法達成 vibe 目標，**停下來問使用者**，不要擅自改主 spec。
