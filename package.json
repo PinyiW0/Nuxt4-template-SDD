@@ -12,7 +12,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "prepare": "husky",
-    "eslint": "eslint .",
+    "eslint": "eslint . && node scripts/visual-hierarchy-check.mjs",
     "typelint": "nuxi typecheck",
     "gen:api": "openapi-typescript spec/api/api-spec.yml -o app/types/api/_schema.d.ts",
     "test:unit": "vitest run",
