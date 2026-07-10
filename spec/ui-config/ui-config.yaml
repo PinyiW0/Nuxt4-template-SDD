@@ -62,7 +62,7 @@ theme:
 # =============================================================================
 creative:
   preset: ""       # 選定風格 preset：Editorial Luxe | Minimal Tech | Bold Contrast | Soft Neutral（空值＝未選，生成時依 creative-direction §1 推導）
-  references: []   # 氛圍參考（連結或 spec/ui-config/assets/ 內路徑）——公開頁「參考先行」前置讀此，空值時 AI 會先要或 WebSearch
+  references: []   # 氛圍參考（連結或 spec/ui-config/assets/ 內路徑）——行銷頁「參考先行」前置讀此，空值時 AI 會先要或 WebSearch
 
 # =============================================================================
 # 測試帳號（從 ui-config-pm.yaml 同步）

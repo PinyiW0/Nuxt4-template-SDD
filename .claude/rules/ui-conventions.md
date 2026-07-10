@@ -37,4 +37,4 @@ paths:
 
 所有 UI 設定從 `spec/ui-config/ui-config.yaml` 讀取，禁止自行決定。
 視覺層級（文字/顏色層級、載體字級、按鈕尺寸）：實作 UI 前先讀 `spec/ui-config/visual-hierarchy.md`。
-創意方向（風格 preset、主題 token、公開頁 `(public)` 解禁分界、動效規範、外部資源升級路徑）：使用者要求風格／質感／動畫或實作公開頁時讀 `spec/ui-config/creative-direction.md`。
+創意方向（風格 preset、主題 token、行銷頁 `(marketing)` 解禁分界、動效規範、外部資源升級路徑）：使用者要求風格／質感／動畫或實作行銷頁時讀 `spec/ui-config/creative-direction.md`。

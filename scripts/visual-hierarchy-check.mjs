@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // 視覺層級硬規則檢查（規範：spec/ui-config/visual-hierarchy.md ＋ creative-direction.md §3/§4）
 // 只檢查可機器判定的違規，語意層級（一頁一主標等）仍由規範文件約束。
-// 公開頁（app/pages/(public)/）依 creative-direction.md §3 放行 display 級規則，
-// 改用 publicPattern 檢查（text-8xl+、font-extralight 以下仍禁）。
+// 行銷頁（app/pages/(marketing)/）依 creative-direction.md §3 放行 display 級規則，
+// 改用 marketingPattern 檢查（text-8xl+、font-extralight 以下仍禁）。
 // 色彩／動效規則只掃 Tailwind class 字面值；<style> 區塊與複合 shadow 中段的色值不在範圍。
 // 由 npm run eslint 串跑；違規列出 file:line 並以 exit 1 失敗。
 
@@ -24,14 +24,14 @@ const RULES = [
   {
     pattern: /\bfont-(?:thin|extralight|light)\b/,
     message: 'font-light 以下字重——小字不可讀，最低用 font-normal',
-    publicPattern: /\bfont-(?:thin|extralight)\b/,
-    publicMessage: 'font-extralight 以下字重——公開頁僅 font-light 可配 display 大字（creative-direction.md §3）',
+    marketingPattern: /\bfont-(?:thin|extralight)\b/,
+    marketingMessage: 'font-extralight 以下字重——行銷頁僅 font-light 可配 display 大字（creative-direction.md §3）',
   },
   {
     pattern: /\btext-(?:5xl|6xl|7xl|8xl|9xl)\b/,
     message: 'text-5xl 以上——後台介面最大 text-3xl（統計數值）',
-    publicPattern: /\btext-(?:8xl|9xl)\b/,
-    publicMessage: 'text-8xl 以上——公開頁 display 上限 text-7xl（creative-direction.md §3）',
+    marketingPattern: /\btext-(?:8xl|9xl)\b/,
+    marketingMessage: 'text-8xl 以上——行銷頁 display 上限 text-7xl（creative-direction.md §3）',
   },
   {
     // 行判定：替代指示需與 outline-none 同行（focus-visible / focus-within 皆可過關）。
@@ -87,23 +87,23 @@ function walk(dir) {
   })
 }
 
-// 公開頁路徑（依專案校準：模板慣例是 (public) route group；
+// 行銷頁路徑（依專案校準：模板慣例是 (marketing) route group；
 // 真實專案若以 middleware 定義公開性，把對應頁面目錄加進此陣列）
-const PUBLIC_PATHS = [join(SCAN_DIR, 'pages', '(public)')]
-// 共用元件僅公開頁使用且需要 display 級時，檔頭前 5 行加此註記豁免
-const PUBLIC_MARKER = 'visual-hierarchy: public'
+const MARKETING_PATHS = [join(SCAN_DIR, 'pages', '(marketing)')]
+// 共用元件僅行銷頁使用且需要 display 級時，檔頭前 5 行加此註記豁免
+const MARKETING_MARKER = 'visual-hierarchy: marketing'
 
 const files = walk(SCAN_DIR)
 const violations = []
 
 for (const file of files) {
   const lines = readFileSync(file, 'utf8').split('\n')
-  const isPublic = PUBLIC_PATHS.some(p => file.startsWith(p))
-    || lines.slice(0, 5).some(l => l.includes(PUBLIC_MARKER))
+  const isMarketing = MARKETING_PATHS.some(p => file.startsWith(p))
+    || lines.slice(0, 5).some(l => l.includes(MARKETING_MARKER))
   lines.forEach((line, i) => {
     for (const rule of RULES) {
-      const pattern = isPublic && rule.publicPattern ? rule.publicPattern : rule.pattern
-      const message = isPublic && rule.publicMessage ? rule.publicMessage : rule.message
+      const pattern = isMarketing && rule.marketingPattern ? rule.marketingPattern : rule.pattern
+      const message = isMarketing && rule.marketingMessage ? rule.marketingMessage : rule.message
       if (pattern.test(line) && !rule.exempt?.(line))
         violations.push(`${file}:${i + 1} ${message}`)
     }
