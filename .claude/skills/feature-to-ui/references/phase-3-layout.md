@@ -10,6 +10,7 @@
 - ui-config.yaml > icons.common（常用 icon）
 - spec/report/route-map.yaml > routes（所有路由，用於建立 sidebar 導航項目）
 - rules.md [P3] 段落（配色策略、深淺模式與對比色、Layout 規範）
+- spec/ui-config/visual-hierarchy.md（文字/顏色層級、按鈕尺寸——Layout 的標題與導航文字層級依此）
 
 執行 /nuxt-ui 載入組件文檔
 ```

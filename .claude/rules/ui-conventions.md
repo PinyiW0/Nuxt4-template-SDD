@@ -29,7 +29,11 @@ paths:
 | 跳過確認步驟直接做多個功能 | 每個功能完成後都要等用戶確認 |
 | 不載入 `/nuxt-ui` 就開始寫組件 | 先載入 skill 確認組件 API |
 | 定義 local interface | 必須 import `~/types/api/` |
+| 自創字級（`text-[13px]` 任意值、未定義具名 token） | 依 `spec/ui-config/visual-hierarchy.md` 字級三層規則 |
+| 一頁多個大標題互搶焦點 | 頁面主標一頁一個，層級見 `visual-hierarchy.md` 文字層級表 |
+| 按鈕尺寸不依情境 | 依 `visual-hierarchy.md` 按鈕尺寸對照（列內 `xs`、工具列 `sm`、表單 `md`） |
 
 ## 設定來源
 
 所有 UI 設定從 `spec/ui-config/ui-config.yaml` 讀取，禁止自行決定。
+視覺層級（文字/顏色層級、載體字級、按鈕尺寸）：實作 UI 前先讀 `spec/ui-config/visual-hierarchy.md`。

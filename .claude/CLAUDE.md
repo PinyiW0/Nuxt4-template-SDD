@@ -76,6 +76,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 | 主 spec 凍結 | [rules/frozen-paths.md](rules/frozen-paths.md) | 修改凍結區時（hook 強制擋既有檔，含 subagent） |
 | 框架 skill 裁決 | [rules/framework-skills.md](rules/framework-skills.md) | 修改 .vue／store／composable 時（paths 觸發；subagent 內不注入，2026-07-06 實測） |
 | UI 設定 | `spec/ui-config/ui-config.yaml` | UI 實作時讀取 |
+| 視覺層級 | `spec/ui-config/visual-hierarchy.md` | UI 實作時讀取（feature-to-ui `@` 載入＋ui-conventions 指讀） |
 | Business Invariants | `spec/e2e-flows/*.flow.md` 開頭段 | Vibe UI 前必讀 |
 
 ## 專案結構

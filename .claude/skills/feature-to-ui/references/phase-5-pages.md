@@ -24,6 +24,8 @@
 - ui-config.yaml > form（表單設定）
 - ui-config.yaml > toast（通知設定）
 - ui-config.yaml > colorMode（深淺模式）
+- ui-config.yaml > button（按鈕 color/variant 預設）
+- spec/ui-config/visual-hierarchy.md（文字/顏色層級、載體字級、按鈕尺寸——頁面標題一頁一個等硬規則）
 - spec/report/route-map.yaml > 對應路由的 features_used（此頁面使用的 additionalFeature）
 - page-builder.md（DSL 解析 + 表單範本 + 列表範本 + Command → 元件對照）
 - features.md（僅 features_used 有值時需讀取，了解對應元件的使用方式）
