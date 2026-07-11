@@ -58,7 +58,7 @@
 - 頁內 section 標題用 `text-2xl`（與頁面主標同級互搶焦點）
 - Modal / Slideover 標題用 `text-2xl` 以上
 - 一頁出現兩個以上 `text-3xl` 以上的大字（統計數值除外）
-- 後台介面使用 `text-5xl` 以上（僅公開行銷頁適用）
+- 後台介面使用 `text-5xl` 以上（僅行銷頁 `app/pages/(marketing)/` 適用，分界見 `creative-direction.md` §3）
 - 空狀態加大字、彩色底或裝飾（它的職責是安靜地說「沒資料」）
 
 ## 2. 文字顏色層級
@@ -104,7 +104,7 @@
 | 頁面級主 CTA（登入送出、空狀態引導） | `lg` | 登入類加 `block` 全寬 |
 | 行動裝置全寬主動作 | `lg` + `block` | UButton 最高約 40px，44px 觸控目標靠全寬補足 |
 
-- `xl` 後台幾乎不用（僅公開頁 hero）。
+- `xl` 後台幾乎不用（僅行銷頁 hero）。
 - 同一容器內的同組按鈕 size 必須一致；同組選項用樣式（solid/outline/ghost）分主次，不用尺寸分。
 - **破壞性動作不可是預設按鈕**：確認 Modal 的預設焦點給「取消」，刪除鈕（`color="error"`）需明確點擊。
 
@@ -123,6 +123,7 @@
 ## 6. 互動與表單層級
 
 - **focus**：自訂可互動元素一律 `focus-visible:ring-2`（primary 系）；禁止 `outline-none` 而不補替代指示（Nuxt UI 元件自帶 focus 樣式，不要覆寫掉）。
+- **動效**：後台動效安靜——`transition-colors`／`opacity` 級；裝飾動畫與行銷頁動效規範見 `creative-direction.md` §4。
 - **placeholder 不得取代 label**：label 必須存在，必要時用 `sr-only` 視覺隱藏。
 - 驗證錯誤訊息在 helper text 的**原位置**顯示（同格互斥、不疊加）；位置實作依 `ui-config.yaml > form.errorMessage`。
 
