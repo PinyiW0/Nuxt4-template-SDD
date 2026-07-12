@@ -10,4 +10,9 @@ export default defineConfig({
   testDir: './test/e2e',
   testMatch: ['specs/**/*.spec.ts', 'vibe/**/*.spec.ts'],
   testIgnore: ['vibe/unstable/**'],
+  // HTML 報告與主 config 分目錄，連續跑不互蓋
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'playwright-report-gate' }],
+  ],
 })
