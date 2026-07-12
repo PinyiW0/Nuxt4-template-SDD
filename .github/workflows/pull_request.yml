@@ -30,3 +30,6 @@ jobs:
 
       - name: Test
         run: npm run eslint
+
+      - name: Typecheck
+        run: npm run typelint
