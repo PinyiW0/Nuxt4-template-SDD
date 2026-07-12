@@ -1,6 +1,6 @@
 ---
 name: pr
-description: 把當前 feature 分支發成對 default branch（通常 main）的 PR — push + 產繁中標題/內文草案 + gh pr create。一律先出草案待確認才開 PR；偵測未 commit 改動或人在 default branch 上會停下來引導，不越界。Use when 使用者要發 PR、開 PR、送出 pull request、或說「幫我發 PR」「開個 PR」時。
+description: 把當前 feature 分支發成對 default branch（通常 main）的 PR — push + 產繁中標題/內文草案 + gh pr create，label 預設讓使用者從 repo 現有清單挑選、assignee 預設自己（多人 repo 才問）。一律先出草案待確認才開 PR；偵測未 commit 改動或人在 default branch 上會停下來引導，不越界。Use when 使用者要發 PR、開 PR、送出 pull request、或說「幫我發 PR」「開個 PR」時。
 argument-hint: "[reviewer / assignee / label / draft / copilot / 補充說明(選填)]"
 ---
 
@@ -69,6 +69,24 @@ git diff origin/<default>...HEAD --stat     # 變更檔案總覽
 - 關鍵字須**獨立成行、緊接編號**才生效（寫進清單項或被其他字包住會失效）。
 - 跨 repo 的 issue 用 `owner/repo#<編號>`。
 - 三層都解析不到編號 → 略過這行，不硬湊。
+
+### 2.5 決定 label 與 assignee（跟 `/new-issue` 同款）
+
+**label（由使用者選，無預設）**：先查 repo 現有 label：
+
+```
+gh label list --json name -q '.[].name'
+```
+
+用 AskUserQuestion 列出讓使用者挑選（可複選，附「略過」選項）——**不自動對應、不預選**：
+
+- 使用者已在 `$ARGUMENTS` 指定 label → 直接用，不再問（仍須 repo 已存在）。
+- 使用者選「略過」／明說「不用 label」→ 不帶。
+- 只用 repo 現有 label，不自創、不 `gh label create`。使用者自填清單外的 label 時，提示該 label repo 沒有、請改選現有的或先自行建立。
+
+**assignee（可選，預設自己）**：預設 `@me`（發 PR 者即負責人，與 `/new-issue` 相同）。repo 有其他 collaborator（`gh api repos/<owner>/<repo>/collaborators --jq '.[].login'`）→ 用 AskUserQuestion 列出讓使用者選（預設選項 `@me`，含「不指派」；清單排除自己與 bot 帳號）；**單人 repo 不問，直接 `@me`**。使用者已在 `$ARGUMENTS` 指定就直接用，不再問。
+
+選定結果放進步驟 5 草案的 `label：`／`assignee：` 欄。
 
 ### 3. 產生標題 + 內文草案（全繁中）
 
@@ -144,7 +162,8 @@ Closes #2
 擬發 PR：
 標題：<繁中標題>
 base：<default>  ←  <當前分支>
-assignee：<"@me" / 指定者 / 不指派>
+label：<所選 label（可多個）或「略過」>
+assignee：<@me / 所選協作者 / 不指派>
 
 內文：
 <完整 markdown 內文>
@@ -156,14 +175,15 @@ assignee：<"@me" / 指定者 / 不指派>
 
 ```
 git push -u origin <branch>        # 沒 upstream 才需 -u；已有就 git push
-gh pr create --base <default> --title "<標題>" --body "<內文>" --assignee "<assignee>"
+gh pr create --base <default> --title "<標題>" --body "<內文>" --assignee "<assignee>" --label "<label>"
 gh pr view --web                   # 開瀏覽器
 ```
 
 - push 被拒（non-fast-forward，隊友先推過）→ **停**，說明分支上有他人更新，引導使用者 `git pull --rebase origin <branch>` 解完再重跑；**絕不 `--force`**。
-- assignee **預設 `"@me"`**（發 PR 者即負責人；預設值與 `/new-issue` 相同）；使用者透過 `$ARGUMENTS` 指定其他人則改帶指定者，明說不指派則整個 `--assignee` 旗標拿掉（同 reviewer/label 的處理）。指定他人須為 repo collaborator，否則 `gh pr create` 會整個失敗——失敗時改不帶 assignee 先建 PR，成功後再 `gh pr edit <N> --add-assignee <人>` 補。
+- assignee 帶步驟 2.5 選定的（預設 `@me`）；「不指派」則整個 `--assignee` 旗標拿掉。指定他人須為 repo collaborator，否則 `gh pr create` 會整個失敗——失敗時改不帶 assignee 先建 PR，成功後再 `gh pr edit <N> --add-assignee <人>` 補。
 - `$ARGUMENTS` 只給裸名字（如 `alice`）無法判斷是 reviewer 還是 assignee → **停下來問**，不猜。
-- 使用者透過 `$ARGUMENTS` 指定了 reviewer / label 才加 `--reviewer <人>` / `--label <標籤>`（預設不帶；label 須 repo 已存在）；提到 draft／草稿 → 加 `--draft`。
+- label **預設帶上**步驟 2.5 使用者所選的（多個就重複 `--label <標籤>`；只用 repo 已存在的 label），使用者選略過／明說不用才不帶。
+- reviewer **維持選填**：使用者透過 `$ARGUMENTS` 指定了才加 `--reviewer <人>`（預設不帶）；提到 draft／草稿 → 加 `--draft`。
 - 提到 copilot（要 Copilot review）→ Copilot reviewer 是 bot 帳號，`--reviewer` 對它解析常失敗，一律在 PR 建立後補 API call（`<N>` 取自 `gh pr create` 回傳 URL 結尾）：
 
   ```
@@ -180,5 +200,6 @@ gh pr view --web                   # 開瀏覽器
 
 - base 一律取 repo 的 default branch（步驟 1 已查得；本模板為 `main`），不寫死。**GitHub 只在 PR merge 進 default branch 時才會自動關閉 `Closes` 的 issue**——base 不是 default branch 時 `Closes` 不生效。
 - 絕不在 default branch 上發 PR 或代 commit —— 該停就停，列選項問使用者。
+- label 預設讓使用者從 repo 現有 label 挑選（可複選、附略過），不自動對應、不預選、不自創；assignee 預設 `@me`，多人 repo 才問、單人 repo 不問。reviewer 維持選填，不強制。
 - `$ARGUMENTS` 有值 → 視為 reviewer / assignee / label / 內文補充提示，納入判斷。
 - 不確定（標題怎麼下、要不要拆 PR）→ 照樣列草案問使用者，不擅自決定。
