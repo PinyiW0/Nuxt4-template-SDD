@@ -188,12 +188,13 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 8. **⚠️ 程式碼品質檢查（必須執行）**
    - 依序執行以下指令，針對本次新增或修改的檔案：
    ```bash
-   npx eslint app/pages/xxx.vue --fix          # ESLint 檢查 + 自動修復
+   npx eslint app/pages/xxx.vue --fix          # 自動修復（僅修復手段，不作驗證依據）
    npx prettier --write app/pages/xxx.vue      # Prettier 格式化（含 Tailwind class 排序）
+   npm run eslint                               # ESLint 驗證（含 visual-hierarchy-check，與 CI 同一條）
    npm run typelint                             # TypeCheck 型別檢查
    ```
    - 有錯誤 → 修復後重新執行，直到全部通過
-   - **三項全部通過才可進入下一步**
+   - **全部通過才可進入下一步**
 9. **向用戶確認（必須使用下方結構化格式，包含步驟 3 的對照表）**
 10. **⚠️ 輸出確認格式後立即停止回應，等待用戶回覆後才處理下一個頁面**
 
@@ -278,6 +279,7 @@ Scenario 覆蓋：
    ```bash
    npx eslint app/pages/xxx.vue --fix
    npx prettier --write app/pages/xxx.vue
+   npm run eslint
    npm run typelint
    ```
    - 有錯誤 → 修復後重新執行，直到全部通過
