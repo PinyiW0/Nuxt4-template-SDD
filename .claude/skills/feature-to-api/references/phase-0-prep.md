@@ -134,7 +134,7 @@ grep 來源訊號（命中任一即「需要 auth」）：
 - OpenAPI：`paths` 同時含 `/auth/login` 與 `/auth/refresh`；或 `securitySchemes` 有 bearer
 - `.feature` / `.flow.md`：有登入 scenario（登入 / login / 帳號+密碼 / 未登入導向）
 
-**偵測到 → 寫入 `route-map.yaml > auth` 區塊**（`required: true` + `login_path` / `home_path` / `public_paths` / `token_endpoints`，格式見 auth-scaffold.md §2）。`public_paths` 推導：login ＋ `.feature` 中**無需登入即可用的場景**（賓客／訪客／公開瀏覽）對應的路由——漏列會被 middleware 誤擋，多列會漏守門，判準是「這個場景的操作者有沒有登入過」，並依 auth-scaffold.md §3a 套用 API 層範本（提供 `useHttpAuth` handler 即啟用攔截，**useHttp.ts 不覆蓋**；`nuxt.config` 追加 auth 路徑）。
+**偵測到 → 寫入 `route-map.yaml > auth` 區塊**（`required: true` + `login_path` / `home_path` / `public_paths` / `token_endpoints`，格式見 auth-scaffold.md §2）。`public_paths` 推導：login ＋ `.feature` 中**無需登入即可用的場景**（賓客／訪客／公開瀏覽）對應的路由——漏列會被 middleware 誤擋，多列會漏守門，判準是「這個場景的操作者有沒有登入過」。**公開路由不得是受保護路由的路徑前綴**（middleware 前綴比對，`/announcement` 公開會連 `/announcement/settings` 一起放行）——路由規劃時遇到巢狀衝突，把受保護頁改掛別的前綴（如 `/admin/…`），並依 auth-scaffold.md §3a 套用 API 層範本（提供 `useHttpAuth` handler 即啟用攔截，**useHttp.ts 不覆蓋**；`nuxt.config` 追加 auth 路徑）。
 
 **沒偵測到 → route-map 不寫 auth 區塊、不套 scaffold。** Sync 模式下後來才出現 `/auth/*` 一樣補上（見 auth-scaffold.md §6）。
 

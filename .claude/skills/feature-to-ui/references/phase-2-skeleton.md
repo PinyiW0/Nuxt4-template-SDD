@@ -63,6 +63,7 @@ Phase 2 增量更新完成
    - **`auth.required: true`** → 確保 `app/middleware/auth.global.ts` 存在（範本見下方「Auth middleware 範本」）且 `authPublicPaths` 含 `login_path`，
      並有 `app/pages/login.vue`（範本見 [page-builder.md](page-builder.md)「登入表單」）。API 層（useHttp auth 版 / store / auth.api / types / nuxt.config 追加）由 feature-to-api 依 [auth-scaffold.md](../../feature-to-api/references/auth-scaffold.md) §3a 套用。
      **不可默默跳過**——缺守門要報錯補上。防迴圈六道與收尾 checklist 見 auth-scaffold.md §4 / §5。
+     另檢查 `public_paths` 沒有任何一項是受保護路由的路徑前綴（middleware 前綴比對會把巢狀子路由一併放行）——有衝突停下回報路由規劃問題，不要默默產出漏守門的 middleware。
 2.5. **RBAC route guard（條件式）**：檢查 `route-map.yaml > rbac.protected_routes`
    - **無 `rbac` 區塊 / 無 `protected_routes`** → 跳過，本專案不做角色路由守門
    - **有 `protected_routes`** → 確保 `app/middleware/rbac.global.ts` 存在（範本見下方「RBAC route guard 範本」），並建立守門目標頁空殼（如 `/403`，若 `route-map.routes` 未含則一併補一個 `app/pages/403.vue` 空殼）。角色名用 `rbac` 實際值、不寫死。入口 / 操作鈕的角色隱藏由 Phase 5 依 [rules.md](rules.md)「角色導向 UI 可見性」實作。
