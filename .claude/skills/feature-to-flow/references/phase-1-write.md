@@ -137,6 +137,20 @@ When Coach sends CreateAccount on stream "acc-001":
 
 ---
 
+#### 意圖 vs 斷言（invariant 寫哪一層）
+
+Business Invariant 寫**業務意圖層**（使用者能做什麼、能識別什麼），不寫**實作斷言層**（哪個元素怎麼呈現）。斷言強度由 spec 層依意圖決定，flow 不預先鎖死呈現方式。
+
+| | ❌ 斷言層（不進 flow） | ✅ 意圖層（進 flow） |
+|---|---|---|
+| 實體呈現 | 「賓客名**可見**」（spec 只能翻成 toBeVisible） | 「賓客實體**可被使用者識別**」（hover 浮現、tooltip、代號＋詳情皆滿足） |
+| 欄位呈現 | 「每筆**顯示** name / username」 | 「每筆帳號可識別，name / username **可達**」 |
+| 操作反饋 | 「toast **顯示**成功訊息」 | 「操作後使用者能**感知**成功（任一語意反饋）」 |
+
+> 實例教訓（wedding-host，2026-07）：flow 凍結「賓客名可見」後，「花田頁不顯示賓客名」這個合理視覺決策被 invariant 卡死，最後只能用 opacity-0＋hover 硬過測。當初寫成「賓客可被識別」就不會發生。**判斷法**：如果一個合理的視覺重設計（隱藏、摺疊、hover 浮現、換頁呈現）會讓這條 invariant 紅燈，它就寫在錯的層。
+
+---
+
 #### 簡單範例（4 欄 list）
 
 輸入：
@@ -159,13 +173,13 @@ Then the view returns:
 
 ### Verification 策略
 - `getByRole('row', { name: /王教練/ })` 或 `getByText(/王教練/)` 找實體
-- entity 範圍內驗 username（`coach_wang`）與 remark（`U12`）可見
+- entity 範圍內驗 username（`coach_wang`）與 remark（`U12`）可達
 - 同樣驗 acc-002：李教練 / coach_li / remark 為空（用 `:not(:has-text("U"))` 或省略 remark 斷言）
 
 ### Business Invariant 必涵蓋
 - 兩筆帳號可被識別
-- 每筆顯示 name / username
-- 有 remark 者顯示 remark
+- 每筆帳號的 name / username 可達
+- 有 remark 者其 remark 可達
 ```
 
 ---

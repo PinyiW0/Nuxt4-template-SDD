@@ -22,7 +22,7 @@
 
 ## Business Invariants（合約核心）
 
-{以條列描述本模組業務合約，與 UI 形式無關}
+{以條列描述本模組業務合約，與 UI 形式無關。寫**意圖層**（可識別／可達／可感知），不寫**斷言層**（可見／顯示）——正反例與判斷法見 phase-1-write.md「意圖 vs 斷言」}
 1. {使用者能執行 X 操作}
 2. {資料 Y 可被使用者讀到（不限位置與形式）}
 3. {狀態 Z 變更後使用者能感知（toast / banner / 任何語意反饋皆可）}
@@ -90,7 +90,7 @@
 ## Business Invariants
 
 1. 在歷史頁面能找到所有未刪除的 practice，且能識別 item / player / 狀態
-2. 在練習詳情下能看到所有未刪除的 pitch（透過 row / card / drawer 任一形式）
+2. 在練習詳情下所有未刪除的 pitch 皆可達（透過 row / card / drawer 任一形式）
 3. 每球的關鍵屬性（pitch-type、player、收藏狀態）可被使用者識別
 4. 完整 metric（speed / spin-rate / approach-angle / 等 14 欄）必須可被使用者讀到——可以**全在 row**、**部分在 row 部分在 detail**、**全在 drawer 點開**，由 UI 決定，但**不可漏**
 5. 收藏 / 取消 / 刪除 / 結束 / 切換投手等操作必須可觸發，且操作後可感知結果
