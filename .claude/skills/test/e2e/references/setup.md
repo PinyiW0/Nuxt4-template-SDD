@@ -186,15 +186,103 @@ export const Routes = {
 } as const
 ```
 
+#### hydration.ts
+
+Hydration 守門 fixture：spec 只要從 `../helpers` import `test`，每個測試自動監聽 console、結束時斷言無 hydration 警告。
+
+```typescript
+// test/e2e/helpers/hydration.ts
+// ⚠️ Vue 只在 dev build 輸出 hydration 警告（webServer 是 nuxt dev 所以攔得到；
+//    production build 會 strip，此守門對 prod 模式無效）
+import type { ConsoleMessage } from '@playwright/test'
+import { expect, test as base } from '@playwright/test'
+
+// 只 match「hydration」：Vue 的 mismatch 警告全部含此字。
+// 不單獨 match /mismatch/，避免誤殺應用層 log（如表單驗證訊息）。
+const HYDRATION_RE = /hydration/i
+
+interface HydrationFixtures {
+  /** 單一 spec 關閉守門：test.use({ failOnHydration: false }) */
+  failOnHydration: boolean
+  hydrationGuard: void
+}
+
+export const test = base.extend<HydrationFixtures>({
+  failOnHydration: [true, { option: true }],
+  hydrationGuard: [
+    async ({ page, failOnHydration }, use) => {
+      const hits: string[] = []
+      const onConsole = (msg: ConsoleMessage) => {
+        if ((msg.type() === 'warning' || msg.type() === 'error') && HYDRATION_RE.test(msg.text()))
+          hits.push(`[${msg.type()}] ${msg.text()}`)
+      }
+      page.on('console', onConsole)
+      await use()
+      page.off('console', onConsole)
+      if (failOnHydration)
+        expect(hits, `偵測到 hydration 警告：\n${hits.join('\n')}`).toHaveLength(0)
+    },
+    { auto: true },
+  ],
+})
+
+export { expect } from '@playwright/test'
+```
+
 #### index.ts
 
 ```typescript
 // test/e2e/helpers/index.ts
 export * from './actions'
 export * from './fixtures'
+export { expect, test } from './hydration'
 ```
 
-### Step 6：建立目錄結構
+### Step 6：建立 hydration smoke spec
+
+對每個 route 做**整頁載入**掃描。hydration 只發生在 hard load（`page.goto`）；client-side 導航不會重 hydrate，所以逐 route hard load 即可覆蓋全部 hydration 面。
+
+```typescript
+// test/e2e/specs/00-hydration.spec.ts
+// ⚠️ 守門效力僅限 dev server（production build 會 strip hydration 警告）
+// 此檔直接 import @playwright/test（不走 ../helpers 的 extended test，避免與 auto fixture 重複斷言）
+import type { Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { login, Routes, TestUsers } from '../helpers'
+
+// 依 Routes 補齊：新頁面上線時記得加進清單
+const PUBLIC_PAGES: string[] = [Routes.login]
+const AUTH_PAGES: string[] = [Routes.home]
+
+function collectHydrationWarnings(page: Page): string[] {
+  const hits: string[] = []
+  page.on('console', (msg) => {
+    if ((msg.type() === 'warning' || msg.type() === 'error') && /hydration/i.test(msg.text()))
+      hits.push(msg.text())
+  })
+  return hits
+}
+
+test.describe('Hydration 守門', () => {
+  for (const path of PUBLIC_PAGES) {
+    test(`未登入整頁載入 ${path}`, async ({ page }) => {
+      const hits = collectHydrationWarnings(page)
+      await page.goto(path, { waitUntil: 'networkidle' })
+      expect(hits).toEqual([])
+    })
+  }
+  for (const path of AUTH_PAGES) {
+    test(`登入後整頁載入 ${path}`, async ({ page }) => {
+      await login(page, TestUsers.admin.account, TestUsers.admin.password)
+      const hits = collectHydrationWarnings(page)
+      await page.goto(path, { waitUntil: 'networkidle' })
+      expect(hits).toEqual([])
+    })
+  }
+})
+```
+
+### Step 7：建立目錄結構
 
 ```bash
 mkdir -p test/e2e/specs
@@ -202,7 +290,7 @@ mkdir -p test/e2e/screenshots
 mkdir -p test/e2e/test-results
 ```
 
-### Step 7：確認 .gitignore
+### Step 8：確認 .gitignore
 
 確保測試產物不進 git：
 
@@ -213,7 +301,7 @@ test/e2e/screenshots/
 playwright-report/
 ```
 
-### Step 8：驗證
+### Step 9：驗證
 
 ```bash
 # 確認 Playwright 可執行
@@ -231,8 +319,10 @@ test/e2e/
 ├── helpers/
 │   ├── actions.ts                  # 共用操作（login, selectOption, confirmDelete）
 │   ├── fixtures.ts                 # 測試資料（帳號、路由）
+│   ├── hydration.ts                # Hydration 守門 fixture（auto，dev-only）
 │   └── index.ts                    # 匯出
 ├── specs/                          # .spec.ts 檔案（由 /test e2e spec 產出）
+│   └── 00-hydration.spec.ts        # Hydration smoke（逐 route 整頁載入）
 ├── test-results/                   # Playwright 測試結果
 └── screenshots/                    # 測試失敗截圖
 ```
@@ -250,6 +340,8 @@ E2E Setup 完成
 - server/api/__test__/reset.post.ts ✅
 - test/e2e/helpers/actions.ts（login, selectOption, confirmDelete）
 - test/e2e/helpers/fixtures.ts（N 個帳號、N 個路由）
+- test/e2e/helpers/hydration.ts（hydration 守門 fixture）
+- test/e2e/specs/00-hydration.spec.ts（逐 route hydration smoke）
 
 下一步：
 - 執行 /test e2e spec <feature> 生成測試檔案
@@ -266,5 +358,7 @@ E2E Setup 完成
 - [ ] `server/api/__test__/reset.post.ts` 存在且 `resetMockData()` 可用
 - [ ] `actions.ts` 包含 login / selectOption / confirmDelete
 - [ ] `fixtures.ts` 包含測試帳號和路由（與 `_common.flow.md` 一致）
+- [ ] `hydration.ts` 存在且 `index.ts` re-export `{ expect, test }`
+- [ ] `specs/00-hydration.spec.ts` 涵蓋所有 Routes（公開 + 登入後）
 - [ ] `.gitignore` 排除測試產物
 - [ ] `npx playwright test --list` 可執行

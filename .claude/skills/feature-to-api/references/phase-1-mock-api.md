@@ -392,4 +392,9 @@ export const useAuthStore = defineStore('auth', () => {
 })
 ```
 
+> ⚠️ **persist 儲存位置**：`pinia-plugin-persistedstate/nuxt` 預設 storage 是 **cookie**（SSR 可讀），不是 localStorage。
+> **禁止**在註解或 middleware 寫「登入狀態存 localStorage、SSR 讀不到」——錯誤心智模型會導致 hydration mismatch
+> （見 feature-to-ui `rules.md` > SSR / Hydration 安全）。cookie 上限 4KB：`pick` 只挑必要欄位，大型物件不進 persist。
+> 完整 auth store（single-flight refresh、cookie 細節）見 [auth-scaffold.md](auth-scaffold.md) §3a。
+
 > ⚠️ **錯誤捕捉**：`try { await login() } catch (e: any) { toast.error(e.statusMessage || '登入失敗') }`

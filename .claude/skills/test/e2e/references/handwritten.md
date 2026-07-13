@@ -97,9 +97,8 @@ git diff --cached -- app/pages app/components app/layouts
 範本：
 
 ```typescript
-import { expect, test } from '@playwright/test'
-
-import { login, resetMockData } from '../helpers'
+// test/expect 走 ../helpers（掛 hydration 守門 fixture），不直接 import @playwright/test
+import { expect, login, resetMockData, test } from '../helpers'
 
 test.beforeEach(async ({ page }) => {
   await resetMockData(page)

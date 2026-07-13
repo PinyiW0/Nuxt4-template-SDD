@@ -214,14 +214,17 @@ grep "createError" server/api/{相關路徑}/*.ts
 ## .spec.ts 結構（v2）
 
 ```typescript
-import { expect, type Page, test } from '@playwright/test'
+// test/expect 走 ../helpers（掛 hydration 守門 fixture），不直接 import @playwright/test
+import type { Page } from '@playwright/test'
 
 import {
+  expect,
   findEntity,
   getFeedbackElement,
   login,
   maybeConfirm,
   resetMockData,
+  test,
   waitForApiCall,
 } from '../helpers'
 
@@ -625,8 +628,8 @@ test.skip('帳號鎖定後重新登入', async () => {
 
 ```typescript
 // ✅ import 排序：import type 在前、外部套件按字母、相對路徑按字母、named imports 按字母
-import { expect, test } from '@playwright/test'
-import { confirmDelete, login } from '../helpers'
+// ✅ test/expect 從 ../helpers 匯入（自動掛 hydration 守門），不直接 import @playwright/test
+import { confirmDelete, expect, login, test } from '../helpers'
 ```
 
 生成後**必須執行**：
