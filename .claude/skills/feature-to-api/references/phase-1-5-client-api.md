@@ -196,7 +196,7 @@ export function loginCoach(body: LoginBody) {
 }
 ```
 
-> ℹ️ 本模板不含 auth / 401 攔截層，登入與一般寫入一樣用 `useHttp().post`。若日後加入 auth（token 注入 / 401 refresh），請在 `useHttp` 內以 `onRequest` / `onResponse` hook 擴充，並為「不需 token 即可呼叫」的端點（login / register）保留略過攔截的選項，不要散落在各 `*.api.ts`。
+> ℹ️ 模板預設 auth 中立，登入與一般寫入一樣用 `useHttp().post`。偵測到 auth 時**不要自行在 `useHttp` 擴充攔截**——`useHttp` 已內建 Authorization / 401→refresh→retry 注入點，照 [auth-scaffold.md](auth-scaffold.md) §3a 覆蓋 `useHttpAuth.ts` 提供 handler 即啟用；login / refresh / logout 等免 token 端點以 `handleUnauthorized:false` 略過攔截（同見 §3a），不要散落在各 `*.api.ts`。
 
 ### Blob 下載（imperative GET，走 getOnce）
 

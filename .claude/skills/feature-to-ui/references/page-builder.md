@@ -215,10 +215,20 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     class="mx-auto w-full max-w-sm space-y-4"
     @submit="onSubmit"
   >
-    <UFormField label="帳號" name="account">
+    <UFormField
+      label="帳號"
+      name="account"
+      class="relative mb-8"
+      :ui="{ error: 'absolute top-full left-0 mt-1' }"
+    >
       <UInput v-model="state.account" data-testid="login-account" class="w-full" />
     </UFormField>
-    <UFormField label="密碼" name="password">
+    <UFormField
+      label="密碼"
+      name="password"
+      class="relative mb-8"
+      :ui="{ error: 'absolute top-full left-0 mt-1' }"
+    >
       <UInput
         v-model="state.password"
         data-testid="login-password"
