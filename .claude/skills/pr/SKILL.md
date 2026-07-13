@@ -70,14 +70,15 @@ git diff origin/<default>...HEAD --stat     # 變更檔案總覽
 - 跨 repo 的 issue 用 `owner/repo#<編號>`。
 - 三層都解析不到編號 → 略過這行，不硬湊。
 
-### 2.5 決定 label 與 assignee（與 `/new-issue` 共用政策）
+### 2.5 決定 label、assignee 與 reviewer（與 `/new-issue` 共用政策）
 
 依共用政策 [../new-issue/references/label-assignee.md](../new-issue/references/label-assignee.md) 選定：
 
 - **label**：從 repo 現有清單讓使用者複選（附「略過」）、不自動對應、不預選；**`/pr` 不自創 label、不 `gh label create`**（與 `/new-issue` 的差異見該檔）。
 - **assignee**：預設 `@me`，多人 repo 才用 AskUserQuestion 問、單人 repo 不問。
+- **reviewer**（README 協作規範：至少掛 **Copilot＋一名協作者**）：`$ARGUMENTS` 指定了就用指定者；未指定且為多人 repo → 用 AskUserQuestion 列協作者候選（含 Copilot）請使用者挑，使用者**明說不掛**才略過；單人 repo（無其他協作者）→ 預設只掛 Copilot、不另外問（repo ruleset 已開自動 Copilot review 則連掛都免）。
 
-選定結果放進步驟 5 草案的 `label：`／`assignee：` 欄。
+選定結果放進步驟 5 草案的 `label：`／`assignee：`／`reviewer：` 欄。
 
 ### 3. 產生標題 + 內文草案（全繁中）
 
@@ -155,6 +156,7 @@ Closes #2
 base：<default>  ←  <當前分支>
 label：<所選 label（可多個）或「略過」>
 assignee：<@me / 所選協作者 / 不指派>
+reviewer：<所選協作者＋Copilot / 僅 Copilot（單人 repo）/ 使用者明說不掛>
 
 內文：
 <完整 markdown 內文>
@@ -173,7 +175,7 @@ gh pr view --web                   # 開瀏覽器
 - push 被拒（non-fast-forward，隊友先推過）→ **停**，說明分支上有他人更新，引導使用者 `git pull --rebase origin <branch>` 解完再重跑；**絕不 `--force`**。
 - assignee／label 帶步驟 2.5 選定的；「不指派」／「略過」則拿掉對應旗標。多 label 重複 `--label`；指派他人失敗的補救見[共用政策](../new-issue/references/label-assignee.md)。
 - `$ARGUMENTS` 只給裸名字（如 `alice`）無法判斷是 reviewer 還是 assignee → **停下來問**，不猜。
-- reviewer **維持選填**：使用者透過 `$ARGUMENTS` 指定了才加 `--reviewer <人>`（預設不帶）；提到 draft／草稿 → 加 `--draft`。
+- reviewer 帶步驟 2.5 選定的：協作者用 `--reviewer <人>`，Copilot 走 PR 建立後補 API call（見下）；使用者明說不掛才拿掉旗標。提到 draft／草稿 → 加 `--draft`。
 - 提到 copilot（要 Copilot review）→ Copilot reviewer 是 bot 帳號，`--reviewer` 對它解析常失敗，一律在 PR 建立後補 API call（`<N>` 取自 `gh pr create` 回傳 URL 結尾）：
 
   ```
@@ -190,6 +192,6 @@ gh pr view --web                   # 開瀏覽器
 
 - base 一律取 repo 的 default branch（步驟 1 已查得；本模板為 `main`），不寫死。**GitHub 只在 PR merge 進 default branch 時才會自動關閉 `Closes` 的 issue**——base 不是 default branch 時 `Closes` 不生效。
 - 絕不在 default branch 上發 PR 或代 commit —— 該停就停，列選項問使用者。
-- label 預設讓使用者從 repo 現有 label 挑選（可複選、附略過），不自動對應、不預選、不自創；assignee 預設 `@me`，多人 repo 才問、單人 repo 不問。reviewer 維持選填，不強制。
+- label 預設讓使用者從 repo 現有 label 挑選（可複選、附略過），不自動對應、不預選、不自創；assignee 預設 `@me`，多人 repo 才問、單人 repo 不問。reviewer 預設必掛（至少 Copilot＋一名協作者，README 協作規範）：多人 repo 列候選請使用者挑、單人 repo 掛 Copilot，使用者明說不掛才略過。
 - `$ARGUMENTS` 有值 → 視為 reviewer / assignee / label / 內文補充提示，納入判斷。
 - 不確定（標題怎麼下、要不要拆 PR）→ 照樣列草案問使用者，不擅自決定。
