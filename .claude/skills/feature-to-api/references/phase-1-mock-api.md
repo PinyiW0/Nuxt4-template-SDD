@@ -98,8 +98,21 @@ Phase 1 增量更新完成
    | 列表頁面主要資料 | ≥ 11 筆 | 分頁每頁 10 筆，需 > 1 頁才能測試分頁 |
    | 關聯資料（子項目） | ≥ 3 筆/父項 | 確保列表不會因資料太少而隱藏 UI |
    | 下拉選單選項 | ≥ 3 項 | 確保選單可滾動、可篩選 |
+   | 牆型／散佈型視覺元件資料（scatter、照片牆、標籤雲） | ≥ 8 筆且**多樣** | 1–2 筆時視覺完全不成立，無從評估佈局與密度 |
 
    > ⚠️ 不足時在步驟 4 補建，不要等到 Phase 5 才發現分頁無法測試
+
+   **視覺充足量**（不只夠測，還要夠看）：資料餵給牆型／散佈型視覺元件時，除了數量還要**多樣性**——顏色、長度、分佈給出變化、含一兩筆極端值。重複性高的 seed 用參數化生成組合種子陣列，不要手寫 N 筆幾乎一樣的資料（實例：wedding-host 的賓客配花牆需 8 色 × 10 位賓客才能迭代視覺）：
+
+   ```typescript
+   // 參數化生成：組合種子陣列產生多樣 seed
+   const colors = ['rose', 'amber', 'violet', 'sky', 'emerald', 'orange', 'pink', 'teal']
+   export const mockFlowers = mockGuests.map((guest, i) => ({
+     guestId: guest.guestId,
+     color: colors[i % colors.length],
+     size: 24 + (i * 7) % 20, // 尺寸做出散佈
+   }))
+   ```
 
    **擴充時必須維護 SSoT 一致性**（`.feature` Background 是 mock 資料的唯一真實來源）：
 
