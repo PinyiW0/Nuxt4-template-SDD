@@ -34,7 +34,7 @@ description: E2E 測試開發流程 — Playwright。Use when 要產出或更新
 
 ## 現有 Feature 檔案
 
-!`ls -1 spec/gherkin-feature/*.dsl.feature 2>/dev/null | head -15 || echo "(無)"`
+!`ls -1 spec/gherkin-feature/*.feature 2>/dev/null | head -15 || echo "(無)"`
 
 ---
 

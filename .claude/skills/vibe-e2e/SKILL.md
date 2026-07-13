@@ -219,6 +219,7 @@ vibe 改動的互動/結構驗證通過，可以 commit。
 
 - vibe spec 落地後**長期保留**並進 gate 守門，不再每次全清重生
 - 「編輯」一律透過重生：同來源 hunk + 同 pattern 的 spec 由 /vibe-e2e 覆蓋
+- **孤兒回收**：每次執行盤點既有 vibe spec 時，依首行 `Source hunk: {path}:{lines}` marker 檢查——(a) 來源檔已不存在，或 (b) 來源檔已重構、該行段找不到對應 pattern 痕跡 → 列入「孤兒候選」清單（附當前紅綠狀態）給使用者，選項：刪除／搬 `unstable/`／保留
 - 刪除 / 搬 `unstable/` 是使用者的決定——skill 只建議、列選項，不擅自執行
 - 業務合約等級的行為仍應寫到主 spec（走 .flow.md → /test e2e spec 流程），不要塞 vibe 資料夾
 

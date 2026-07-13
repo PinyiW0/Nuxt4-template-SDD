@@ -109,7 +109,7 @@ spec/gherkin-feature/*.feature（Given event / When command / Then event）
 - 執行 `/feature-to-flow`（無參數）時，**直接開始 Phase 0**，掃描 `spec/gherkin-feature/` 內所有 `*.feature` 檔（含 `*.dsl.feature`）
 - 帶 module 參數時（如 `accounts`），只處理該 module 對應的 Feature 區塊
 - **Phase 0 結束時必須停下來等使用者確認**：列出建議的 module 分組與 Feature → flow 對應，使用者回覆 `OK` / 調整建議後才進入 Phase 1
-- 若 `spec/e2e-flows/{module}.flow.md` 已存在，Phase 1 寫入前要在計畫中標示「覆寫」並等確認
+- 若 `spec/e2e-flows/{module}.flow.md` 已存在，Phase 1 寫入前要在計畫中標示「覆寫」並等確認；確認後、寫檔前，先寫 sentinel 檔 `.claude/tmp/frozen-allow.json`（`{ "reason": "<為何覆寫>", "files": ["spec/e2e-flows/{module}.flow.md"] }`）——凍結 hook 會對清單內目標放行一次，否則覆寫必被擋下
 - 不主動詢問其他細節（命名、testid 規則皆已內建於 references）
 
 ---

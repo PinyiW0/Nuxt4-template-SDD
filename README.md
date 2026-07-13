@@ -190,7 +190,8 @@ cd ../nuxt4-template-issue-40 && npm install
 ```
 
 - `.env` 是 git tracked，worktree checkout 自帶，無需手動複製
-- E2E dev server port 由 worktree 路徑自動推導（3100–3499）：各 worktree 不互撞，同 worktree 重跑重用同一 server（快）；萬一兩個 worktree 撞到同一個 port（機率 1/400），換個 worktree 目錄名即換 port
+- E2E dev server port 由 worktree 路徑自動推導（3100–3499，gate/vibe config 繼承同一 base 推導，不各自重算）：各 worktree 不互撞，同 worktree 重跑重用同一 server（快）；萬一兩個 worktree 撞到同一個 port（機率 1/400），換個 worktree 目錄名即換 port
+- port 隔離只管 E2E 起的 server；**手動 `npm run dev` 固定跑 3000**，多個 worktree 同時手動 dev 要自帶 port 錯開：`npm run dev -- --port 3001`
 - pre-push gate 走 Docker（`scripts/docker-gate.sh`，production build 隔離 + ephemeral port），多 session 同時 push 也不互撞；Docker 沒開時自動 fallback 本機模式並警告
 - 兩條線都動了 API 層時，`spec/report/route-map.yaml`（機器產的單檔 SoT）merge 必衝突：**不手動解衝突**——晚合併的分支先 rebase main，再重跑 `/feature-to-api` 重新產出 route-map
 - 收工清理：`git worktree remove ../nuxt4-template-issue-40`
