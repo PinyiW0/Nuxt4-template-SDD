@@ -206,6 +206,7 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 > - **共用元件**：`app/components/common/*.vue`（讀原始碼即可，不需 components.md）
 > - **API 總覽**：`glob server/api/**/*.ts`
 > - **該功能專屬**：API endpoint 原始碼、`types/api/` 型別、Pinia store（若需要）
+> - **契約缺口檢查**：該功能要顯示的欄位，對應 GET 端點讀得回才動工；讀不回 → 停下回報，禁止 local state 暫存兜（見 [rules.md](rules.md)「契約缺口」）
 > - **選讀**：`.dsl.feature`（驗證邊界值）、`components.md`（編碼慣例/範本）、`features.md`（additionalFeature 用法）
 
 ## 實作順序建議

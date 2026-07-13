@@ -282,6 +282,43 @@ test.describe('Hydration 守門', () => {
 })
 ```
 
+### Step 6.5：建立 auth guard smoke spec（僅 `route-map.yaml` 有 `auth` 區塊時）
+
+守衛（`auth.global.ts`）是生成物，沒有測試覆蓋時改壞抓不到（wedding-host 實戰：守衛無測試，重構後壞掉才人工發現）。`route-map.auth.required` 時必建：
+
+```typescript
+// test/e2e/specs/01-auth-guard.spec.ts
+// 路徑值從 route-map.yaml > auth 讀取（login_path / home_path / public_paths），不寫死
+import { expect, test } from '@playwright/test'
+import { login, Routes, TestUsers } from '../helpers'
+
+// 受保護路由挑代表頁即可（middleware 全域生效，不必逐頁）；公開頁列 public_paths 中 login 以外者（賓客端）
+const PROTECTED_PAGES: string[] = [Routes.home]
+const PUBLIC_PAGES: string[] = []
+
+test.describe('Auth 守衛', () => {
+  for (const path of PROTECTED_PAGES) {
+    test(`未登入訪 ${path} → 導向 login`, async ({ page }) => {
+      await page.goto(path, { waitUntil: 'networkidle' })
+      await expect(page).toHaveURL(/\/login/)
+    })
+  }
+  for (const path of PUBLIC_PAGES) {
+    test(`未登入訪公開頁 ${path} → 不被導去 login`, async ({ page }) => {
+      await page.goto(path, { waitUntil: 'networkidle' })
+      await expect(page).not.toHaveURL(/\/login/)
+    })
+  }
+  test('已登入訪 login → 導回而非停留', async ({ page }) => {
+    await login(page, TestUsers.admin.account, TestUsers.admin.password)
+    await page.goto(Routes.login, { waitUntil: 'networkidle' })
+    await expect(page).not.toHaveURL(/\/login/)
+  })
+})
+```
+
+> 防迴圈驗收（一次導向、無 redundant navigation error）見 feature-to-api `auth-scaffold.md` §5 checklist。
+
 ### Step 7：建立目錄結構
 
 ```bash
@@ -322,7 +359,8 @@ test/e2e/
 │   ├── hydration.ts                # Hydration 守門 fixture（auto，dev-only）
 │   └── index.ts                    # 匯出
 ├── specs/                          # .spec.ts 檔案（由 /test e2e spec 產出）
-│   └── 00-hydration.spec.ts        # Hydration smoke（逐 route 整頁載入）
+│   ├── 00-hydration.spec.ts        # Hydration smoke（逐 route 整頁載入）
+│   └── 01-auth-guard.spec.ts       # Auth 守衛 smoke（僅 route-map 有 auth 時）
 ├── test-results/                   # Playwright 測試結果
 └── screenshots/                    # 測試失敗截圖
 ```
@@ -342,6 +380,7 @@ E2E Setup 完成
 - test/e2e/helpers/fixtures.ts（N 個帳號、N 個路由）
 - test/e2e/helpers/hydration.ts（hydration 守門 fixture）
 - test/e2e/specs/00-hydration.spec.ts（逐 route hydration smoke）
+- test/e2e/specs/01-auth-guard.spec.ts（auth 守衛 smoke；無 auth 專案略）
 
 下一步：
 - 執行 /test e2e spec <feature> 生成測試檔案
@@ -360,5 +399,6 @@ E2E Setup 完成
 - [ ] `fixtures.ts` 包含測試帳號和路由（與 `_common.flow.md` 一致）
 - [ ] `hydration.ts` 存在且 `index.ts` re-export `{ expect, test }`
 - [ ] `specs/00-hydration.spec.ts` 涵蓋所有 Routes（公開 + 登入後）
+- [ ] `route-map.yaml` 有 `auth` 區塊時，`specs/01-auth-guard.spec.ts` 存在（未登入導 login／公開頁不被導走／已登入訪 login 導回）
 - [ ] `.gitignore` 排除測試產物
 - [ ] `npx playwright test --list` 可執行

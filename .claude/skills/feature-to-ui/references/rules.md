@@ -225,6 +225,14 @@ const heatMapPoints = computed<HeatMapPoint[]>(() => analysis.value?.heat_map_da
 | 禁止定義 local interface | 從 `~/types/api/` import |
 | API 不存在 | 先建 API，不跳過 |
 
+### 契約缺口：GET 讀不回要顯示的欄位 → 停下回報 `[P5]`
+
+頁面要顯示的資料，唯一合法來源是 GET 端點回傳（經 useFetch / store）。實作時發現「這個欄位 command 寫得進去，但對應 GET 回傳沒有（或根本沒 GET）」：
+
+1. **停止該頁實作**，回報契約缺口：哪個 command 寫入哪些欄位、哪個 GET 缺
+2. 等 `/feature-to-api` 補讀回端點／欄位（見其 phase-1「讀回完整性自查」）後再繼續
+3. **禁止**用 local ref / store 暫存 command payload 兜出畫面——當下顯示正常、重新整理即丟，且同 session 的 e2e 完全抓不到（wedding-host 實戰：此 pattern 對全部測試隱形，事後補了 7 個 GET 才修完）
+
 ### 檔案結構 → 呼叫路徑
 
 | 檔案 | 路徑 | 方法 |

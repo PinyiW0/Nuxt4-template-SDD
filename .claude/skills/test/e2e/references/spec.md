@@ -588,6 +588,24 @@ test('coach 無法編輯他人建立的 note（單筆歸屬）', async ({ page }
 
 ---
 
+## 持久性斷言（設定/狀態類 scenario 必含）
+
+**判定**：scenario 的 command 更新既有 aggregate 的可變狀態、且畫面直接顯示新值（設定頁、偏好、佈置、編輯表單…），就屬「設定/狀態類」。新增後跳轉列表的 create 類不算——列表重新載入本身就是讀回驗證。
+
+**生成規則**：該 scenario 的 Then 斷言完成後，追加：
+
+```typescript
+// 持久性：寫入必須在 reload 後讀得回（防 UI 用 local state 暫存兜資料）
+await page.reload({ waitUntil: 'networkidle' })
+// <重複該場景的關鍵 Then 斷言>
+```
+
+- 斷言 locator 沿用該場景 flow 已授權的策略，不另開新 selector
+- 這是管線層級守門（與 hydration 守門同類），**flow 沒寫 reload 也必須生**，不算 spec 越權
+- 為什麼：同 session 內「寫入 → 當下顯示」永遠會過；GET 漏欄位、UI 拿 local ref 兜資料時，只有 reload 抓得到（wedding-host 實戰：7 個 GET 缺口對全部同 session 測試隱形）
+
+---
+
 ## Skip 規則
 
 ### 允許 skip 的情況（僅限以下）
@@ -656,6 +674,7 @@ npm run typelint    # 型別零錯誤（CLAUDE.md 紅線：兩者都要過）
 - [ ] 共用操作從 `../helpers` import，spec 內無本地定義
 - [ ] `test.beforeEach` 呼叫 reset + 背景調整（Feature Background vs mock 全集已比對）
 - [ ] 每個 test 有 Given/When/Then 註解
+- [ ] 設定/狀態類 scenario 含「寫入 → `page.reload()` → 斷言仍在」持久性斷言（見「持久性斷言」段）
 - [ ] `npm run eslint` + `npm run typelint` 零錯誤
 
 ### v2 抽象化合規
