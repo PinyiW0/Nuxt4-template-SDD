@@ -94,12 +94,12 @@ const pageSize = 10
 
 // ⚠️ 呼叫前先讀取對應的 API endpoint 原始碼確認回傳格式
 const { data } = await useFetch<{
-  status: string
+  success: boolean
   data: TeamItem[]
 }>('/api/teams', {
   query: computed(() => ({
-    user: authStore.userAccount,
-    role: authStore.userRole,
+    user: authStore.account,
+    roles: authStore.roles,
   })),
 })
 

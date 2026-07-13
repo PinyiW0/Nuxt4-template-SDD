@@ -195,7 +195,7 @@ async function handleLogout() {
         >
           <UIcon name="i-heroicons-user-circle" class="size-5 shrink-0 text-primary-600 dark:text-primary-400" />
           <span class="flex-1 truncate text-sm text-neutral-700 dark:text-neutral-300">
-            {{ authStore.user?.account ?? '未登入' }}
+            {{ authStore.account ?? '未登入' }}
           </span>
           <UButton
             icon="i-heroicons-arrow-right-on-rectangle"
@@ -271,7 +271,7 @@ async function handleLogout() {
             <div class="flex items-center gap-3 rounded-lg px-3 py-2">
               <UIcon name="i-heroicons-user-circle" class="size-5 text-primary-600 dark:text-primary-400" />
               <span class="flex-1 truncate text-sm text-neutral-700 dark:text-neutral-300">
-                {{ authStore.user?.account ?? '未登入' }}
+                {{ authStore.account ?? '未登入' }}
               </span>
               <UButton
                 icon="i-heroicons-arrow-right-on-rectangle"
@@ -305,8 +305,9 @@ async function handleLogout() {
 
 > **Hydration 注意**（詳見 [rules.md](rules.md) > SSR / Hydration 安全）：
 > - `colorMode.value` 的渲染一律包 `<ClientOnly>` + 同尺寸 fallback——server 不知道 client 深淺偏好。
-> - `authStore.user` **不需要**包 `<ClientOnly>`——persist 預設存 cookie，SSR 請求帶 cookie、
->   server 端 store 還原出同一份 user，兩端渲染一致。包了反而造成登入後首屏閃「未登入」。
+> - `authStore.account` 等登入欄位**不需要**包 `<ClientOnly>`——persist 預設存 cookie，SSR 請求帶 cookie、
+>   server 端 store 還原出同一份登入狀態，兩端渲染一致。包了反而造成登入後首屏閃「未登入」。
+>   （欄位名以 auth-scaffold 產出的 store 為準：扁平的 `account` / `name` / `roles`，**沒有** `user` 物件。）
 
 ## auth.vue 範例
 

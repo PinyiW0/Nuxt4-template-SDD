@@ -81,7 +81,7 @@ export default defineNuxtRouteMiddleware((to) => {
 })
 ```
 
-> 顯示 `authStore.user` 的地方**不需要** `<ClientOnly>`——cookie 讓 SSR 拿到同一份 user，包了反而造成登入後首屏閃「未登入」。
+> 顯示 `authStore.account` 等登入欄位的地方**不需要** `<ClientOnly>`——cookie 讓 SSR 拿到同一份登入狀態，包了反而造成登入後首屏閃「未登入」。（store 欄位是扁平的 `account` / `name` / `roles`，沒有 `user` 物件。）
 
 ### colorMode 渲染必包 ClientOnly
 
