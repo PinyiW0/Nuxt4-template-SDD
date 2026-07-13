@@ -198,7 +198,7 @@ grep "createError" server/api/{相關路徑}/*.ts
 ⚠️ 校正表：
 - flow 實體名稱 "{flow值}" → 實際 mock: "{mock值}"
 - flow 錯誤訊息 "{flow訊息}" → 實際 API: "{api訊息}"
-- testid: 直接使用 flow 定義（flow 是 testid 權威來源）
+- testid: 僅當 flow「Selector 策略」授權時使用，值取自 flow 定義（v2：testid 是 fallback，不是預設）
 - toast 文字: 直接使用 flow 定義（UI 必須實作此文字）
 - ⚠️ Background 衝突: mock 多餘實體 "{name}" 與建立操作衝突 → 需清理
 ```
@@ -208,6 +208,8 @@ grep "createError" server/api/{相關路徑}/*.ts
 若 `.flow.md` 涉及新的路由或測試帳號，更新 `fixtures.ts`。
 
 ### Step 4：生成 .spec.ts（使用校正後的值）
+
+> **覆寫既有 spec 前必寫 sentinel**：flow 更新觸發的全量重生會覆寫 `test/e2e/specs/` 既有檔，凍結 hook 預設擋下。經使用者確認重生範圍後、寫檔前，先寫 `.claude/tmp/frozen-allow.json`（`{ "reason": "flow 更新，spec 全量重生", "files": ["test/e2e/specs/<檔名>.spec.ts", ...] }`），hook 對清單內目標放行一次。新增全新 spec 檔不需 sentinel。
 
 ---
 

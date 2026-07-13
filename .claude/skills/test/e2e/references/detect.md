@@ -117,6 +117,17 @@ stat -f %m test/e2e/specs/04-建立球隊.spec.ts
 
 > flow 的 mtime **嚴格大於** spec 的 mtime 才標記為「更新」。相等視為同步。
 
+### api-spec 陳舊偵測（flow/spec 盲區補充）
+
+後端只更新 `spec/api/api-spec.yml` 而 flow 沒動時，上面的 flow↔spec mtime 比對會全標「同步」——這是盲區。補一個檢查：
+
+```
+spec/api/api-spec.yml 存在且 mtime > 所有 flow 的 mtime？
+  → 是 → 標記「⚠️ API 合約可能領先」— 提示使用者走 spec 變更迭代流
+         （/feature-to-api Sync → /test e2e spec），本 skill 不自動重生
+  → 否 → 無需操作
+```
+
 ---
 
 ## Step 3：git diff 偵測實作變更

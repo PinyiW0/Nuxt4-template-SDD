@@ -74,7 +74,7 @@ flowchart LR
 
 ## 現有 Feature 檔案
 
-!`ls -1 spec/gherkin-feature/*.dsl.feature 2>/dev/null || echo "(無)"`
+!`ls -1 spec/gherkin-feature/*.feature 2>/dev/null || echo "(無)"`
 
 ---
 

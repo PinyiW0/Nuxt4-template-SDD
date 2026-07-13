@@ -21,6 +21,9 @@ logs
 # Claude Code local settings
 .claude/settings.local.json
 
+# 凍結 hook 一次性授權 sentinel（runtime 產物，不進版控）
+.claude/tmp/
+
 # Local env files
 .env
 .env.*

@@ -52,7 +52,7 @@ npx playwright test test/e2e/specs/{NN}-{name}.spec.ts 2>&1
 ```
 失敗測試
 │
-├─ 讀取 spec 失敗行 → 確認期望的 testid / 文字 / URL
+├─ 讀取 spec 失敗行 → 確認期望的 role/text 斷言 / URL / testid（僅 flow 授權時）
 │
 ├─ 推斷頁面路徑
 │   ├─ page.goto('/teams') → app/pages/teams/index.vue
@@ -62,7 +62,7 @@ npx playwright test test/e2e/specs/{NN}-{name}.spec.ts 2>&1
 ├─ 讀取對應 UI 檔案的 <template>
 │
 └─ 比對 spec 期望 vs UI 實際
-    ├─ testid 缺失 → 加 data-testid
+    ├─ 定位 anchor 缺失 → 優先補語意 role/text，testid 為最後手段
     ├─ 元素結構不同 → 調整 template
     ├─ 文字不匹配 → 檢查 mock data 或顯示邏輯
     └─ 行為差異 → 檢查事件處理或 API 呼叫
@@ -72,9 +72,10 @@ npx playwright test test/e2e/specs/{NN}-{name}.spec.ts 2>&1
 
 ```
 根因
-├─ testid 缺失
-│  → 修 UI：在對應元素加 data-testid="xxx"
-│  → 原則：最小侵入，只加 attribute，不改結構
+├─ 定位 anchor 缺失（spec 找不到元素，但功能區塊存在）
+│  → 修 UI 優先序：先補語意 anchor（語意標籤、role/name、aria-label、可見文字）
+│  → spec 斷言用 testid（flow 授權的 fallback）且 UI 缺該 testid → 才加 data-testid="xxx"
+│  → 原則：最小侵入，不改結構；testid 是最後手段，不因修測試而把 testid 洩漏回 UI
 │
 ├─ 元素不存在（頁面缺少功能區塊）
 │  → 修 UI：補上缺失的 UI 區塊

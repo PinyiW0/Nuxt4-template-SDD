@@ -78,9 +78,9 @@
 - ❌ 默默把既有 endpoint 路徑全部改寫
 - ❌ 把 host name 寫進 path_prefix（OpenAPI `servers.url` 含絕對 URL 時，**只取 path 段**）
 
-### 步驟 3：掃描所有新版 .dsl.feature
+### 步驟 3：掃描所有新版 .feature
 
-- 路徑：`spec/gherkin-feature/*.dsl.feature`
+- 路徑：`spec/gherkin-feature/*.feature`（含 `.dsl.feature` 變體）
 - 計算每個檔案的 `content_hash`
 
 ### 步驟 4：讀取現有型別定義
