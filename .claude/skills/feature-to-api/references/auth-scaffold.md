@@ -298,6 +298,7 @@ runtimeConfig: {
     apiEnvelope: true,
     authLoginPath: '/login',
     authHomePath: '/',
+    // = route-map.auth.public_paths：login ＋賓客端/公開場景路由，不只 login（漏列會被 middleware 誤擋）
     authPublicPaths: ['/login'] as string[],
   },
 },
@@ -335,7 +336,7 @@ runtimeConfig: {
 - [ ] 未登入訪問受保護頁 → **只導向 `/login` 一次、無 console navigation error**
 - [ ] 登入成功後不被彈回 login
 - [ ] login 頁與 layout 沒有 authed fetch
-- [ ] （e2e）建議在 `test/e2e/` 加：未登入訪受保護路由 → 斷言落在 `/login` 且無重複導向錯誤
+- [ ] `test/e2e/specs/01-auth-guard.spec.ts` 存在（範本見 test skill `e2e/references/setup.md` Step 6.5）：未登入訪受保護路由 → 只導向 `/login` 一次、無重複導向錯誤；公開頁不被導走；已登入訪 login 導回
 
 ---
 

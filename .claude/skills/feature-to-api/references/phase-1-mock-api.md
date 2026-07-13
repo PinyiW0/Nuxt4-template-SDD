@@ -134,6 +134,11 @@ Phase 1 增量更新完成
      6. **`rbac.business_guards`** 只是登錄、不在此自動生（last-super-admin 409、self-vs-others 改密疊加條件等留手寫）
      > 角色名一律用 `rbac.roles` 的實際值，**不寫死** `super_admin`/`coach`；判準是「受限 vs 全權」「哪些角色 allow」的語意。
    - **沒有 `rbac` 區塊** → 此專案無角色分層，所有端點不加守門、不加 ownership 過濾。
+6.5. **讀回完整性自查（產完端點必跑）**：逐一列出每個寫入 handler（`.post.ts` / `.put.ts` / `.patch.ts`）更新進 mock data 的欄位，確認：
+   - 存在 GET handler 回傳含這些欄位（詳情 GET 回 `XxxDetail` 完整型別，不是 `XxxListItem`）
+   - mock data 初始實體也帶這些欄位（否則 GET 回 `undefined`，UI 首次載入就壞）
+   - 讀不回 → Feature 推導模式**直接補 GET 端點／欄位**；OpenAPI 模式端點不可自創，記入 sync-report「待 PM 處理」回報
+   > wedding-host 實戰：只產寫入端點、UI 用 local state 兜著顯示，重新整理全丟，事後補了 7 個 GET。
 7. **詢問用戶確認**
 
 ## 輸出結構
