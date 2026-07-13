@@ -5,6 +5,7 @@
 import { existsSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 
+// 凍結清單以本陣列為準；增刪時須同步 rules/frozen-paths.md（frontmatter paths + 表格）
 const FROZEN = ['test/e2e/specs', 'spec/gherkin-feature', 'spec/e2e-flows']
 
 let raw = ''

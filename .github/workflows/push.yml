@@ -1,4 +1,4 @@
-name: Pull Request CI/CD
+name: Main Push CI/CD
 
 on:
   push:
@@ -30,3 +30,6 @@ jobs:
 
       - name: Test
         run: npm run eslint
+
+      - name: Typecheck
+        run: npm run typelint

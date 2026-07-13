@@ -10,7 +10,7 @@ paths:
 每次完成程式碼修改後（包括新增、編輯、刪除檔案），必須執行：
 
 ```bash
-npx eslint . --fix && npm run typelint
+npm run eslint && npm run typelint
 ```
 
 ## 執行時機
@@ -21,8 +21,8 @@ npx eslint . --fix && npm run typelint
 
 ## 處理流程
 
-1. 先執行 `npx eslint . --fix` 自動修正可修正的問題
-2. 如果有 ESLint 錯誤無法自動修正，手動修正後重新執行
+1. 先執行 `npx eslint . --fix` 自動修正可修正的問題（僅為修復手段，不作驗證依據）
+2. 執行 `npm run eslint` 驗證——它比裸 eslint 多跑 `scripts/visual-hierarchy-check.mjs`（CI 跑的正是這條），有錯誤手動修正後重跑
 3. 執行 `npm run typelint` 檢查型別
 4. 如果有型別錯誤，修正後重新執行直到通過
 5. **兩者都通過後才算完成**

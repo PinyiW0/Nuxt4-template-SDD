@@ -632,7 +632,7 @@ import { confirmDelete, login } from '../helpers'
 生成後**必須執行**：
 
 ```bash
-npm run eslint -- --fix
+npx eslint . --fix  # 自動修復（--fix 不可接在 npm run eslint 後，會落到 visual-hierarchy-check）
 npm run eslint      # 確認 0 errors
 npm run typelint    # 型別零錯誤（CLAUDE.md 紅線：兩者都要過）
 ```

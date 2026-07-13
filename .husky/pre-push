@@ -14,9 +14,9 @@ z40="0000000000000000000000000000000000000000"
 # 非程式碼檔白名單（符合者視為不影響測試）：
 #   .env*／*.md／docker 設定／*.txt 等純設定，以及 .husky/ 下的 git hook 本身
 #   （E2E 守的是 UI 業務合約，git hook 邏輯不歸它守，故改 hook 不必跑 E2E）
-#   docs/ 整個目錄為純文件（含 .json metadata sidecar 等），不影響被測程式
+#   doc/ 整個目錄為純文件（含 .json metadata sidecar 等），不影響被測程式
 #   scripts/docker-gate.sh 是 gate 基礎設施本身，同 .husky/ 邏輯
-SKIP_PATTERN='(^|/)\.env($|\.)|\.md$|^docker-compose\.ya?ml$|^Dockerfile$|^\.dockerignore$|^\.gitignore$|^LICENSE$|\.txt$|(^|/)\.husky/|(^|/)docs/|^scripts/docker-gate\.sh$'
+SKIP_PATTERN='(^|/)\.env($|\.)|\.md$|^docker-compose\.ya?ml$|^Dockerfile$|^\.dockerignore$|^\.gitignore$|^LICENSE$|\.txt$|(^|/)\.husky/|(^|/)doc/|^scripts/docker-gate\.sh$'
 
 need_test=0
 

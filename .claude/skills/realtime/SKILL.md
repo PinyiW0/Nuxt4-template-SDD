@@ -48,10 +48,8 @@ metadata:
 | 傳輸 | 內容 | 檔案 |
 |------|------|------|
 | SSE | EventSource 完整實作 pattern（store / 信封型別 / 重連補抓 / mock 端點 / E2E）、踩坑、checklist | [references/sse.md](references/sse.md) |
-| WebSocket | （之後加 `references/websocket.md`） | — |
-| WebRTC datachannel | （之後加 `references/webrtc-data.md`） | — |
 
-> 擴充新傳輸 = 在本 skill 加一個 reference 檔，**共通核心不重寫**。永遠只有一個 `realtime` skill。
+> 擴充新傳輸（WebSocket、WebRTC datachannel…）= 屆時在本 skill 加一個 reference 檔，**共通核心不重寫**。永遠只有一個 `realtime` skill。
 
 ## 被動 / 主動 觸發
 

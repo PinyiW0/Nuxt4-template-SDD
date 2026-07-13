@@ -44,9 +44,8 @@ metadata:
 | 傳輸 | 內容 | 檔案 |
 |------|------|------|
 | HLS | hls.js 完整 pattern（掛載 / teardown、看門狗、錯誤自救、延遲調校、PDT 多路對齊、點播 `currentTime` 對齊、Safari 原生路徑、型別 / mock、踩坑、checklist） | [references/hls.md](references/hls.md) |
-| WebRTC media | （之後加 `references/webrtc-media.md`） | — |
 
-> 擴充新傳輸 = 在本 skill 加一個 reference 檔，**共通核心不重寫**。永遠只有一個 `streaming` skill。
+> 擴充新傳輸（WebRTC media…）= 屆時在本 skill 加一個 reference 檔，**共通核心不重寫**。永遠只有一個 `streaming` skill。
 
 ## 被動 / 主動 觸發
 

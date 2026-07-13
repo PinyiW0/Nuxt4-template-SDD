@@ -8,4 +8,9 @@ export default defineConfig({
   ...baseConfig,
   testDir: './test/e2e/vibe',
   outputDir: 'test/e2e/test-results-vibe',
+  // HTML 報告與主 config 分目錄，連續跑不互蓋
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'playwright-report-vibe' }],
+  ],
 })

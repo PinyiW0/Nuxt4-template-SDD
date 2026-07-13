@@ -12,8 +12,7 @@ paths:
 修改 `app/pages/`、`app/components/`、`app/layouts/` 時，必須遵守：
 
 - **不得破壞 Business Invariants**：實體必須可被使用者識別（用業務語意如 username、playerName、deviceId）、業務狀態文字必須保留語意（「連線中」「已斷線」「進行中」「已結束」「建立成功」「已刪除」等）、業務操作必須可被觸發（不一定要按鈕，但要有可達路徑）
-- **不得修改** `test/e2e/specs/`（主 spec 凍結，SSOT 政策）
-- **不得修改** `spec/gherkin-feature/`、`spec/e2e-flows/`（主 spec 來源凍結）
+- **不得修改凍結區**（主 spec 與其來源）——路徑清單與處理方式見 `rules/frozen-paths.md`（hook 強制擋，此處不重列）
 - **vibe 完 commit 前必跑** `npx playwright test --config playwright.gate.config.ts`（綠燈 = vibe 安全；pre-push 跑同一份 config，但在 Docker production build 內執行，Docker 不可用時 fallback 本機同款）
 - vibe spec（`test/e2e/vibe/`）不凍結，但刪改去留是使用者的決定——紅燈時列選項詢問，不可擅自刪改
 

@@ -62,19 +62,12 @@ issue #N 自動關閉
    | `chore` | 雜務 / 設定 / 維護 |
    | `fix` | 修 bug |
 
-5. **label**（由使用者選，**無預設**）：先 `gh label list --json name -q '.[].name'` 取 repo 現有 label，用 AskUserQuestion 列出讓使用者選（可複選，附「略過」選項）——**不從前綴自動對應、不預選**。使用者自填清單外的新 label 時，才走下方「label 存在性檢查」流程。
+5. **label**（由使用者選，**無預設**）：依共用政策 [references/label-assignee.md](references/label-assignee.md) 選定——從 repo 現有清單複選、不從前綴自動對應、不預選；自填清單外的新 label 時走該檔的「建立／略過」分流。
 
 6. **分支描述**：把標題轉成 kebab-case（小寫、空白換 `-`、去掉 `#`/`:`/標點等特殊字元、取 3–5 個關鍵詞）。
    組出分支名 `<prefix>/#<N>-<kebab-desc>`，其中 `#<N>` **待 issue 建立後回填真實編號**（此刻先以 `#N` 佔位展示）。
 
-7. **assignee**（可選，**預設自己**）：預設 `@me`（開 issue 者即認領者，讓隊友一眼看出誰在做）。repo 有其他 collaborator（`gh api repos/<owner>/<repo>/collaborators --jq '.[].login'`）→ 用 AskUserQuestion 列出讓使用者選（預設選項 `@me`，含「不指派」；清單排除自己與 bot 帳號，自己已由 `@me` 代表）；單人 repo 不問，直接 `@me`。
-
-#### label 存在性檢查（僅自填新 label 時）
-
-從現有清單選的 label 必然存在，直接帶上。使用者自填了清單外的 label（`gh issue create --label <X>` 在 label 不存在時會直接失敗）→ 用 AskUserQuestion 問使用者（單選）：
-
-- **建立它**：`gh label create <X>`（可加 `--description`、`--color`）後再帶上。
-- **本次略過該 label**：建 issue 時不帶它，其餘照舊。
+7. **assignee**（可選，**預設自己**）：依共用政策 [references/label-assignee.md](references/label-assignee.md)——預設 `@me`，多人 repo 才用 AskUserQuestion 問、單人 repo 不問。
 
 #### 重複 issue 檢查
 

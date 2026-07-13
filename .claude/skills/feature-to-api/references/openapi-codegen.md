@@ -193,7 +193,7 @@ spec/api/api-spec.yml 變更
 - **不要同時放 `/test e2e spec` 與 `/test e2e pipeline`**（pipeline = spec→red→green，會重跑 spec）。
 - **最後的 Gate 不是「vibe 驗證」而是「回歸守門」**：合約變更可能打壞其他 feature 主 spec 與既有 vibe spec，
   故 commit 前必跑全 gate（與 pre-push 同一份 config；pre-push 另在 Docker production build 內執行）。
-- **commit 前鐵律**：`npx eslint . --fix && npm run typelint`（型別 / 語法），與 playwright（行為）互補。
+- **commit 前鐵律**：`npm run eslint && npm run typelint`（語法 / 型別，前者含 visual-hierarchy-check），與 playwright（行為）互補。
 
 ---
 
