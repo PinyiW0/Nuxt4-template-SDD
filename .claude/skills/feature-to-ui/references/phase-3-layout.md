@@ -172,13 +172,20 @@ async function handleLogout() {
           :class="isCollapsed ? 'justify-center' : 'gap-3'"
           @click="toggleColorMode"
         >
-          <UIcon
-            :name="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'"
-            class="size-5 shrink-0"
-          />
-          <span v-if="!isCollapsed" class="truncate text-sm">
-            {{ colorMode.value === 'dark' ? '淺色模式' : '深色模式' }}
-          </span>
+          <!-- colorMode.value 兩端不同 → 包 ClientOnly + 同尺寸 fallback（見 rules.md > SSR / Hydration 安全） -->
+          <ClientOnly>
+            <UIcon
+              :name="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'"
+              class="size-5 shrink-0"
+            />
+            <span v-if="!isCollapsed" class="truncate text-sm">
+              {{ colorMode.value === 'dark' ? '淺色模式' : '深色模式' }}
+            </span>
+            <template #fallback>
+              <UIcon name="i-heroicons-moon" class="size-5 shrink-0" />
+              <span v-if="!isCollapsed" class="truncate text-sm">深色模式</span>
+            </template>
+          </ClientOnly>
         </button>
 
         <!-- 會員名稱 + 登出 -->
@@ -249,11 +256,17 @@ async function handleLogout() {
               class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-neutral-700 transition-colors duration-300 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
               @click="toggleColorMode"
             >
-              <UIcon
-                :name="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'"
-                class="size-5"
-              />
-              <span class="text-sm">{{ colorMode.value === 'dark' ? '淺色模式' : '深色模式' }}</span>
+              <ClientOnly>
+                <UIcon
+                  :name="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'"
+                  class="size-5"
+                />
+                <span class="text-sm">{{ colorMode.value === 'dark' ? '淺色模式' : '深色模式' }}</span>
+                <template #fallback>
+                  <UIcon name="i-heroicons-moon" class="size-5" />
+                  <span class="text-sm">深色模式</span>
+                </template>
+              </ClientOnly>
             </button>
             <div class="flex items-center gap-3 rounded-lg px-3 py-2">
               <UIcon name="i-heroicons-user-circle" class="size-5 text-primary-600 dark:text-primary-400" />
@@ -289,6 +302,11 @@ async function handleLogout() {
   </div>
 </template>
 ```
+
+> **Hydration 注意**（詳見 [rules.md](rules.md) > SSR / Hydration 安全）：
+> - `colorMode.value` 的渲染一律包 `<ClientOnly>` + 同尺寸 fallback——server 不知道 client 深淺偏好。
+> - `authStore.user` **不需要**包 `<ClientOnly>`——persist 預設存 cookie，SSR 請求帶 cookie、
+>   server 端 store 還原出同一份 user，兩端渲染一致。包了反而造成登入後首屏閃「未登入」。
 
 ## auth.vue 範例
 
