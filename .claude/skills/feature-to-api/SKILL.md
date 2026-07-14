@@ -8,15 +8,9 @@ agent: general-purpose
 
 # Feature to API 工作流程
 
-> ✅ **輸出永遠對齊 OpenAPI 慣例**
-> 不論輸入來源是 `spec/api/api-spec.yml`（優先）或 `.feature`（fallback），
-> 產出的型別 / 端點 / mock 一律遵守以下慣例，未來補上 OpenAPI 也能 1:1 對接：
-> - 欄位 **camelCase**（不再 snake_case）
-> - mock 端點回應外層依 [openapi-conventions.md §3](references/openapi-conventions.md)：預設**模式 A envelope**（`{ success, data }`，`useHttp` 自動拆封），`apiEnvelope=false` 才**模式 B 裸回**；絕不自創 `{ status, data, meta }` 包裝
-> - 錯誤透過 `createError({ statusCode, statusMessage })`，前端讀 `statusMessage`
-> - 型別命名依語意分兩類：寫入端用 `XxxEvent`（如 `TeamCreatedEvent`），讀取端用 `XxxListItem` / `XxxDetail`
-> - HTTP code 嚴格對齊：POST 201、軟刪除 204、查詢 200、業務衝突 409、資源不存在 404
-> - 詳細規範見 **[references/openapi-conventions.md](references/openapi-conventions.md)**（必讀）
+> ✅ **輸出永遠對齊 OpenAPI 慣例**——不論輸入來源是 `spec/api/api-spec.yml`（優先）或 `.feature`（fallback），未來補上 OpenAPI 也能 1:1 對接。
+> 格式法典（camelCase、回應模式、錯誤格式、型別命名、HTTP code）見 **[references/openapi-conventions.md](references/openapi-conventions.md)**（必讀）。
+> 最容易踩的雷：自創 `{ status, data }` 第三種包裝——回應信封只有 §3 的模式 A（envelope）／模式 B（裸回）。
 
 從 **OpenAPI 規格**（優先）或 `.feature` 規格檔建立 API 合約基礎設施：型別定義、Mock 資料、API 端點。
 
@@ -53,7 +47,7 @@ Phase 0 開始前先判斷：
 | `spec/api/api-spec.yml` **存在** | **OpenAPI 模式** | 以它為 SoT；`npm run gen:api` 產底層 `_schema.d.ts`、view 型別 alias 疊其上（見 [openapi-codegen.md](references/openapi-codegen.md)）、endpoints 1:1 對應 `paths`；`.feature` 僅供 BDD 測試比對 |
 | 僅有 `.feature`（無 OpenAPI） | **Feature 推導模式** | 從 `.feature` 推欄位 + 端點；**輸出格式仍嚴格遵守 [openapi-conventions.md](references/openapi-conventions.md)**（camelCase、§3 回應模式、Event/ListItem 命名等） |
 
-> ⚠️ **永遠不要產出 snake_case 欄位或 `{ status, data }` 包裝**——即使在 Feature 推導模式下，產出格式也必須對齊 OpenAPI 慣例，這樣未來補上 `api-spec.yml` 是「換 SoT 不換格式」，差異最小。
+> ⚠️ **永遠不要產出 snake_case 欄位**——即使在 Feature 推導模式下，產出格式也必須對齊 OpenAPI 慣例（含開頭摘要的包裝紅線），這樣未來補上 `api-spec.yml` 是「換 SoT 不換格式」，差異最小。
 
 ## 全量模式 vs Sync 模式（疊在上述之上）
 

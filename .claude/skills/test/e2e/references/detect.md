@@ -48,7 +48,7 @@ glob test/e2e/helpers/actions.ts
 
 | 結果 | 判定 | 動作 |
 |------|------|------|
-| 不存在 | **全量模式** | 提示：需依序執行 `setup` → `spec auto` → `green auto` |
+| 不存在 | **全量模式** | 提示：需依序執行 `setup` → `/feature-to-api` → `spec auto` → `/feature-to-ui` → `green auto` |
 | 存在 | 增量模式 | 進入 Step 2 |
 
 ### 全量模式輸出格式
@@ -59,14 +59,15 @@ E2E 偵測結果：全量模式（首次建立）
 測試基礎架構尚未建立，需依序執行：
 
 1. /test e2e setup          — 建立 Playwright 環境、helpers
-2. /test e2e spec auto      — 為所有 .flow.md 生成 .spec.ts
-3. /feature-to-ui           — 建立 UI 頁面（spec 是合約，UI 為通過合約而建）
-4. /test e2e green auto     — 跑測試並修復 UI/mock/API 差異
+2. /feature-to-api          — 產出 types + mock API + route-map（spec 與 UI 皆依賴）
+3. /test e2e spec auto      — 為所有 .flow.md 生成 .spec.ts
+4. /feature-to-ui           — 建立 UI 頁面（spec 是合約，UI 為通過合約而建）
+5. /test e2e green auto     — 跑測試並修復 UI/mock/API 差異
 
 確認開始執行？（將從 step 1 開始）
 ```
 
-> 使用者確認後，依序呼叫 setup → spec auto。spec auto 完成後提示使用者執行 `/feature-to-ui` 建立 UI，UI 建好後再執行 `/test e2e green auto`。
+> 使用者確認後，先呼叫 setup，接著提示使用者執行 `/feature-to-api` 產出 types + mock API + route-map，完成後再呼叫 spec auto。spec auto 完成後提示使用者執行 `/feature-to-ui` 建立 UI，UI 建好後再執行 `/test e2e green auto`。
 >
 > ⚠️ green 的定位是「最小修復讓測試通過」，**不是從零建立 UI**。若 UI 頁面不存在，必須先用 `/feature-to-ui` 建立。
 

@@ -21,22 +21,7 @@ item.name = 'new'
 > ⚠️ 此規則確保 `api-spec.yml` ↔ `types/api/` ↔ `mock data` ↔ `API 回傳` ↔ `頁面消費` 五層永遠對齊。
 > 完整慣例見 [openapi-conventions.md](./openapi-conventions.md)（§3 response shape、§4 錯誤、§5 HTTP code）。
 
-**回應外層依 [openapi-conventions.md §3](./openapi-conventions.md) 判定模式（預設模式 A envelope），同一專案固定一種：**
-
-```typescript
-// [O] 模式 A（預設）：envelope 包裝，對齊後端 { success, data }（useHttp 自動拆封，前端拿裸 data）
-return ok(mockTeams.filter(t => !t.deletedAt)) // GET 列表（ok/page helper 見 §3）
-setResponseStatus(event, 201); return ok(createdEvent) // POST 建立
-
-// [O] 模式 B（apiEnvelope=false 的後端）：直接回 schema 裸物件 / 陣列
-return mockTeams.filter(t => !t.deletedAt)
-
-// [O] 兩模式皆同：軟刪除無 body
-setResponseStatus(event, 204)
-
-// [X] 禁止自創第三種包裝（如 { status, data, meta }，與 OpenAPI 不一致）
-return { status: 'success' as const, data: paged, meta: { total, page, page_size } }
-```
+**回應信封依 [openapi-conventions.md §3](./openapi-conventions.md)：模式 A envelope（`ok()`/`page()` 包裝，useHttp 拆封）／模式 B 裸回，同一專案固定一種；軟刪除 204 無 body 兩模式皆同；絕不自創第三種包裝（如 `{ status, data, meta }`）——正反例與判定規則見 §3，勿在此複製。**
 
 **錯誤用 `statusMessage`，不用 `message`：**
 

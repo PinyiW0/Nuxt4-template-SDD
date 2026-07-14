@@ -19,7 +19,7 @@ pre-push hook 跑的是同一份 gate config，但在 **Docker production build 
 
 - 每次 vibe UI 完，**第一步**先跑這個
 - gate 綠燈才有資格往 `/vibe-setup`、`/vibe-e2e` 推進
-- 想單獨確認守門狀態（≈ pre-push 會不會過；pre-push 另在 Docker production build 內跑）
+- 想單獨確認守門狀態（≈ pre-push 會不會過，執行環境差異見上方「目的」段）
 
 ## 使用方式
 
@@ -55,7 +55,7 @@ pre-push hook 跑的是同一份 gate config，但在 **Docker production build 
 npx playwright test --config playwright.gate.config.ts
 ```
 
-不用 fast、不用 diff 分類、不挑 module——全量跑（主 spec + vibe spec，排除 `vibe/unstable/`）。原因：gate 是守門合約，少跑一條都可能漏判；跟 pre-push 跑同一份 config（pre-push 在 Docker production build 內執行），這裡綠 ≈ push 會過。
+不用 fast、不用 diff 分類、不挑 module——全量跑（主 spec + vibe spec，排除 `vibe/unstable/`）。原因：gate 是守門合約，少跑一條都可能漏判；跟 pre-push 跑同一份 config（執行環境差異見「目的」段），這裡綠 ≈ push 會過。
 
 ### Step 2：解析結果（依失敗 spec 路徑分流）
 

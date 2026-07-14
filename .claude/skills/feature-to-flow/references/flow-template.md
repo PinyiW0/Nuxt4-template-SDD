@@ -291,7 +291,7 @@ API-only。UI 不應該能進入此狀態，主要保護 API 合約。
 | 模式 | 用途 |
 |---|---|
 | `findEntity(role, name regex)` | 找實體（row / article / listitem 多形式接受） |
-| `triggerActionByIntent(entity, action regex)` | 在 entity 範圍內觸發語意動作 |
+| `findEntity(...).getByRole('button', { name: regex })` | 在 entity 範圍內觸發語意動作（無獨立 helper，直接鏈式定位） |
 | `maybeConfirm(page)` | 可選二次確認（dialog scope，動詞 regex） |
 | `waitForApiCall(method, urlPattern)` | API spy |
 | `getFeedbackElement(page)` | 找成功反饋（role=alert / status / 文字 regex） |

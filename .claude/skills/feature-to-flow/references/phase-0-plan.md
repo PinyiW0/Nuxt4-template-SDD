@@ -153,7 +153,7 @@ find spec/gherkin-feature -maxdepth 1 -type f -name '*.feature'
 | 修改備註 | 成功、不存在、已刪除 | Command (Update) | Coach（admin 為他人改備註）| |
 | 刪除帳號 | 成功、不存在、已刪除 | Command (Delete) | Coach（admin）| |
 
-> **view 欄位數**欄是給 Phase 1 的提示：欄位 ≥ 5 的 view 必須特別注意，每欄都要產 testid（見 [phase-1-write.md](phase-1-write.md) 第 4 段）。歷史教訓：04-practice 曾經 14 欄只實作 1 欄。
+> **view 欄位數**欄是給 Phase 1 的提示：欄位 ≥ 5 的 view 必須特別注意涵蓋策略——主要識別欄＋業務狀態欄必驗，細節 metric 走抽樣或 detail sub-flow（見 [phase-1-write.md](phase-1-write.md) 第 4 段），**不是逐欄產 testid**。歷史教訓：04-practice 曾經 14 欄只實作 1 欄，v2 由 sub-flow 的 label 可達斷言防漏。
 
 #### `03-players.flow.md`（路由：/players）
 ...

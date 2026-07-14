@@ -208,15 +208,9 @@ E2E Pipeline 完成：04-建立球隊
 
 ## Lint Gate（必須通過）
 
-Pipeline 中每個產出程式碼的階段結束前，**必須執行 lint 修復並確認零錯誤**：
-
-```bash
-npx eslint . --fix  # 自動修復（--fix 不可接在 npm run eslint 後，會落到 visual-hierarchy-check）
-npm run eslint      # 確認 0 errors
-npm run typelint    # 型別零錯誤（CLAUDE.md 紅線：兩者都要過）
-```
-
-> **阻塞條件**：lint 不通過則該階段視為失敗，pipeline 停止。lint / typelint 零錯誤是完成的硬條件（CLAUDE.md 紅線）——git hook 不會攔 lint 錯誤，不自跑就會一路帶進 PR。
+- Pipeline 中每個產出程式碼的階段結束前，必跑 `npm run eslint` + `npm run typelint`，零錯誤才算完成（CLAUDE.md 紅線）
+- **阻塞條件**：lint 不通過則該階段視為失敗，pipeline 停止
+- 指令順序與 `--fix` 禁忌等規則見 [green.md](green.md) 的「Lint Gate（必須通過）」段
 
 ---
 

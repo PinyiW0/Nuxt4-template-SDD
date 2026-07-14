@@ -135,7 +135,7 @@ npx playwright test test/e2e/specs/{NN}-{name}.spec.ts 2>&1
 
 **修復優先順序**（低風險 → 高風險）：
 
-1. **加 testid**（最安全）：只加 `data-testid` attribute
+1. **補語意 anchor**（最安全）：aria-label、可見文字、語意標籤——只加屬性不動結構。僅當 spec 斷言用的是 flow 授權的 fallback testid 且 UI 缺它時，才補 `data-testid`（同 Step 3 決策樹：testid 是最後手段，不因修測試而把 testid 洩漏回 UI）
 2. **修 mock data**（低風險）：調整測試數據
 3. **修 API handler**（低風險）：回傳格式、排序、錯誤訊息文字
 4. **修 UI 顯示邏輯**（中風險）：格式化、條件渲染

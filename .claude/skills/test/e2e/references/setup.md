@@ -161,6 +161,11 @@ export async function confirmDelete(page: Page) {
   await expect(page.getByTestId('confirm-modal')).toBeVisible()
   await page.getByTestId('confirm-ok').click()
 }
+
+/** 重設 mock 資料到初始全集（打 /api/__test__/reset 端點），spec 於 test.beforeEach 呼叫確保測試獨立 */
+export async function resetMockData(page: Page) {
+  await page.request.post('/api/__test__/reset')
+}
 ```
 
 #### fixtures.ts
@@ -395,7 +400,7 @@ playwright.config.ts                # Playwright 設定
 server/api/__test__/reset.post.ts   # Mock data reset endpoint
 test/e2e/
 ├── helpers/
-│   ├── actions.ts                  # 共用操作（login, selectOption, confirmDelete）
+│   ├── actions.ts                  # 共用操作（login, selectOption, confirmDelete, resetMockData）
 │   ├── fixtures.ts                 # 測試資料（帳號、路由）
 │   ├── hydration.ts                # Hydration 守門 fixture（auto，dev-only）
 │   └── index.ts                    # 匯出
@@ -418,7 +423,7 @@ E2E Setup 完成
 - playwright.config.ts ✅
 - package.json scripts ✅
 - server/api/__test__/reset.post.ts ✅
-- test/e2e/helpers/actions.ts（login, selectOption, confirmDelete）
+- test/e2e/helpers/actions.ts（login, selectOption, confirmDelete, resetMockData）
 - test/e2e/helpers/fixtures.ts（N 個帳號、N 個路由）
 - test/e2e/helpers/hydration.ts（hydration 守門 fixture）
 - test/e2e/specs/00-hydration.spec.ts（逐 route hydration smoke）
@@ -438,7 +443,7 @@ E2E Setup 完成
 - [ ] `playwright.config.ts` 存在且指向 `test/e2e/specs`
 - [ ] `package.json` 有 `test:e2e` / `test:e2e:headed` / `test:e2e:ui` 指令
 - [ ] `server/api/__test__/reset.post.ts` 存在且 `resetMockData()` 可用
-- [ ] `actions.ts` 包含 login / selectOption / confirmDelete
+- [ ] `actions.ts` 包含 login / selectOption / confirmDelete / resetMockData
 - [ ] `fixtures.ts` 包含測試帳號和路由（與 `_common.flow.md` 一致）
 - [ ] `hydration.ts` 存在且 `index.ts` re-export `{ expect, test }`
 - [ ] `specs/00-hydration.spec.ts` 涵蓋所有 Routes（公開 + 登入後）
