@@ -71,6 +71,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 | 規範 | 檔案 | 載入時機 |
 |------|------|----------|
 | 程式碼品質驗證 | [rules/code-quality.md](rules/code-quality.md) | 修改 app/、server/ 程式碼時（自動） |
+| Server 安全慣例 | [rules/server-security.md](rules/server-security.md) | 修改 server/ 時（自動；subagent 內不注入，feature-to-api 明文指讀） |
 | UI 實作規範 | [rules/ui-conventions.md](rules/ui-conventions.md) | 修改 pages/、components/、layouts/ 時（自動） |
 | Vibe UI 守則 | [rules/vibe-ui.md](rules/vibe-ui.md) | 同上（paths 觸發；subagent 內不注入，2026-07-06 實測） |
 | 主 spec 凍結 | [rules/frozen-paths.md](rules/frozen-paths.md) | 修改凍結區時（hook 強制擋既有檔，含 subagent） |

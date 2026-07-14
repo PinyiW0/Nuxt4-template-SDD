@@ -58,12 +58,17 @@ antfu nuxt skill 整體相容 Nuxt 4,唯 data fetching 有兩處過時,易誤導
 
 ## 3. 邏輯安全(僅 diff 動到 server/ 時)
 
-local 模式做輕量掃,只點出可疑處;pr 模式才完整推敲。
+判準 SSOT:`.claude/rules/server-security.md`(8 條,每條對應 wedding-host 實戰漏洞),本節只列查法。
+七類全屬便宜檢查(讀檔+比對),local 模式全跑;pr 模式加深推敲。
 
-| 項目 | 看什麼 |
-|------|--------|
-| 授權檢查 | 改/刪/讀他人資源的端點,有沒有驗證操作者擁有該資源(如 deviceId / ownerId / tenantId 等擁有權欄位比對) |
-| 敏感資料外洩 | 回傳是否帶出 token、密碼、內部欄位 |
-| 輸入驗證 | 直接信任 body/query 拼進查詢或回傳 |
+| 類別 | 怎麼查(具體步驟) |
+|------|------------------|
+| 巢狀 scope(IDOR) | 從 handler 檔案路徑列出全部 path 參數 → 逐一對照查詢條件;缺任一父層參數即必修 |
+| 兄弟一致性 | diff 動到某 handler 時 `ls` 同目錄兄弟檔(GET/PATCH/DELETE),比對 scope 過濾條件是否逐字等價——**唯一需看 diff 以外檔案的檢查**(wedding-host 的 DELETE 漏洞只看單檔看不出來) |
+| mass assignment | grep diff 中 `...body`/`Object.assign` 是否流入寫入語句(push/insert/欄位更新);寫入是否逐欄白名單手構 |
+| 輸入驗證 | 寫入 handler 是否經 `readValidatedBody`+schema;數字欄有無 `.int()` 與範圍、enum 欄有無白名單 |
+| 身分自報 | body/query 中的 `xxxId` 是否被當操作者身分使用(身分只能來自 auth context/簽名憑證) |
+| 投影與分級 | 回傳是否白名單挑欄位;password/token/內部備註/審核理由是否外洩;公開端點是否只回已發布資料 |
+| 密鑰 | diff 中的字面 secret、dev 預設值成為 production fallback |
 
 > 安全 finding 一律列「必修」。敏感資料外洩屬高風險,需明確標示。

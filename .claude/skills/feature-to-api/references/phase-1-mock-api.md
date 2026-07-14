@@ -13,6 +13,7 @@
 - spec/e2e-flows/*.flow.md（操作流程中引用的實體名稱、資料值）
 - ui-config.yaml > testAccounts（測試帳號）
 - rules.md [P1] 段落（Server API 類型規範）
+- .claude/rules/server-security.md（**Server 安全慣例，必讀**——本檔在 subagent 內不會自動注入，產任何 server 端點前必須主動讀）
 
 OpenAPI 模式必讀：
 - spec/api/api-spec.yml（SoT，response shape 須逐欄對齊）
@@ -140,6 +141,14 @@ Phase 1 增量更新完成
    - mock data 初始實體也帶這些欄位（否則 GET 回 `undefined`，UI 首次載入就壞）
    - 讀不回 → Feature 推導模式**直接補 GET 端點／欄位**；OpenAPI 模式端點不可自創，記入 sync-report「待 PM 處理」回報
    > wedding-host 實戰：只產寫入端點、UI 用 local state 兜著顯示，重新整理全丟，事後補了 7 個 GET。
+6.6. **安全自查（產完端點必跑，判準見 `.claude/rules/server-security.md`）**：
+   - □ 每個含 ≥2 個 path 參數的 handler，查詢條件含**全部**父層參數（巢狀範例的鐵律）
+   - □ 同目錄兄弟 handler（GET/PATCH/DELETE）的 scope 過濾條件逐字等價
+   - □ 每個寫入端點都經 `readValidatedBody` + schema；數字欄有 `.int()` 與範圍、enum 欄有白名單
+   - □ grep 產出：無 `...body` 或 `Object.assign` 流入寫入語句（mock push／欄位更新）
+   - □ 每個回應是白名單挑欄位；`password`／token／內部備註類欄位不在任何回應
+   - □ 操作者身分取自 auth context／簽名憑證，無任何 handler 拿 body/query 的 id 當身分
+   > wedding-host 實戰：DELETE 漏父層過濾（IDOR）、`{ weddingId, ...body }` 被覆蓋（跨租戶寫入）、數字欄 NaN／溢位進資料層——全是這張清單能擋下的。
 7. **詢問用戶確認**
 
 ## 輸出結構
@@ -160,6 +169,8 @@ server/
 │       ├── users.ts
 │       ├── teams.ts
 │       └── players.ts
+├── validation/
+│   └── teams.ts           # 寫入端點的 zod schema（server-security.md 第 4 條）
 └── api/
     ├── auth/
     │   ├── login.post.ts
@@ -276,25 +287,42 @@ export default defineEventHandler((event: H3Event): TeamListItem[] => {
 >
 > ⚠️ `.map()` 只用在「mock data 結構含內部欄位（如 `deletedAt`、`password`）需要過濾」時——若 mock data 結構已與 type 完全一致，可直接 `return mockTeams.filter(...)`。
 
-### POST 端點範例（直接回 Event）
+### POST 端點範例（直接回 Event，含輸入驗證）
+
+寫入端點一律經 runtime 驗證（`server-security.md` 第 4 條）：schema 住 `server/validation/{resource}.ts`，
+數字 `.int().min().max()`、enum `z.enum([...])`、字串 `.trim().max()`——界限從 spec 萃取（OpenAPI `minimum`/`maximum`/`enum`），spec 沒寫的用型別常識界限（如數量非負、int32 上限）。
+
+```typescript
+// server/validation/teams.ts
+import { z } from 'zod'
+
+export const createTeamSchema = z.object({
+  teamName: z.string().trim().min(1, '請輸入隊伍名稱').max(50, '隊伍名稱過長'),
+})
+// 數字欄示例（本型別無數字欄，示意）：z.number().int().min(0).max(2147483647) 擋 NaN／浮點／負值／int4 溢位
+// enum 欄示例：z.enum(['pending', 'done']) —— runtime 白名單，值從 spec 的 enum 萃取
+```
 
 ```typescript
 // server/api/teams/index.post.ts
 import type { H3Event } from 'h3'
-import type { CreateTeamBody, TeamCreatedEvent } from '../../../app/types/api/teams'
+import type { TeamCreatedEvent } from '../../../app/types/api/teams'
 
 import { mockTeams } from '../../mock/data/teams'
+import { createTeamSchema } from '../../validation/teams'
 
 export default defineEventHandler(async (event: H3Event): Promise<TeamCreatedEvent> => {
-  const body = await readBody<CreateTeamBody>(event)
-
-  if (!body?.teamName) {
-    throw createError({ statusCode: 400, statusMessage: '請輸入隊伍名稱' })
+  const parsed = await readValidatedBody(event, createTeamSchema.safeParse)
+  if (!parsed.success) {
+    throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
   }
+  const body = parsed.data
+
   if (mockTeams.some(t => t.teamName === body.teamName && !t.deletedAt)) {
     throw createError({ statusCode: 409, statusMessage: '隊伍名稱已存在' })
   }
 
+  // [O] 逐欄白名單手構；[X] 禁止 { ...body }——body 可覆蓋 server 決定的欄位（id／owner／租戶）＝跨租戶寫入（wedding-host 實戰）
   const teamId = crypto.randomUUID()
   mockTeams.unshift({ teamId, teamName: body.teamName, playerCount: 0, deletedAt: null })
 
@@ -322,6 +350,50 @@ export default defineEventHandler((event: H3Event) => {
   setResponseStatus(event, 204)
   // 204 不帶 body
 })
+```
+
+### 巢狀子資源端點範例（父層過濾鐵律）
+
+> ⚠️ **鐵律：path 有幾個參數、查詢條件就用幾個參數；同目錄兄弟 handler 的 scope 條件逐字等價。**
+> wedding-host 實戰：DELETE 漏帶父層參數而同目錄 PATCH 有——任何登入者換個父層 id 就能跨租戶刪除（IDOR）。
+> （projects/tasks 為假想資源，僅示意巢狀寫法；上方 teams 範例是**平面**資源才只用自身 id。）
+
+```typescript
+// server/api/projects/[projectId]/tasks/[taskId].get.ts
+export default defineEventHandler((event: H3Event): TaskDetail => {
+  const projectId = getRouterParam(event, 'projectId')
+  const taskId = getRouterParam(event, 'taskId')
+  // scope 條件：兩個 path 參數都進查詢——GET/PATCH/DELETE 三兄弟共用同一行
+  const task = mockTasks.find(t => t.taskId === taskId && t.projectId === projectId && !t.deletedAt)
+  if (!task)
+    throw createError({ statusCode: 404, statusMessage: '任務不存在' }) // 跨父層探測回 404，不洩漏存在性
+
+  return { taskId: task.taskId, title: task.title, priority: task.priority, status: task.status }
+})
+```
+
+```typescript
+// server/api/projects/[projectId]/tasks/[taskId].patch.ts —— scope 條件與 GET 逐字相同
+const task = mockTasks.find(t => t.taskId === taskId && t.projectId === projectId && !t.deletedAt)
+if (!task)
+  throw createError({ statusCode: 404, statusMessage: '任務不存在' })
+
+// updateTaskSchema：priority: z.number().int().min(1).max(5).optional()、status: z.enum(['pending', 'done']).optional()
+const parsed = await readValidatedBody(event, updateTaskSchema.safeParse)
+if (!parsed.success)
+  throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
+
+task.priority = parsed.data.priority ?? task.priority // 逐欄更新；[X] 禁止 Object.assign(task, body)
+task.status = parsed.data.status ?? task.status
+```
+
+```typescript
+// server/api/projects/[projectId]/tasks/[taskId].delete.ts —— scope 條件與 GET/PATCH 逐字相同
+const task = mockTasks.find(t => t.taskId === taskId && t.projectId === projectId && !t.deletedAt)
+if (!task)
+  throw createError({ statusCode: 404, statusMessage: '任務不存在' })
+task.deletedAt = new Date().toISOString()
+setResponseStatus(event, 204)
 ```
 
 ### 角色守門範例（讀 route-map.rbac）

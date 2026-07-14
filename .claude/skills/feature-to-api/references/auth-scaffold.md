@@ -56,6 +56,9 @@ auth:
 | `nuxt.config.ts` 追加 | §3a | feature-to-api | auth 路徑設定（編輯，非新檔） |
 | `app/middleware/auth.global.ts` | §3b → feature-to-ui `phase-2-skeleton.md` | feature-to-ui | 全域守門（白名單 + never-nav-current） |
 | `app/pages/login.vue` | §3b → feature-to-ui `page-builder.md` | feature-to-ui | 登入頁（**不得發 authed fetch**） |
+| `server/plugins/00.security-guard.ts` | §4b | feature-to-api | production 啟動守衛（密鑰為 dev 預設值 → 拒絕啟動） |
+| `server/utils/rate-limit.ts` | §4b | feature-to-api | 登入限流（僅計失敗、成功清零；fileUpload 時同套 presign） |
+| `nuxt.config.ts` 安全標頭 | §4b | feature-to-api | 三個零調校標頭（編輯，非新檔） |
 
 **端點前綴**：範本用裸 `/auth/*`；若專案前綴為 `/api/v1`，比照 `openapi-conventions.md` §6 調整（或交給 `useHttp` baseURL）。
 
@@ -330,6 +333,95 @@ runtimeConfig: {
 
 ---
 
+## 4a. 公開面資料分級（有免登入可達端點時）
+
+`public_paths` 上的頁面所打的 API、或簽名連結／分享碼場景的端點，對「未帶登入身分的請求」適用兩條鐵律（對應 `server-security.md` 第 5、6 條）：
+
+1. **公開 GET 只回已發布資料的公開層欄位**：資源 schema 有審核／發布狀態語意欄位（submitted／approved／rejected、draft／published 等，範例非白名單）時，匿名請求過濾到已發布狀態，且白名單投影排除內部欄位（審核理由、owner id、內部備註）。登入的管理端維持全量（審核所需）——handler 內依「有無登入身分」分支。
+2. **公開寫入身分不可自報**：body 的身分欄位一律忽略或 400；身分只能來自已驗證的簽名參數或 auth context。
+
+```ts
+// server/api/pages/[shareCode]/comments.get.ts（假想資源：公開分享頁留言，僅示意分級寫法）
+const me = getMockCurrentUser(event) // 有登入身分（管理端）才看全量
+const items = mockComments.filter(c =>
+  c.shareCode === shareCode && (me ? true : c.status === 'approved'), // 匿名只回已通過
+)
+return items.map(c => ({ commentId: c.commentId, content: c.content })) // 公開層白名單：無 status／rejectReason／authorId
+```
+
+> wedding-host 實戰：祝福牆對匿名簽名者回全量（含被退件＋內部退件理由）、公開投稿可帶任意 guestId 冒名——分級與身分兩條各對應一個 High／Med 漏洞。
+
+---
+
+## 4b. Production 基礎設施（auth 命中時生；mock 期即建立，演化成真 server 直接沿用）
+
+**① 密鑰啟動守衛**——密鑰硬編碼／忘設環境變數是「全站淪陷」級風險（可偽造任意 token）：
+
+```ts
+// server/plugins/00.security-guard.ts —— production 啟動時 fail-fast
+// mock 階段 REQUIRED_SECRETS 可為空：檔案先立好 pattern，加入真密鑰（JWT／簽名連結）時登記進來
+export default defineNitroPlugin(() => {
+  if (import.meta.dev)
+    return
+  const config = useRuntimeConfig()
+  const REQUIRED_SECRETS: Array<[key: string, devDefault: string]> = [
+    // ['jwtSecret', 'dev-only-change-me'],
+  ]
+  for (const [key, devDefault] of REQUIRED_SECRETS) {
+    const value = (config as Record<string, unknown>)[key]
+    if (!value || value === devDefault)
+      throw new Error(`[security] runtimeConfig.${key} 未設定或仍為 dev 預設值，拒絕啟動`)
+  }
+})
+```
+
+**② 登入限流**——僅計失敗、成功清零，正常使用者無感；`enabled_features` 含 fileUpload 時，upload／presign 端點同套（每 IP 每分鐘上限）：
+
+```ts
+// server/utils/rate-limit.ts —— in-memory 滑動視窗（單實例；serverless 多實例需共享儲存，出現濫用再升級）
+const buckets = new Map<string, number[]>()
+
+export function assertNotRateLimited(key: string, max: number, windowMs: number): void {
+  const now = Date.now()
+  const hits = (buckets.get(key) ?? []).filter(t => now - t < windowMs)
+  buckets.set(key, hits)
+  if (hits.length >= max)
+    throw createError({ statusCode: 429, statusMessage: '嘗試次數過多，請稍後再試' })
+}
+export function recordFailure(key: string): void {
+  const hits = buckets.get(key) ?? []
+  hits.push(Date.now())
+  buckets.set(key, hits)
+}
+export function clearFailures(key: string): void {
+  buckets.delete(key)
+}
+```
+
+```ts
+// login handler 套用（15 分鐘 10 次失敗上限）
+const key = `login:${getRequestIP(event, { xForwardedFor: true })}:${body.account}`
+assertNotRateLimited(key, 10, 15 * 60 * 1000)
+// 驗證失敗 → recordFailure(key) 後 throw 401；驗證成功 → clearFailures(key)
+```
+
+**③ 基礎安全標頭**——三個零調校項；嚴格 CSP 需 nonce 基建、逐專案評估，不在 scaffold 範圍：
+
+```ts
+// nuxt.config.ts 追加
+routeRules: {
+  '/**': {
+    headers: {
+      'X-Frame-Options': 'SAMEORIGIN',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    },
+  },
+},
+```
+
+---
+
 ## 5. 收尾 checklist（`feature-to-ui` 末 / vibe-check 提示；僅 auth 專案跳）
 
 - [ ] `app/middleware/auth.global.ts` 存在，`authPublicPaths` 含 `login_path`
@@ -337,6 +429,9 @@ runtimeConfig: {
 - [ ] 登入成功後不被彈回 login
 - [ ] login 頁與 layout 沒有 authed fetch
 - [ ] `test/e2e/specs/01-auth-guard.spec.ts` 存在（範本見 test skill `e2e/references/setup.md` Step 6.5）：未登入訪受保護路由 → 只導向 `/login` 一次、無重複導向錯誤；公開頁不被導走；已登入訪 login 導回
+- [ ] `server/plugins/00.security-guard.ts` 存在（§4b①；真密鑰加入時已登記進 REQUIRED_SECRETS）
+- [ ] login handler 首段有 `assertNotRateLimited`（§4b②；fileUpload 專案的 upload／presign 端點同套）
+- [ ] 公開端點已分級：匿名只回已發布資料的公開層欄位、公開寫入不信 body 身分欄位（§4a）
 
 ---
 

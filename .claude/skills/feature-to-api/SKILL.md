@@ -80,7 +80,7 @@ Phase 0 開始前先判斷：
 | Phase | 名稱 | 輸出 | 必讀規範 |
 |-------|------|------|----------|
 | 0 | 準備工作 | 功能清單、路由規劃、**route-map.yaml**、**app/types/api/** | [phase-0-prep.md](references/phase-0-prep.md) |
-| 1 | Mock API | server/mock/, server/api/, `app/constants/invariants.ts`（滿足 [invariants.md](references/invariants.md) 適用條件時） | [phase-1-mock-api.md](references/phase-1-mock-api.md) + [rules.md](references/rules.md) |
+| 1 | Mock API | server/mock/, server/api/, `app/constants/invariants.ts`（滿足 [invariants.md](references/invariants.md) 適用條件時） | [phase-1-mock-api.md](references/phase-1-mock-api.md) + [rules.md](references/rules.md) + `.claude/rules/server-security.md` |
 | 1.5 | Client API Layer | **app/api/*.api.ts**（typed client 包裝） | [phase-1-5-client-api.md](references/phase-1-5-client-api.md) |
 
 ---
@@ -93,6 +93,7 @@ Phase 0 開始前先判斷：
 - **[openapi-codegen.md](references/openapi-codegen.md)** - OpenAPI 模式專用：`gen:api` 工具鏈 + view 型別 alias + 合約測試 + Sync 重生 loop（Feature 推導模式不適用）
 - **[auth-scaffold.md](references/auth-scaffold.md)** - 條件式登入守門（偵測到 `/auth/*` 才套用；SSOT + API 層範本內嵌，UI 層範本在 feature-to-ui；含防導向迴圈六道）
 - **[rules.md](references/rules.md)** - Server API 類型規範
+- **`.claude/rules/server-security.md`** ⭐ - Server 安全慣例（巢狀過濾／禁 spread body／輸入驗證／投影分級）——**本 skill 跑在 fork context，paths 規則不會自動注入，Phase 1 產端點前必須主動讀**
 - **[invariants.md](references/invariants.md)** - Business Invariant Constants 規範（UI / spec 共用的 typed 文字常數，強建議）
 - **references/phase-N-*.md** - 各 Phase 的執行步驟與模板
 
