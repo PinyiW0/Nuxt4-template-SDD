@@ -25,6 +25,7 @@
 - ui-config.yaml > toast（通知設定）
 - ui-config.yaml > colorMode（深淺模式）
 - ui-config.yaml > button（按鈕 color/variant 預設）
+- ui-config.yaml > loading（skeleton 載入佔位設定）
 - spec/ui-config/visual-hierarchy.md（文字/顏色層級、載體字級、按鈕尺寸——頁面標題一頁一個等硬規則）
 - spec/report/route-map.yaml > 對應路由的 features_used（此頁面使用的 additionalFeature）
 - page-builder.md（DSL 解析 + 表單範本 + 列表範本 + Command → 元件對照）
@@ -188,6 +189,7 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
    - fallback testid 是否逐字對應 spec 的 `getByTestId()` 呼叫（不多加、不漏）
    - 型別是否從 `types/api/` import（禁止定義 local interface）
    - 深淺模式是否正常（禁止寫死顏色值）
+   - 頁面主資料是否 `lazy: true` ＋ `status === 'pending'` 渲染 skeleton 佔位（見 [page-builder.md](page-builder.md) > 載入佔位）
 7. **若步驟 5-6 發現缺漏 → 修復後重新驗證**
 8. **⚠️ 程式碼品質檢查（必須執行）**
    - 對本次新增或修改的檔案跑品質檢查四連（指令順序與禁忌見 [rules.md](rules.md)「程式碼品質檢查規範 `[P5]`」——該段為權威版本）

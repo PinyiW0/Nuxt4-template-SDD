@@ -102,8 +102,11 @@ test('vibe：API 延遲時顯示 loading UI', async ({ page }) => {
   })
 
   await page.goto('{path}')
-  // 期望 loading UI 在 API 完成前可見
-  await expect(page.getByText(/載入中|loading|skeleton/i)).toBeVisible({ timeout: 1000 })
+  // 期望 loading UI 在 API 完成前可見：
+  // 主鏈產的 skeleton 佔位無文字、容器標 aria-busy（page-builder.md > 載入佔位），優先認它；文字比對留作 fallback
+  await expect(
+    page.locator('[aria-busy="true"]').or(page.getByText(/載入中|loading|skeleton/i)).first(),
+  ).toBeVisible({ timeout: 1000 })
 })
 ```
 

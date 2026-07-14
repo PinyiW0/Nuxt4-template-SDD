@@ -142,6 +142,45 @@ await refreshNuxtData('teams')
 
 ---
 
+## 載入佔位（skeleton）——分頁切換體感
+
+頁面**主資料**的 `get()` 一律帶 `lazy: true`，template 以 `status === 'pending'` 渲染 `USkeleton` 佔位（列表 → 3-5 條 skeleton 列；詳情 → 標題＋內容區塊）。
+
+**為什麼要 lazy**：預設 blocking `useFetch` 在 client 導航時會擋住換頁、舊頁停留到資料回來，skeleton 沒機會出現；`lazy: true` 讓切頁即時、pending 態可見（頂部進度條由 app.vue 的 `<NuxtLoadingIndicator>` 負責，兩層合起來才是完整體感）。SSR 首次載入不受影響——server 端照樣出完整 HTML。
+
+**邊界：**
+
+| 規則 | 說明 |
+|------|------|
+| 只有頁面主資料 lazy | modal 內、次要資料照舊（不 lazy） |
+| 用 `status === 'pending'` 判斷 | `immediate: false` 時初始 `status` 是 `'idle'` 非 `'pending'`（見 `rules/framework-skills.md`） |
+| 狀態互斥順序 | `pending` → skeleton；成功且空 → `#empty`；有資料 → 列表——避免載入中閃現空狀態 |
+| skeleton 容器加 `aria-busy="true"` | 語意化載入標記；**不加**額外 `data-testid`（守「fallback testid 不多加、不漏」） |
+| animation 依 `ui-config.yaml > loading.skeleton` | `pulse` ＝ USkeleton 預設 `animate-pulse`，不用另外設 |
+
+**列表頁範例：**
+
+```vue
+<script setup lang="ts">
+import { listTeams } from '~/api'
+
+// 主資料 lazy：切頁即時，pending 期間渲染 skeleton
+const { data: teams, status } = listTeams({ key: 'teams', lazy: true })
+</script>
+
+<template>
+  <!-- pending → skeleton（容器標 aria-busy，不加 testid） -->
+  <div v-if="status === 'pending'" aria-busy="true" class="space-y-3">
+    <USkeleton v-for="i in 4" :key="i" class="h-12 w-full" />
+  </div>
+  <!-- 成功且空 → 空狀態；有資料 → 列表（UTable 用 #empty slot 同理） -->
+  <div v-else-if="!teams?.length">尚無資料</div>
+  <UTable v-else :data="teams" ... />
+</template>
+```
+
+---
+
 ## 禁止事項（僅列本檔獨有，配色/testid 規則 → [rules.md](rules.md)）
 
 | 禁止 | 正確做法 |

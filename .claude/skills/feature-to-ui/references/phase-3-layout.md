@@ -8,6 +8,7 @@
 - ui-config.yaml > colorMode（深淺模式）
 - ui-config.yaml > responsive.sidebar（響應式設定）
 - ui-config.yaml > icons.common（常用 icon）
+- ui-config.yaml > loading.pageIndicator（分頁切換進度條開關）
 - spec/report/route-map.yaml > routes（所有路由，用於建立 sidebar 導航項目）
 - rules.md [P3] 段落（配色策略、深淺模式與對比色、Layout 規範）
 - spec/ui-config/visual-hierarchy.md（文字/顏色層級、按鈕尺寸——Layout 的標題與導航文字層級依此）
@@ -52,6 +53,7 @@ Phase 3 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 <template>
   <div>
     <NuxtRouteAnnouncer />
+    <NuxtLoadingIndicator color="var(--ui-primary)" />
     <UApp :toaster="{ position: '...from ui-config.yaml > toast.position', duration: ...from ui-config.yaml > toast.duration }">
       <NuxtLayout>
         <NuxtPage />
@@ -68,6 +70,7 @@ Phase 3 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 <template>
   <div>
     <NuxtRouteAnnouncer />
+    <NuxtLoadingIndicator color="var(--ui-primary)" />
     <UApp :toaster="{ position: '...from ui-config.yaml > toast.position', duration: ...from ui-config.yaml > toast.duration }">
       <NuxtPage />
     </UApp>
@@ -78,6 +81,8 @@ Phase 3 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 > ⚠️ **toaster 設定** 必須從 `ui-config.yaml > toast` 讀取 `position` 和 `duration`，完整帶入 `:toaster="{ position, duration }"`
 >
 > ⚠️ **不要在 `<UApp>` 之外額外放 `<UToaster>`**
+>
+> ⚠️ **`<NuxtLoadingIndicator>`** 是分頁切換的頂部進度條：`ui-config.yaml > loading.pageIndicator.enabled: false` 時省略此行；`color` 用 NuxtUI 主題變數 `var(--ui-primary)` 對齊主色，不寫死色值
 
 ## Layout 偏好判斷（從 ui-config.yaml 自動讀取，不詢問用戶）
 

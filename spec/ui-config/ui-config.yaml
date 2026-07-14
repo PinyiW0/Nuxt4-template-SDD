@@ -189,10 +189,9 @@ button:
 # 載入狀態設定
 # =============================================================================
 loading:
-  fullPage:
+  pageIndicator: # 分頁切換頂部進度條（feature-to-ui Phase 3 app.vue 讀取）
     enabled: true
-    overlay: true
-  skeleton:
+  skeleton: # 頁面資料載入佔位（feature-to-ui Phase 5 讀取）
     enabled: true
     animation: "pulse"
 
