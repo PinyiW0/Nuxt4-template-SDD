@@ -2,7 +2,7 @@
 
 ## 目標
 
-依 Phase 0 確認過的計畫，將每個 module 寫成一份 `spec/e2e-flows/{NN}-{module}.flow.md`（兩位編號，從 01 起跳）。
+依 Phase 0 確認過的計畫，將每個 module 寫成一份 `spec/e2e-flows/{NN}-{module}.flow.md`（兩位編號；`00-` 保留給 auth（條件式），一般 module 從 01 起跳，見 SKILL.md 檔名規則）。
 
 > **v2 抽象化原則**（先讀）：
 > `.flow.md` 是 business invariants 的描述文件，不是 UI 步驟腳本。
@@ -51,15 +51,15 @@
 | `Scenario:` 名稱 | `## Flow: {scenarioName}` |
 | `@happy-path` tag | flow 標題後加 `（happy-path）` |
 | `@not-found` / `@condition` / `@integrity-constraint` 等 | flow 標題後加對應標籤 |
-| `Given the X event has occurred` | `### Setup` 區塊的初始資料 |
-| `Given the AccountList view returns` | `### Setup` 區塊（描述初始畫面狀態） |
-| `Given no prior events` | `### Setup`：「系統無既有資料」 |
-| `When Coach sends Create*` | `### Steps` 區塊的 UI 動作（點按鈕、填表單） |
-| `When System sends ...`（System / Translator） | **不轉成 UI 步驟**，移到 `### Background sync` 區塊備註 |
-| `When the X view is queried` | `### Steps`：「開啟 /xxx 頁面」 |
-| `Then the X event is emitted` | `### Expected`：對應的成功反饋（toast、列表更新） |
-| `Then the operation fails with: 訊息` | `### Expected`：「顯示錯誤訊息：{訊息}」 |
-| `Then the view returns [...]` | `### Expected`：表格列出對應筆數與內容（用 testid 驗證） |
+| `Given the X event has occurred` | `### 業務脈絡`：初始事件/資料狀態 |
+| `Given the AccountList view returns` | `### 業務脈絡`：初始畫面資料 |
+| `Given no prior events` | `### 業務脈絡`：「系統無既有資料」 |
+| `When Coach sends Create*` | `### E2E 驗證流程`：使用者意圖步驟（觸發動作、填表單，不寫 testid） |
+| `When System sends ...`（System / Translator） | **不轉成使用者步驟**——該 Flow 標記`（背景同步）`，流程改寫「背景觸發條件」（見第 5 節） |
+| `When the X view is queried` | `### E2E 驗證流程`：「進入 /xxx 頁面」 |
+| `Then the X event is emitted` | `### Verification 策略`：API spy ＋ 使用者可感知的成功反饋（語意反饋元素） |
+| `Then the operation fails with: 訊息` | `### Verification 策略`：「顯示錯誤訊息：{訊息}」（role=alert / 可見文字） |
+| `Then the view returns [...]` | `### Verification 策略`：主要識別欄＋業務狀態欄＋代表性抽樣（語意 locator，見第 4 段） |
 
 ### 3. 對 Command 型 Scenario 補完 UI 步驟
 
@@ -265,18 +265,37 @@ v2 用不同機制達成同樣目的：
 `.feature` 中由 `System` 或 `Translator` 觸發的 Scenario（例如「記錄投球」、「註冊相機」、「更新相機狀態」）並非使用者直接操作。寫入 `.flow.md` 時：
 
 - 仍保留為一個 `## Flow:` 區段（標註 `（背景同步）`）
-- `### Steps` 改為「背景觸發條件」，列出觸發來源
-- `### Expected` 描述 UI 列表/狀態應如何反映變化（仍用 testid 驗證）
+- `### E2E 驗證流程` 改為「背景觸發條件」，列出觸發來源
+- `### Verification 策略` 描述 UI 列表/狀態應如何反映變化（語意 locator ＋ API spy；testid 僅 fallback）
 
 ### 6. 加入檔頭與背景
 
 每份 `.flow.md` 必須有：
 
-- 一級標題 `# Flow: {module 中文名}`
+- 一級標題 `# Flow: {module 中文名}` 與檔頭引用（`> 對應規格：spec/gherkin-feature/{filename}.feature`）
 - `## Background` 區塊（共用前置條件，例如「已登入」、「測試帳號 admin」）
-- `## Testid 索引`（可選）：列出本檔所有用到的 testid，方便 UI 實作時 grep
+- `## Business Invariants` 區塊（合約核心，意圖層描述）
+- 檔尾視需要加 `## Selector 策略` 與 `## Mock 假設`
 
-> 詳見 [flow-template.md](flow-template.md)
+> 完整骨架見 [flow-template.md](flow-template.md)
+
+---
+
+## 條件式跨切面關注點（偵測到才寫）
+
+以下三類只在 feature 出現對應語意時才寫進 flow，平常不產：
+
+### 即時連線
+
+flow 含即時需求（即時 / 推播 / 通知 / live / 斷線重連）時，Business Invariants 段須捕捉「連線狀態對使用者可見」（連線中 / 已連線 / 已斷線）與「斷線重連後資料不遺漏」這兩條業務不變式（UX-agnostic：不指定用什麼元件呈現）。實作知識（傳輸選型、重連補抓、cleanup）由 `realtime` skill 提供，連線端點與信封型別由 feature-to-api Phase 0「Realtime 偵測」寫入 route-map。
+
+### 影音串流（與即時連線不同）
+
+與「連線狀態」不同，**影音播放的畫面呈現屬 UI / vibe 範疇，flow 不凍結它**——真實 flow 通常只以路由暗示直播頁（如 `/practice/live` 的「live」字），不寫「直播狀態可見」這類不變式（影片要不要顯示 LIVE / 無訊號 / 載入失敗，是 vibe 可自由迭代的呈現）。串流的合約在 OpenAPI 的播放 URL 端點（`/streams` → `hlsUrl`），由 feature-to-api Phase 0「Streaming 偵測」寫入 route-map；實作知識（播放器掛載、看門狗、延遲調校、多路對齊、teardown）由 `streaming` skill 提供。**flow 層不需為串流新增業務不變式**（對比：相機「連線中 / 已斷線」屬即時連線領域，那才是 flow 該捕捉的，見上一節）。
+
+### 角色分層 / 授權
+
+feature 含**不同角色看到 / 能做的事不一樣**（「以管理員登入」vs「以教練登入」清單或可操作不同、「僅…可」「無權限」語意）時，Business Invariants 須捕捉兩條 **UX-agnostic** 不變式：① 「{操作 / 資源} 僅 {role} 可達」；② 「無權角色被擋——看不到入口、或被導離、或操作被拒（任一語意反饋皆可）」。**不指定守門形式**（403 頁 / 導回首頁 / 入口隱藏由 vibe 決定）。角色名用 feature 實際出現的詞、不寫死。授權的合約（端點存取 / 列表 ACL / 單筆 object 歸屬（BOLA）/ 受保護路由）由 feature-to-api Phase 0「授權（RBAC）偵測」萃取進 `route-map.rbac`，實作範本見 [rbac-scaffold.md](../../feature-to-api/references/rbac-scaffold.md)；flow 只負責把「角色可見性」立成業務不變式（含「只能操作自己的」這類單筆歸屬語意），讓 spec 有依據產拒絕場景。
 
 ---
 

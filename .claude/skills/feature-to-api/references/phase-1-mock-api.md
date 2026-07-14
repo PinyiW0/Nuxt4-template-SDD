@@ -259,11 +259,11 @@ export default defineEventHandler(async (event: H3Event): Promise<CoachLoggedInE
 > ⚠️ **Server 端 import 必須用相對路徑**，不能用 `~/`
 > ⚠️ **event 必須標註 H3Event**、**陣列索引存取須處理 undefined** → 詳見 [rules.md](../references/rules.md)
 > ⚠️ **錯誤用 `statusMessage`，不要用 `message`**（讓前端統一從 `e.statusMessage` 讀取）
-> ⚠️ **回應外層依 `route-map.yaml > response_conventions.envelope` 模式（A：`ok()` 包裝／B：裸回；本頁範例為模式 B 示意）**，絕不自創 `{ status, data }` 第三種包裝
+> ⚠️ **回應信封依 [openapi-conventions.md §3](openapi-conventions.md)（模式 A `ok()` envelope／模式 B 裸回），判定值讀 `route-map.yaml > response_conventions.envelope`；本頁範例為模式 B 示意**，絕不自創 `{ status, data }` 第三種包裝
 
 ### 列表端點範例（CRUD 標準模式）
 
-> ⚠️ **依 §3 模式回傳（A：`ok(陣列)`／B：裸陣列），不挑欄位** → 詳見 [openapi-conventions.md](../references/openapi-conventions.md) § 3
+> ⚠️ **回應信封依 openapi-conventions §3 模式回傳（見上方指讀），不挑欄位**
 
 ```typescript
 // server/api/teams/index.get.ts
@@ -398,94 +398,24 @@ setResponseStatus(event, 204)
 
 ### 角色守門範例（讀 route-map.rbac）
 
-> **完整範本（橋接 util + 端點 403 + ownership 過濾 + 多角色種子）住在 [rbac-scaffold.md](rbac-scaffold.md) §3a**，此處只摘要兩種落地形狀。角色名用 `rbac.roles` 實際值，勿寫死。
+> **完整範本（橋接 util `auth-context.ts` + 端點 403 + ownership 過濾 + 多角色種子）見 [rbac-scaffold.md §3a](rbac-scaffold.md)，以該檔為唯一權威版本，勿在此複製。**角色名用 `rbac.roles` 實際值，勿寫死。
 
-**① 端點存取控制**（對應 `rbac.endpoints`）——handler 首行擋：
+三種守門形狀（依 route-map 命中的 rbac 區塊選用）：
 
-```typescript
-// server/api/v1/accounts/index.get.ts
-import { requireRole } from '../../../mock/auth-context'
-// ...
-export default defineEventHandler((event: H3Event): AccountListItem[] => {
-  requireRole(event, ['super_admin'], '僅 super_admin 可操作') // 不在 allow 內 → 403
-  return mockUsers.filter(u => !u.deletedAt).map(/* ...挑欄位 */)
-})
-```
+- **① 端點存取控制**（`rbac.endpoints`）——handler 首行 `requireRole(event, allow, message)`，當前角色不在 allow 內 → 403。
+- **② 擁有權過濾**（`rbac.ownership` 的列表端點）——`getMockCurrentUser(event)` 取角色，`restricted_roles` 內的角色只回自己 `owner_field` 的資料；全權角色不過濾。
+- **③ 單筆 object 歸屬**（`rbac.object_ownership` 的 `/{id}` 端點，OWASP **BOLA / API #1**）——順序鐵律：**先查到 object → 再驗歸屬（`requireOwnership(event, owner, restrictedRoles)`）→ 才動作**；受限角色帶他人 id → 403。先動作或只比對 id 不查 owner，就是 OWASP #1 漏洞。
 
-**② 擁有權過濾**（對應 `rbac.ownership`）——受限角色只看自己 `owner_field` 的：
-
-```typescript
-// server/api/v1/notes/index.get.ts（notes 為假想資源：本 spec 無 ownership 端點，僅示意寫法；勿把無 ownership 散文的真實端點硬套）
-import { getMockCurrentUser } from '../../../mock/auth-context'
-// ...
-export default defineEventHandler((event: H3Event): NoteListItem[] => {
-  const me = getMockCurrentUser(event)
-  let items = mockNotes.filter(n => !n.deletedAt)
-
-  // restricted_roles（來自 route-map.rbac.ownership）內的角色才過濾；全權角色不過濾
-  const restricted = ['coach']
-  if (me && me.roles.some(r => restricted.includes(r)))
-    items = items.filter(n => n.createdBy === me.accountId)
-
-  return items.map(n => ({ noteId: n.noteId, title: n.title }))
-})
-```
-
-**③ 單筆 object 歸屬**（對應 `rbac.object_ownership`，OWASP **BOLA / API #1**）——`/{id}` 端點先查 object 再驗歸屬：
-
-```typescript
-// server/api/v1/notes/[noteId].patch.ts （notes 為假想資源，僅示意；完整範本見 rbac-scaffold §3a）
-export default defineEventHandler(async (event: H3Event) => {
-  const note = mockNotes.find(n => n.noteId === getRouterParam(event, 'noteId') && !n.deletedAt)
-  if (!note)
-    throw createError({ statusCode: 404, statusMessage: '資源不存在' })
-  requireOwnership(event, note.createdBy, ['coach']) // 受限角色帶他人 id → 403；全權角色放行
-  // ...才動作
-})
-```
-
-> ⚠️ `getMockCurrentUser(event)` / `requireOwnership(event, ...)` 由 `server/mock/auth-context.ts` 提供（rbac-scaffold §3a），**需傳入 `event`** 才能從 Authorization header 反查角色——舊版無參數的寫法已失效。
-> ⚠️ BOLA 順序鐵律：**先查到 object → 再驗歸屬 → 才動作**。先動作或只比對 id 不查 owner，就是 OWASP #1 漏洞。
+> ⚠️ 三個 util 皆由 `server/mock/auth-context.ts` 提供（rbac-scaffold §3a），**需傳入 `event`** 才能從 Authorization header 反查角色——舊版無參數的寫法已失效。
 > ⚠️ 守門 / 過濾後直接回結果；E2E 斷言基於「該登入角色實際拿到的資料量」（見 spec.md 的多角色推算）。
 
 ## Auth Store 範例
 
-```typescript
-// app/stores/auth.ts
-import type { CoachLoggedInEvent } from '~/types/api/auth'
-
-export const useAuthStore = defineStore('auth', () => {
-  const accountId = ref<string | null>(null)
-  const accessToken = ref<string | null>(null)
-
-  const isAuthenticated = computed(() => !!accessToken.value && !!accountId.value)
-
-  async function login(username: string, password: string) {
-    // [O] $fetch 直接拿到 CoachLoggedInEvent，無 .data 解包
-    const data = await $fetch<CoachLoggedInEvent>('/api/auth/login', {
-      method: 'POST',
-      body: { username, password },
-    })
-    accountId.value = data.accountId
-    accessToken.value = data.accessToken
-  }
-
-  function clearAuth() {
-    accountId.value = null
-    accessToken.value = null
-  }
-
-  return { accountId, accessToken, isAuthenticated, login, clearAuth }
-}, {
-  persist: {
-    pick: ['accountId', 'accessToken'],
-  },
-})
-```
+auth 命中時的 store（login／isAuthenticated／clearAuth／persist）**完整範本見 [auth-scaffold.md §3a](auth-scaffold.md)（含 single-flight refresh、cookie 細節），以該檔為唯一權威版本，勿在此複製**。
+login 為寫入操作走 `$fetch`，回傳直接是裸 Event 型別（如 `CoachLoggedInEvent`），無 `.data` 解包。
 
 > ⚠️ **persist 儲存位置**：`pinia-plugin-persistedstate/nuxt` 預設 storage 是 **cookie**（SSR 可讀），不是 localStorage。
 > **禁止**在註解或 middleware 寫「登入狀態存 localStorage、SSR 讀不到」——錯誤心智模型會導致 hydration mismatch
 > （見 feature-to-ui `rules.md` > SSR / Hydration 安全）。cookie 上限 4KB：`pick` 只挑必要欄位，大型物件不進 persist。
-> 完整 auth store（single-flight refresh、cookie 細節）見 [auth-scaffold.md](auth-scaffold.md) §3a。
 
 > ⚠️ **錯誤捕捉**：`try { await login() } catch (e: any) { toast.error(e.statusMessage || '登入失敗') }`

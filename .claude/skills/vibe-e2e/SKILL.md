@@ -11,7 +11,7 @@ description: Vibe E2E 產生與執行 — 依當下 git diff 對互動/結構 hu
 
 不測：純 visual、業務合約（那是 `/vibe-check` 主 spec 的工作）。
 
-**產出的 spec 是 keep 的**：既然判斷值得生成 e2e，就值得長期守。落地後會進 gate 守門（`/vibe-check` 與 pre-push 都跑 `playwright.gate.config.ts`，涵蓋 `test/e2e/vibe/`；pre-push 另在 Docker production build 內執行）。時序敏感、無法穩定綠的 spec 產到 `test/e2e/vibe/unstable/`，不進守門、手動跑 /vibe-e2e 或 vibe config 時照跑。
+**產出的 spec 是 keep 的**：既然判斷值得生成 e2e，就值得長期守。落地後會進 gate 守門（`/vibe-check` 與 pre-push 都跑 `playwright.gate.config.ts`，涵蓋 `test/e2e/vibe/`；執行環境差異見 vibe-check「目的」段）。時序敏感、無法穩定綠的 spec 產到 `test/e2e/vibe/unstable/`，不進守門、手動跑 /vibe-e2e 或 vibe config 時照跑。
 
 ## 前置條件（軟性 gate）
 

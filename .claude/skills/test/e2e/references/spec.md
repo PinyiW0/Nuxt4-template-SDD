@@ -261,7 +261,7 @@ test.describe('規則：{Rule 名稱}', () => {
 })
 ```
 
-> **v2 範例對照**：見 `test/e2e/specs/06-export.v2.spec.ts` 與 `04-practice.v2.spec.ts`（兩個試點實作）。
+> **v2 範例對照**：見本檔「Flow → Playwright 轉換規則（v2）」與「特殊操作轉換（v2 為主，testid 為 fallback）」段的實例。
 
 ---
 
@@ -650,23 +650,9 @@ test.skip('帳號鎖定後重新登入', async () => {
 
 ## ESLint / Lint Gate
 
-```typescript
-// ✅ import 排序：import type 在前、外部套件按字母、相對路徑按字母、named imports 按字母
-// ✅ test/expect 從 ../helpers 匯入（自動掛 hydration 守門），不直接 import @playwright/test
-import { confirmDelete, expect, login, test } from '../helpers'
-```
-
-生成後**必須執行**：
-
-```bash
-npx eslint . --fix  # 自動修復（--fix 不可接在 npm run eslint 後，會落到 visual-hierarchy-check）
-npm run eslint      # 確認 0 errors
-npm run typelint    # 型別零錯誤（CLAUDE.md 紅線：兩者都要過）
-```
-
-常見問題：
-- `test.skip` 導致 `expect` / `login` 未使用 → 移除未使用的 import
-- 未使用參數 → 加 `_` 前綴
+- 生成後必跑 `npm run eslint` + `npm run typelint`，零錯誤才算完成（CLAUDE.md 紅線）
+- import 排序遵守 perfectionist 規則；test/expect 從 `../helpers` 匯入（見「.spec.ts 結構（v2）」範本）
+- 指令順序、`--fix` 禁忌與常見問題（未使用 import、未使用參數加 `_` 前綴）見 [green.md](green.md) 的「Lint Gate（必須通過）」段
 
 ---
 
