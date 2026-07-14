@@ -277,7 +277,7 @@ export default defineEventHandler(async (event: H3Event) => {
 |---|---|---|
 | `business_guards`（如「不得刪最後一個 super_admin」409、「super_admin 不得改自己密碼」） | 規則高度 domain-specific，無通用範本；硬塞會猜錯 | 只登錄在 route-map.rbac.business_guards，實作邏輯留 feature/spec 散文，由 spec 撰寫者確保有測 |
 | self-vs-others **疊加條件**（coach 改自己密碼**且需 oldPassword**、super_admin 改他人免帶） | 屬端點內部商業邏輯；**純「是不是自己這筆」已由 `object_ownership` 自動生**，這裡只剩歸屬之上**再疊條件**（舊密碼、狀態…）的部分 | mock 端點內手寫條件分支，本 scaffold 不代勞 |
-| field-level 角色可見性（同端點依角色回不同欄位） | OpenAPI 本身無法表達，社群亦無標準 | 標為 future / 手動；需要時在 mock 端點依角色挑欄位 |
+| field-level 角色可見性（同端點依角色回不同欄位） | OpenAPI 本身無法表達，自動猜必錯（多給＝洩漏、少給＝壞 UI） | **不默默略過**：偵測到「PII 語意欄位（電話／地址／證件／內部備註等，範例非白名單）× 多角色讀同一資源」→ **停下來問操作者**各角色可見哪些欄位，確認後在 mock 端點依角色白名單挑欄位（wedding-host 實戰：接待員拿到全賓客電話／住址，實際工作只需姓名＋桌次） |
 
 > 未來若後端在 OpenAPI 補機器可讀的 `x-required-roles` vendor extension，§1 偵測可從「散文語意萃取」升級為「直接讀標註」，route-map.rbac schema 不變、下游無感。
 

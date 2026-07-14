@@ -25,13 +25,17 @@ envelope（runtime 拆封）⊥ OpenAPI（型別來源）⊥ codegen（工具）
 
 ---
 
-## 2. 三層分離（型別來源 / 回應驗證 / 表單驗證）
+## 2. 分層驗證（型別來源 / 回應驗證 / 表單驗證 / server 輸入驗證）
 
 | 層 | 邊界 | 用什麼 | 為何 |
 |----|------|--------|------|
 | 合約型別 | API request/response shape | **codegen（openapi-typescript）** | 機器產不漂移、零 runtime、無痛 |
 | 回應 runtime 驗證 | 後端 → 前端 | 預設**不做**（後端是 SSoT + 有測試）；要才 zod-parse | 加 runtime 重量、投報率低 |
 | 表單輸入驗證 | 使用者 → 前端（**含跨欄位**） | **手寫 zod**（NuxtUI `<UForm :schema>`） | OpenAPI 無法表達跨欄位；confirmPassword 根本不在 API body |
+| **server 寫入輸入驗證** | 使用者 → server | **必做**：`readValidatedBody` + 手寫 zod（`server/validation/`；界限從 OpenAPI `minimum`/`maximum`/`enum`/`format: int32` 萃取） | 表單擋不住直打 API 的請求；這層會存活進真 server，mock 期就要對（範本見 [phase-1-mock-api.md](phase-1-mock-api.md)） |
+
+> ⚠️ 「回應 runtime 驗證預設不做」**≠ server 不驗輸入**——前者是「前端要不要驗後端的回應」，
+> 後者是「server 要不要驗使用者的 body」，後者必做（wedding-host 實戰：數字欄 NaN／int4 溢位／負值直落資料層）。
 
 - **不選 zod-codegen**（openapi-zod-client / typed-openapi）：generated zod 仍無法表達跨欄位（沒省到手寫），
   又給合約層加 runtime 重量——zod 的價值在表單層，不在合約層。

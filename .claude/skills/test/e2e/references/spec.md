@@ -586,6 +586,10 @@ test('coach 無法編輯他人建立的 note（單筆歸屬）', async ({ page }
 > ⚠️ **拒絕場景 ≠ 不可達場景**：受限角色「被擋」是可觀察、可測的（上方），**必須產**。下方 Skip 規則的「API 層已過濾、UI 根本無法觸發」指的是連入口與路由都不存在、URL 也拼不出來的死路；**不含** BOLA——「帶他人 id 打 `/{id}`」永遠拼得出 URL、是真實攻擊面，`object_ownership` 命中時**必測、不可 skip**。
 > ⚠️ 403/404 statusMessage、守門目標路徑、以及「屬於他人的 object id」以 mock（`requireRole` / `requireOwnership`）、`rbac.global.ts`、mock 種子的實際值為準（交叉比對 Step 2b / 2e）。
 
+### 巢狀資源 scope 層（**無條件**，不需 rbac）
+
+上表全綁 `route-map.rbac`；但「巢狀端點漏帶父層過濾」的 IDOR **不需要角色分層就存在**（wedding-host 是單角色 owner-based 專案，rbac 不會命中，DELETE 漏過濾照樣被打穿）。這層由 setup 階段的 `specs/02-authz-scope.spec.ts` 承接（範本見 setup.md Step 6.6）：route-map endpoints 含 ≥2 個 path 參數 → 用 `request` 直打錯誤父子組合斷言 404，**寫入端點必含**。spec 階段檢查：若本 feature 新增了巢狀端點而 02-authz-scope 未涵蓋 → 依 `rules/frozen-paths.md` 上游變更程序補組合，或另建新 spec 檔。
+
 ---
 
 ## 持久性斷言（設定/狀態類 scenario 必含）

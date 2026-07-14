@@ -319,6 +319,47 @@ test.describe('Auth 守衛', () => {
 
 > 防迴圈驗收（一次導向、無 redundant navigation error）見 feature-to-api `auth-scaffold.md` §5 checklist。
 
+### Step 6.6：建立巢狀 scope smoke spec（僅 route-map endpoints 含 ≥2 個 path 參數的端點時；**不需 rbac**）
+
+巢狀端點漏帶父層過濾是 IDOR（wedding-host 實戰：DELETE 漏帶父層參數，跨租戶可刪）。這層用 Playwright `request` 直打 API、不走 UI：拿「父 A ＋ 屬於父 B 的子」這種**兩者都真實存在、只是關係錯置**的組合——若查詢漏帶父層過濾，這一打就會 200。
+
+```typescript
+// test/e2e/specs/02-authz-scope.spec.ts
+// 巢狀資源 scope 煙霧：錯誤父子組合必回 404（server-security.md 第 1、2 條的執行防線）
+// WRONG_PAIRS 從 route-map.yaml > api_contract.endpoints（≥2 path 參數者）×  mock 種子組出，不寫死假 id
+import { expect, test } from '@playwright/test'
+import { TestUsers } from '../helpers'
+
+// 有 auth 專案：直打 mock login 換 token——「登入者也不能跨父層」才證明過濾存在（而非只是被登入牆擋）
+// 無 auth 專案：刪掉 beforeAll 與 headers。回應依 envelope 模式解包（模式 A 取 .data）
+let headers: Record<string, string> = {}
+test.beforeAll(async ({ request }) => {
+  const res = await request.post('/api/auth/login', {
+    data: { account: TestUsers.admin.account, password: TestUsers.admin.password },
+  })
+  const data = await res.json()
+  headers = { Authorization: `Bearer ${data.accessToken}` }
+})
+
+// 每個巢狀端點至少一組：projects/tasks 為假想端點，path 前綴與 id 用 route-map 與 mock 種子實際值
+const WRONG_PAIRS = [
+  { name: 'GET projects/tasks', method: 'get' as const, path: '/api/projects/proj-001/tasks/task-belongs-to-proj-002' },
+  { name: 'DELETE projects/tasks', method: 'delete' as const, path: '/api/projects/proj-001/tasks/task-belongs-to-proj-002' },
+]
+
+test.describe('巢狀資源 scope（錯誤父子組合 → 404）', () => {
+  for (const { name, method, path } of WRONG_PAIRS) {
+    test(`${name}：跨父層存取被拒`, async ({ request }) => {
+      const res = await request[method](path, { headers })
+      expect(res.status()).toBe(404) // 404 而非 403：不洩漏資源存在性（server-security.md 第 8 條）
+    })
+  }
+})
+```
+
+> ⚠️ **寫入端點（PATCH/DELETE）至少各一組**——wedding-host 的漏洞正是 DELETE 漏、GET/PATCH 有；只測 GET 抓不到。
+> ⚠️ 之後 sync 新增巢狀端點時，`specs/` 屬凍結區——依 `rules/frozen-paths.md` 的上游變更程序補 WRONG_PAIRS，或另建新 spec 檔。
+
 ### Step 7：建立目錄結構
 
 ```bash
@@ -360,7 +401,8 @@ test/e2e/
 │   └── index.ts                    # 匯出
 ├── specs/                          # .spec.ts 檔案（由 /test e2e spec 產出）
 │   ├── 00-hydration.spec.ts        # Hydration smoke（逐 route 整頁載入）
-│   └── 01-auth-guard.spec.ts       # Auth 守衛 smoke（僅 route-map 有 auth 時）
+│   ├── 01-auth-guard.spec.ts       # Auth 守衛 smoke（僅 route-map 有 auth 時）
+│   └── 02-authz-scope.spec.ts      # 巢狀 scope smoke（僅有 ≥2 path 參數端點時）
 ├── test-results/                   # Playwright 測試結果
 └── screenshots/                    # 測試失敗截圖
 ```
@@ -381,6 +423,7 @@ E2E Setup 完成
 - test/e2e/helpers/hydration.ts（hydration 守門 fixture）
 - test/e2e/specs/00-hydration.spec.ts（逐 route hydration smoke）
 - test/e2e/specs/01-auth-guard.spec.ts（auth 守衛 smoke；無 auth 專案略）
+- test/e2e/specs/02-authz-scope.spec.ts（巢狀 scope smoke；無巢狀端點專案略）
 
 下一步：
 - 執行 /test e2e spec <feature> 生成測試檔案
@@ -400,5 +443,6 @@ E2E Setup 完成
 - [ ] `hydration.ts` 存在且 `index.ts` re-export `{ expect, test }`
 - [ ] `specs/00-hydration.spec.ts` 涵蓋所有 Routes（公開 + 登入後）
 - [ ] `route-map.yaml` 有 `auth` 區塊時，`specs/01-auth-guard.spec.ts` 存在（未登入導 login／公開頁不被導走／已登入訪 login 導回）
+- [ ] `route-map.yaml > api_contract.endpoints` 有 ≥2 個 path 參數的端點時，`specs/02-authz-scope.spec.ts` 存在且**含寫入端點**的錯誤父子組合
 - [ ] `.gitignore` 排除測試產物
 - [ ] `npx playwright test --list` 可執行
