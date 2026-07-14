@@ -10,6 +10,9 @@ export default defineConfig({
   testDir: './test/e2e',
   testMatch: ['specs/**/*.spec.ts', 'vibe/**/*.spec.ts'],
   testIgnore: ['vibe/unstable/**'],
+  // 結果目錄與主 config 分開：/sdd-status 以主 config 的 .last-run.json 判「主 spec green」，
+  // gate 跑（含 vibe spec）寫同一份會污染該訊號
+  outputDir: 'test/e2e/test-results-gate',
   // HTML 報告與主 config 分目錄，連續跑不互蓋
   reporter: [
     ['list'],
