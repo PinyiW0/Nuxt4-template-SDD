@@ -12,7 +12,7 @@
 ```markdown
 # Flow: {模組中文名稱}
 
-> 對應規格：spec/gherkin-feature/{filename}.feature
+> 對應規格：spec/gherkin-feature/{file-a}.feature, spec/gherkin-feature/{file-b}.feature
 > 涵蓋頁面：/route-a, /route-b
 
 ## Background
@@ -68,6 +68,8 @@
 - {說明本 flow 依賴的 mock seed}
 - {API 端點與 payload 期待}
 ```
+
+> **`> 對應規格` 允許列多個來源檔**（逗號分隔）：一個 flow 模組整併多個逐 feature 檔時全數列出；來源是單一大檔（一檔含多個 `Feature:` 區塊）時列該檔即可。下游把這行當 feature 清單消費——`/test e2e spec` Step 2a 據此定位 Background、`/sdd-status` 據此做模組 ↔ route-map 對應，漏列會造成對應判定缺漏。
 
 ---
 
