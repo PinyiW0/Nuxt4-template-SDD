@@ -420,6 +420,21 @@ routeRules: {
 },
 ```
 
+> 嚴格 CSP 的採用與否，上線前由 README「上線前安全檢查」承接評估（採用或不採用都要記錄結論）。
+
+## 4c. CSRF 決策記錄（不做 CSRF token；前提變了即作廢）
+
+**決策**：不做 CSRF token／double-submit——傳統 CSRF 在本架構不成立。
+
+**前提**（三條，以實碼為準）：
+
+1. 請求憑證走 `Authorization: Bearer` header（`useHttp.ts` 內建注入點）——瀏覽器不會自動附帶此 header，跨站請求無法冒用身分
+2. cookie 僅供 store persist／SSR hydration（§3a，`sameSite: 'lax'`），不是憑證
+3. server 端以 Bearer token 反查身分（`getMockCurrentUser`，phase-1-mock-api §6.4），不從 cookie 讀憑證
+
+**回歸紅線**：任何 server handler 不得把 persist cookie 當憑證讀——`getCookie(event, 'auth')` 取身分即破前提 3。
+若未來改為 cookie-based auth（憑證由 cookie 自動帶），本決策作廢，須重新評估 sameSite 策略＋anti-CSRF token。
+
 ---
 
 ## 5. 收尾 checklist（`feature-to-ui` 末 / vibe-check 提示；僅 auth 專案跳）
@@ -432,6 +447,7 @@ routeRules: {
 - [ ] `server/plugins/00.security-guard.ts` 存在（§4b①；真密鑰加入時已登記進 REQUIRED_SECRETS）
 - [ ] login handler 首段有 `assertNotRateLimited`（§4b②；fileUpload 專案的 upload／presign 端點同套）
 - [ ] 公開端點已分級：匿名只回已發布資料的公開層欄位、公開寫入不信 body 身分欄位（§4a）
+- [ ] 無任何 server handler 從 cookie 讀憑證（grep `getCookie(event, 'auth')` 無命中）；憑證僅走 Authorization header（§4c 前提）
 
 ---
 

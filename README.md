@@ -246,6 +246,15 @@ docker compose up -d                                   # http://localhost:${HOST
 正式機部署步驟、交付方式（雲端／地端離線）、遠端開發機（tmux）等，寫到「照抄指令就能部完」的程度。
 可參考 jsjh-2026-frontend README 的部署段寫法。填完刪除本註解。 -->
 
+### 上線前安全檢查
+
+每個專案上線前過一遍（無 auth 專案只看最後一條；範本與依據見 `.claude/skills/feature-to-api/references/auth-scaffold.md` §4b）：
+
+- [ ] 密鑰啟動守衛 `server/plugins/00.security-guard.ts` 的 `REQUIRED_SECRETS` 已登記全部真密鑰（§4b①）
+- [ ] 敏感端點限流已套：login；fileUpload 專案含 upload／presign（§4b②）
+- [ ] 三個基礎安全標頭在 `nuxt.config.ts` 的 `routeRules`（§4b③）
+- [ ] 嚴格 CSP 已評估並記錄結論——採用或不採用＋理由（模板預設不帶：需 nonce 基建、逐專案評估，見 auth-scaffold §4b③）
+
 ### 設定檔職責
 
 | 檔案 | 進版控 | 內容 |
