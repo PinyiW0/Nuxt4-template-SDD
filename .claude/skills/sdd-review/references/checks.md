@@ -73,3 +73,16 @@ antfu nuxt skill 整體相容 Nuxt 4,唯 data fetching 有兩處過時,易誤導
 | 錯誤訊息與存在性 | grep diff 中 `createError`:`statusMessage` 是否為固定訊息(不夾 stack/DB 原文/內部細節);歸屬檢查失敗是否回 404 而非 403(不讓外人探測資源存在) |
 
 > 安全 finding 一律列「必修」。敏感資料外洩屬高風險,需明確標示。
+
+## 4. 邏輯安全(前端,僅 diff 動到 app/ 或 nuxt.config.ts 時)
+
+判準 SSOT:`.claude/rules/frontend-security.md`(5 條,對應 OWASP 常青項),本節只列查法。
+三類全屬便宜檢查(grep diff),local 與 pr 模式同深度。
+
+| 類別 | 怎麼查(具體步驟) |
+|------|------------------|
+| XSS sink | grep diff 中 `v-html` → 追內容來源,含任何使用者輸入且無 sanitize 即必修;動態 `:href`/`:src` 綁使用者提供的 URL → 查有無 protocol 白名單 |
+| 敏感資料存放 | grep diff 中 `localStorage.setItem`/`sessionStorage.setItem` → 查存入值是否 token/個資(auth 一律走 cookie persist) |
+| client bundle 外洩 | diff 新增 `runtimeConfig.public` 欄位或 `NUXT_PUBLIC_*` 環境變數 → 查值是否機敏(public 會打包進 client bundle) |
+
+> 授權邊界(入口隱藏/middleware 只是 UX,授權必在 server)的查法歸 §3 管;前端安全 finding 同列「必修」。
