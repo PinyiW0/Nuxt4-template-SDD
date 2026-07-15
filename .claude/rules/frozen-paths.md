@@ -9,7 +9,7 @@ paths:
 
 **你正在修改的路徑屬於凍結區。停下來。**（唯讀讀取不受限，本規則管的是修改與刪除）
 
-> 技術強制：`.claude/hooks/frozen-paths-guard.mjs`（PreToolUse hook）會擋下凍結區**既有檔**的 Edit/Write（含 subagent 內）；**新增全新檔**放行（授權產出流程不受影響）。本規則的 paths 觸發僅在主對話生效、subagent 內不注入（2026-07-06 實測），hook 才是實際防線。
+> 技術強制：`.claude/hooks/frozen-paths-guard.mjs`（PreToolUse hook）會擋下凍結區**既有檔**的 Edit/Write/NotebookEdit 與 Bash 寫入（`sed -i`、`tee`、`cp`、`mv`、重導向等，含 subagent 內；大小寫變體與 symlink 繞道一併攔截）；**新增全新檔**放行（授權產出流程不受影響）。本規則的 paths 觸發僅在主對話生效、subagent 內不注入（2026-07-06 實測），hook 才是實際防線。
 >
 > **一次性授權通道**：正規產出流程（`/feature-to-flow` 的 flow 覆寫、`/test e2e spec` 的 spec 全量重生）經使用者確認後，寫檔前先建 `.claude/tmp/frozen-allow.json`（格式 `{ "reason": "<為何覆寫>", "files": ["<repo 相對路徑>", ...] }`），hook 對清單內目標放行**一次**並自動從清單移除（清空即刪檔）。此通道僅限上述流程在使用者確認後使用，不得為繞過凍結而自行寫 sentinel。
 >
