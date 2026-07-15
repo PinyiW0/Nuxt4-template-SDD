@@ -45,3 +45,5 @@ const authorId = event.context.authUser.accountId
 產生範本與 production 基礎設施（env 守衛／限流／安全標頭）住 `.claude/skills/feature-to-api/references/`；
 審查查法住 `.claude/skills/sdd-review/references/checks.md` §3。
 本檔在 subagent 內不會自動注入——skill 產 server 端點前須明文指讀本檔。
+兜底防線：PostToolUse hook（`.claude/hooks/server-security-guard.mjs`）對主對話與所有 subagent 生效——
+編輯 `server/**/*.ts` 時注入本檔摘要（摘要與上表同步維護），並對 `server/api/**` 機械偵測規則 1、3 的可 grep 違規。
