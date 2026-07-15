@@ -4,11 +4,12 @@
 
 ## 1. 框架語意慣例(6 項)
 
-### 1.1 解構響應式 props
+### 1.1 解構 props 傳出 scope
 
-- 症狀:`const { title } = defineProps<...>()` 後直接用 `title`,響應性丟失
-- 依據:`skills/vue/references/script-setup-macros.md`
-- 建議:用 `props.title`,或 `toRefs`
+- 前提:Vue 3.5+(本專案)解構 `defineProps` 保留響應性,`const { title } = defineProps<...>()` 同檔內直接使用是推薦寫法,**不報**
+- 症狀:解構值**傳出 `<script setup>` scope** 才丟響應性——watch source 未包 getter(`watch(title, ...)`)、或把值直接傳入 composable(`useFoo(title)`)
+- 依據:`skills/vue/references/script-setup-macros.md`(defineProps 一節,3.5+ 解構含預設值為推薦寫法)
+- 建議:傳出 scope 時包 getter:`watch(() => title, ...)`、`useFoo(() => title)`;需 ref 用 `toRef(() => title)`
 
 ### 1.2 非必要的深層響應式
 
@@ -31,13 +32,13 @@
 ### 1.5 讀寫沒分離
 
 - 症狀:寫入(POST/PATCH/DELETE)用了 `useFetch`,或讀取在事件中用 `$fetch` 混用
-- 依據:`CLAUDE.md` 關鍵規則
+- 依據:`.claude/rules/code-quality.md`(讀寫分離與型別安全)
 - 規則:讀取用 `useFetch`,寫入用 `$fetch`
 
 ### 1.6 globalThis.$fetch 繞型別
 
 - 症狀:出現 `globalThis.$fetch` 規避型別檢查
-- 依據:`CLAUDE.md` 關鍵規則
+- 依據:`.claude/rules/code-quality.md`(讀寫分離與型別安全)
 - 規則:禁止,改用 typed `$fetch`
 
 ## 2. Nuxt 4 行為(nuxt skill 為 3.x,以下以 Nuxt 4 為準)

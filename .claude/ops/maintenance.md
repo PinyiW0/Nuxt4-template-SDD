@@ -4,7 +4,7 @@
 
 | 等級 | 範圍 | 規則 |
 |------|------|------|
-| **可自行改** | `.claude/ops/*` 的錯字、失效路徑修正、補充正反例；`memory/` 依記憶機制回寫 | 改完必做第 3 節的路由驗證 |
+| **可自行改** | `.claude/ops/*` 的錯字、失效路徑修正、補充正反例；`memory/`（使用者層記憶，不隨 repo）依記憶機制回寫 | 改完必做第 3 節的路由驗證 |
 | **改前先出草案等確認** | `.claude/CLAUDE.md` 本體、`.claude/rules/*`、`.claude/skills/*`、`spec/ui-config/*` | 這些是多方消費的 SSOT，先列 diff 草案給使用者 |
 | **動前必問、預設不動** | `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/`（凍結區）；`~/.claude/`（全域層，影響所有專案）；`.claude/settings*.json`；任何 `.env*` | 見 `rules/frozen-paths.md` |
 
@@ -16,7 +16,7 @@
 
 | 教訓性質 | 寫回哪 | 格式 |
 |----------|--------|------|
-| 個人偏好／跨任務工作方式 | `memory/`（依記憶機制：一檔一事實 + MEMORY.md 索引一行） | 記憶機制既有格式（frontmatter + Why + How to apply） |
+| 個人偏好／跨任務工作方式 | `memory/`（使用者層記憶，機器綁定不隨 repo；一檔一事實 + MEMORY.md 索引一行） | 記憶機制既有格式（frontmatter + Why + How to apply） |
 | 制度規則錯了或缺角 | 直接改對應的 `ops/*.md`，在該節補正反例 | 沿用該檔格式；重大修改走 PR 說明 |
 | 專案技術慣例（框架、工具） | `.claude/rules/` 對應檔（需確認，見第 1 節） | 沿用「禁止行為 → 正確做法」表格式 |
 | skill 流程的坑 | 該 skill 的 SKILL.md 或 references/（需確認） | 祈使句 + 錯誤情境的處理方式 |

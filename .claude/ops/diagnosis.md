@@ -29,7 +29,7 @@
 ## 漏洞 3：驗證自驗 + 「寫了沒接消費點」
 
 **證據**：
-- 本專案既有教訓（見 memory：verify-generator-skill-when-changing-infra）：改了共用建設沒驗證下游產生器，治標不治本
+- 本專案既有教訓：改共用建設（如 composable）只改單元、沒同步驗證會產生程式碼的下游 skill，治標不治本（教訓原文在使用者層記憶，不隨 repo）
 - issue #42 的討論結論：規範文件若沒接回「誰會讀、何時載入」的消費點，寫了等於沒寫
 - AI 慣性：改完自己宣告完成。lint + typecheck 只驗語法與型別，不驗「規範會不會被讀到」「規則是否互相打架」
 
@@ -41,5 +41,5 @@
 ## 次要觀察（不到前三，但要知道）
 
 - **skill 觸發是機率式的**：description 寫得再好也可能不觸發。硬性流程不要依賴 auto-trigger，用 `disable-model-invocation: true` + 明確 `/指令` 呼叫
-- **macOS sh 的 CJK 陷阱**：變數後接全形字元要用 `${}` 定界（見 memory：sh-cjk-after-variable-needs-braces）
+- **macOS sh 的 CJK 陷阱**：雙引號字串內變數後緊接全形字元會把多位元組字元誤併入變數名，`set -u` 下炸 unbound variable，一律用 `${var}` 定界（教訓原文在使用者層記憶，不隨 repo）
 - **全域 CLAUDE.md 的死連結**是使用者層問題，本專案制度管不到——已在交接信（[letter-to-future.md](letter-to-future.md)）提醒使用者手動處理

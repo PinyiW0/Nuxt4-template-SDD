@@ -34,6 +34,13 @@ npm run eslint && npm run typelint
 → 包 `<ClientOnly>`（同尺寸 fallback）或移入 `onMounted`。
 注意：persist 的 auth 狀態預設存 **cookie**，SSR 讀得到，不屬於 client-only 值。
 
+## 讀寫分離與型別安全
+
+- 讀取用 `useFetch`，寫入用 `$fetch`，禁止混用
+- 禁止 `globalThis.$fetch` 繞過型別檢查，改用 typed `$fetch`
+
+> 與使用者全域 CLAUDE.md「關鍵規則」同義；此處為版控內依據，供 `sdd-review` 的 checks.md 等 repo 內文件引用。
+
 ## 常見問題
 
 | 問題 | 原因 | 解法 |
