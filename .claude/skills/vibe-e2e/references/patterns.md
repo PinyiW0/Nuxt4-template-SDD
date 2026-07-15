@@ -89,6 +89,32 @@ test.skip('vibe：hover 效果 — 建議人工視覺確認', async () => {
 })
 ```
 
+## `state-change`（通用互動 catch-all）
+
+toggle / tab / modal-toggle 都對不上的「其他 `@click` 改變狀態」落點。斷言取**下限**：只驗「點擊後有可觀察變化」（狀態文字或可見性），不假設具體結果值。
+
+```ts
+test('vibe：{描述：例 點「標記完成」後狀態文字更新}', async ({ page }) => {
+  await login(page, 'admin', 'admin888')
+  await page.goto('{path}', { waitUntil: 'networkidle' })
+
+  const trigger = page.getByRole('button', { name: /{觸發 name regex}/ })
+  const target = page.getByRole('{目標 role}', { name: /{目標 name regex}/ })
+
+  // 下限斷言擇一（依 hunk 推測這次點擊的可觀察結果是哪種）：
+  // (a) 狀態文字改變
+  const before = (await target.textContent()) ?? ''
+  await trigger.click()
+  await expect(target).not.toHaveText(before)
+
+  // (b) 可見性改變（目標原本 hidden，點擊後出現；反向則對調）
+  // await trigger.click()
+  // await expect(target).toBeVisible()
+})
+```
+
+從 hunk 推不出「哪個目標會有可觀察變化」→ 比照 `conditional-render`：`.skip` + TODO，不要硬生斷言。
+
 ## `loading-state`
 
 ```ts

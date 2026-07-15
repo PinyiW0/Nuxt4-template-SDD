@@ -70,7 +70,9 @@ v-if\s*=\s*["']\s*!?\s*(items|data|list|results)\.(length|value)
 | `UModal` / `UDrawer` / `UPopover` / `visible/open` ref + toggle | `modal-toggle` |
 | `v-if` / `v-show` 為一般條件變數（非 loading/error/empty）| `conditional-render` |
 | `@mouseenter` / `@mouseleave` / hover class | `hover` |
-| 其他 `@click` 改變狀態 | `interaction` |
+| 其他 `@click` 改變狀態（toggle / tab / modal 都對不上的 catch-all）| `state-change` |
+
+> 命名說明：catch-all 不叫 `interaction`——那個詞保留給分類層（互動層，vibe spec 檔名前綴 `interaction-`），避免 sub-pattern 與 layer 撞名。
 
 ---
 
