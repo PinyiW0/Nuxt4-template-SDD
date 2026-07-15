@@ -4,11 +4,12 @@
 
 ## 1. 框架語意慣例(6 項)
 
-### 1.1 解構響應式 props
+### 1.1 解構 props 傳出 scope
 
-- 症狀:`const { title } = defineProps<...>()` 後直接用 `title`,響應性丟失
-- 依據:`skills/vue/references/script-setup-macros.md`
-- 建議:用 `props.title`,或 `toRefs`
+- 前提:Vue 3.5+(本專案)解構 `defineProps` 保留響應性,`const { title } = defineProps<...>()` 同檔內直接使用是推薦寫法,**不報**
+- 症狀:解構值**傳出 `<script setup>` scope** 才丟響應性——watch source 未包 getter(`watch(title, ...)`)、或把值直接傳入 composable(`useFoo(title)`)
+- 依據:`skills/vue/references/script-setup-macros.md`(defineProps 一節,3.5+ 解構含預設值為推薦寫法)
+- 建議:傳出 scope 時包 getter:`watch(() => title, ...)`、`useFoo(() => title)`;需 ref 用 `toRef(() => title)`
 
 ### 1.2 非必要的深層響應式
 
