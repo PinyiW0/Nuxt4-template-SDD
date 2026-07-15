@@ -1,3 +1,4 @@
+# 獨立格式範例，勿交叉衍生；OpenAPI 模式以 api-spec 為真相、feature 模式以 .feature 為真相
 openapi: 3.1.0
 info:
   title: 忠孝國中棒球投球數據分析系統 API
