@@ -19,7 +19,7 @@
 **修共用建設**（composable、skill 引用檔、規範檔）：列出全部消費點並逐一驗證後才算完成。
 
 - 正例：新增視覺層級規範時，同步接進 `feature-to-ui` skill 的 `@` 引用與 `rules/ui-conventions.md` 的 paths 觸發，兩個消費點都能載到 → 完成
-- 反例：把驗收標準規則寫進一份新 md，但沒有任何 skill、rule、CLAUDE.md 索引引用它 → 寫了等於沒寫，不算完成（本專案曾為此建立 memory：verify-generator-skill-when-changing-infra）
+- 反例：把驗收標準規則寫進一份新 md，但沒有任何 skill、rule、CLAUDE.md 索引引用它 → 寫了等於沒寫，不算完成（本專案曾踩過同型的雷：改共用建設沒同步驗證下游產生器 skill；教訓原文在使用者層記憶，不隨 repo）
 
 ## 3. 何時停下來問使用者
 

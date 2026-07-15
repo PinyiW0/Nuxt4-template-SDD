@@ -32,13 +32,13 @@
 ### 1.5 讀寫沒分離
 
 - 症狀:寫入(POST/PATCH/DELETE)用了 `useFetch`,或讀取在事件中用 `$fetch` 混用
-- 依據:`CLAUDE.md` 關鍵規則
+- 依據:`.claude/rules/code-quality.md`(讀寫分離與型別安全)
 - 規則:讀取用 `useFetch`,寫入用 `$fetch`
 
 ### 1.6 globalThis.$fetch 繞型別
 
 - 症狀:出現 `globalThis.$fetch` 規避型別檢查
-- 依據:`CLAUDE.md` 關鍵規則
+- 依據:`.claude/rules/code-quality.md`(讀寫分離與型別安全)
 - 規則:禁止,改用 typed `$fetch`
 
 ## 2. Nuxt 4 行為(nuxt skill 為 3.x,以下以 Nuxt 4 為準)

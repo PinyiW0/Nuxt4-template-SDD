@@ -25,7 +25,7 @@
 ## 三、誠實聲明：信心最低的產出與原因
 
 1. **升降級路徑的具體數字**（錯 1 次升級、同任務 2 輪上限）——是合理判斷值，不是實證數據。用幾輪後若發現太嚴或太鬆，直接改 [model-dispatch.md](model-dispatch.md) 並記錄理由。
-2. **model 對照表的任務分派**——「sonnet 做實作夠用」基於一般經驗，未在本專案 A/B 實測。本專案有 dogfood 傳統（見 memory）：拿真實任務跑，再校準。
+2. **model 對照表的任務分派**——「sonnet 做實作夠用」基於一般經驗，未在本專案 A/B 實測。本專案有 dogfood 傳統：拿真實任務／真實 spec 跑過再校準，別只信自製案例（教訓原文在使用者層記憶，不隨 repo）。
 3. **新增 rules 檔的 paths 觸發未實測**——`vibe-ui.md`、`frozen-paths.md`、`framework-skills.md` 是照專案既有 rules 的 frontmatter 慣例寫的，但「碰到對應路徑時真的會自動載入」這件事 read-back 驗不了，只能等實際 session 碰到才知道。**下次改 UI 檔時請觀察守則是否自動出現**；沒出現就是消費點斷了，把內容併回 `ui-conventions.md`（它已被驗證會觸發）。
 4. **「被導向 Opus 4.8 的請求是否消耗本窗口額度」——完全未確認**。harness 不暴露計費資訊。建議使用者到 usage 儀表板實測後，把答案補進這份檔案。
 5. **Agent tool 無 effort 參數**是 2026-07-05 的 tool schema 事實；harness 隨時可能加上。健檢時重查。
