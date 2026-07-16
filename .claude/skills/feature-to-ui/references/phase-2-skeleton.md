@@ -5,17 +5,14 @@
 ```
 僅需讀取：
 - spec/report/route-map.yaml（`/feature-to-api` Phase 0 產生的路由對照表）
-- rules.md [P2] 段落（testid 規範）
-
-若存在，額外讀取（testid 來源）：
-- spec/e2e-flows/pages/*.elements.md（各頁面的 testid 定義）
 
 Sync 模式額外讀取：
 - spec/report/sync-report.md（變更報告的「路由變更」段落）
 ```
 
-> ⚠️ 若 `pages/*.elements.md` 存在（選配：目前無 skill 產出此檔），頁面骨架的 `data-testid` **必須**使用該檔案定義的 testid，不可自行命名。
-> 若不存在，按 [rules.md](rules.md) > testid 規範 的命名規則自行定義。
+> ⚠️ **Phase 2 不產 testid**。骨架只給語意結構（`<h1>` 標題、`<main>`/`<section>` 語意標籤、可見文字），testid 留給 Phase 5 依 `.spec.ts` 合約逐字複製。
+>
+> **為什麼**：主 spec 依 v2 規範不用容器／表單欄位 testid（見 SSOT [testid-conventions.md](../../feature-to-flow/references/testid-conventions.md) 的禁止清單），所以 Phase 2 自創的 `{page}-page` 這類 testid **在生成的當下就註定不在合約白名單內**，只會變成 `/vibe-e2e` 抓的孤兒（`orphan-testid`）與日後的 dead testid 存量。需要新的合約定位點時走 `.flow.md` → `/test e2e spec` 重生流程，不在此自創。
 
 ---
 
@@ -67,12 +64,9 @@ Phase 2 增量更新完成
 2.5. **RBAC route guard（條件式）**：檢查 `route-map.yaml > rbac.protected_routes`
    - **無 `rbac` 區塊 / 無 `protected_routes`** → 跳過，本專案不做角色路由守門
    - **有 `protected_routes`** → 確保 `app/middleware/rbac.global.ts` 存在（範本見下方「RBAC route guard 範本」），並建立守門目標頁空殼（如 `/403`，若 `route-map.routes` 未含則一併補一個 `app/pages/403.vue` 空殼）。角色名用 `rbac` 實際值、不寫死。入口 / 操作鈕的角色隱藏由 Phase 5 依 [rules.md](rules.md)「角色導向 UI 可見性」實作。
-3. **檢查 `spec/e2e-flows/pages/` 是否存在 elements.md 檔案**
-   - 存在 → 讀取對應頁面的 elements.md，提取 testid
-   - 不存在 → 按命名規則定義 testid
-4. **根據路由規劃建立所有頁面空殼**（帶入 testid）
-5. **每個頁面只包含基本結構**
-6. **詢問用戶確認**
+3. **根據路由規劃建立所有頁面空殼**（**不帶 testid**，見上方必讀規範）
+4. **每個頁面只包含基本結構**：語意標籤（`<main>`／`<section>`）＋ `<h1>` 頁面標題，讓後續 Phase 5 有語意 anchor 可用
+5. **詢問用戶確認**
 
 ## 頁面空殼範例
 
@@ -94,15 +88,17 @@ if (import.meta.client) {
 
 ```vue
 <!-- app/pages/login.vue -->
+<!-- 空殼給語意 anchor（<main> + <h1>），不給容器 testid -->
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
 </script>
 
 <template>
-  <div data-testid="login-page">
+  <main>
+    <h1>登入</h1>
     <!-- Phase 5 實作：登入表單 -->
     <p class="text-neutral-500">登入頁面（待實作）</p>
-  </div>
+  </main>
 </template>
 ```
 
@@ -113,10 +109,11 @@ definePageMeta({ layout: 'default' })
 </script>
 
 <template>
-  <div data-testid="teams-page" class="flex h-full flex-col">
+  <main class="flex h-full flex-col">
+    <h1>球隊列表</h1>
     <!-- Phase 5 實作：球隊列表 -->
     <p class="text-neutral-500">球隊列表頁面（待實作）</p>
-  </div>
+  </main>
 </template>
 ```
 
@@ -130,12 +127,15 @@ const teamId = computed(() => route.params.id)
 </script>
 
 <template>
-  <div data-testid="team-detail-page" class="flex h-full flex-col">
+  <main class="flex h-full flex-col">
+    <h1>球隊詳情</h1>
     <!-- Phase 5 實作：球隊詳情 -->
     <p class="text-neutral-500">球隊詳情頁面 #{{ teamId }}（待實作）</p>
-  </div>
+  </main>
 </template>
 ```
+
+> `<h1>` 的可見文字就是 Phase 5 / spec 用來定位頁面的語意 anchor（`page.getByRole('heading', { name: /球隊列表/ })`）——比 `teams-page` 容器 testid 更穩、且不需要進合約白名單。
 
 ## Auth middleware 範本（僅 `route-map.auth.required` 時產出）
 

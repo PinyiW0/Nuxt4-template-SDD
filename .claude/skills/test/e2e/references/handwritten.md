@@ -106,17 +106,17 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('accounts | esc 關閉建立帳號 modal', () => {
   test('開啟 modal 後按 Esc 關閉', async ({ page }) => {
-    // Given
+    // Given —— 語意 locator：按鈕用 role+name、modal 用 dialog role
     await login(page, 'admin', 'admin888')
     await page.goto('/accounts', { waitUntil: 'networkidle' })
-    await page.getByTestId('account-create-button').click()
-    await expect(page.getByTestId('account-create-modal')).toBeVisible()
+    await page.getByRole('button', { name: /新增帳號/ }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
 
     // When
     await page.keyboard.press('Escape')
 
     // Then
-    await expect(page.getByTestId('account-create-modal')).not.toBeVisible()
+    await expect(page.getByRole('dialog')).not.toBeVisible()
   })
 })
 
@@ -134,7 +134,7 @@ test.describe('accounts | <下一個主題>', () => {
 3. **純展示變動不寫**：色、文字、icon、間距不該綁死，會卡死後續微調
 4. **業務邏輯變動不寫**：回報「這應改 flow.md 重生 spec」，handwritten 不補救
 5. **同頁同檔**：合併到單一 .spec.ts，多 describe，便於檢視
-6. **只用 testid 與 `data-*`**：禁止用文字/class/selector 定位
+6. **語意 locator 優先，testid 是 fallback**：先用 `getByRole` + accessible name、`getByLabel`、可見文字；只有語意無法消歧時才用 testid，且**限用主 spec 合約白名單內既有的 testid**，不自創（自創 = 孤兒，見 `vibe-e2e/SKILL.md` 的 `orphan-testid`）。規範 SSOT 見 [testid-conventions.md](../../../feature-to-flow/references/testid-conventions.md)。禁止用 class / CSS selector 定位（那才是真的會被 vibe 改壞的東西）
 7. **不要動 spec/flow**：和 green phase 一樣，這是合約
 
 ---

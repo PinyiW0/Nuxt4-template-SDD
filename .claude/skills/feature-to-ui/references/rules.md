@@ -410,22 +410,14 @@ icon 與文字並排，或 icon + `<span class="sr-only">` 保留文字給 scree
 
 ## testid 規範 `[P2, P5]`
 
-### 來源優先級
+> **testid 命名規範的 SSOT 是 [`feature-to-flow/references/testid-conventions.md`](../../feature-to-flow/references/testid-conventions.md)**（優先序、允許清單、禁止清單、命名格式全在該檔）。本節不重列規則——雙寫必漂移。
 
-- **Phase 5**：直接從 `test/e2e/specs/*.spec.ts` 的 `getByTestId()` 複製（唯一來源，不讀 elements.md）
-- **Phase 2**：`spec/e2e-flows/pages/{page}.elements.md`（若存在）→ 下方命名規則（備用）
+**本 skill 要遵守的兩條**：
 
-### 命名格式：`{page}-{element}`
+- **testid 是 fallback，不是預設**：優先給語意 anchor（role + accessible name、label、可見文字）。只有在 SSOT 的「允許清單」情境（role+name 無法消歧、純樣式元素無語意角色、動態狀態屬性）才用 testid
+- **Phase 5 的 testid 唯一來源是 `test/e2e/specs/*.spec.ts`**：spec 用到 `getByTestId` 之處逐字複製，spec 沒用到就不要自己加。**禁止越權**——合約外的 testid 會被 `/vibe-e2e` 判為孤兒（`vibe-e2e/SKILL.md` 的 `orphan-testid`）
 
-| 類型 | 範例 |
-|------|------|
-| 頁面容器 | `teams-page` |
-| 輸入欄位 | `team-name` |
-| 按鈕 | `team-create`, `team-save`, `team-edit`, `team-delete` |
-| 列表 | `team-list` |
-| 確認彈窗 | `confirm-modal`, `confirm-ok`, `confirm-cancel` |
-
-> 確認彈窗 testid 以 `spec/e2e-flows/_common.flow.md` 為準。
+> SSOT 明文**禁止**的幾類（別再產）：`{page}-page` 容器 testid、`{entity}-{field}-input` 等表單欄位 testid（用 `getByLabel(/欄位名/)` 找）、column-level testid。理由與反例見 SSOT 的「禁止清單」段。
 
 ---
 

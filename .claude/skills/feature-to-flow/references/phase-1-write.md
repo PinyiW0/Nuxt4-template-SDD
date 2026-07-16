@@ -272,10 +272,14 @@ v2 用不同機制達成同樣目的：
 
 每份 `.flow.md` 必須有：
 
-- 一級標題 `# Flow: {module 中文名}` 與檔頭引用（`> 對應規格：spec/gherkin-feature/{filename}.feature`）
+- 一級標題 `# Flow: {module 中文名}`
+- 檔頭引用 `> 對應規格：spec/gherkin-feature/{file-a}.feature, spec/gherkin-feature/{file-b}.feature`——**允許列多個來源檔**（逗號分隔）：整併多個逐 feature 檔時全數列出；來源是單一大檔（一檔含多個 `Feature:` 區塊）時列該檔即可
+- 檔頭引用 `> 涵蓋頁面：/route-a, /route-b`——本模組涉及的所有 route
 - `## Background` 區塊（共用前置條件，例如「已登入」、「測試帳號 admin」）
 - `## Business Invariants` 區塊（合約核心，意圖層描述）
 - 檔尾視需要加 `## Selector 策略` 與 `## Mock 假設`
+
+> **這兩行檔頭是下游的結構化對應橋，不是裝飾**：`/test e2e spec` Step 2a 依 `對應規格` 定位來源 feature 與 Background、`/sdd-status` 依 `對應規格` ＋ `涵蓋頁面` 做模組 ↔ route-map 對應。漏列或省略會讓下游退回檔名／slug 猜測，造成對應判定缺漏（`auth↔login/register` 這類名字對不上的模組會被誤判成「缺」）。
 
 > 完整骨架見 [flow-template.md](flow-template.md)
 

@@ -156,6 +156,7 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
    - **讀取該頁面用到的 `types/api/` 型別定義**：頁面必須 import 使用，禁止定義 local interface
    - **讀取該頁面用到的共用元件原始碼**（`app/components/common/*.vue`）：確認 props、slots、events 簽名
    - **讀取 Pinia store 原始碼**（若頁面需要）：確認 store 提供的方法和屬性
+   - **條件式領域知識**：查 `spec/report/route-map.yaml`——本頁涉及 `realtime` 區塊 → 先執行 `/realtime`；涉及 `streaming` 區塊 → 先執行 `/streaming`。**載入後依其鐵律實作，不可憑記憶自己寫** EventSource／WebSocket／hls.js 掛載（連線 cleanup、看門狗、teardown 這類坑正是該 skill 存在的理由）。無對應區塊則跳過
 3. **⚠️ 實作前對照表（必須在寫 code 之前輸出！）**
    - 從 spec 的 `test.describe` / `test()` 標題提取 Scenario 清單
    - 比對 spec 互動模式 → UI 元件（**必須**查 [page-builder.md](page-builder.md) Command 對照表）

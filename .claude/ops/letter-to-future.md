@@ -34,5 +34,5 @@
 
 1. 讀 `.claude/CLAUDE.md`（自動載入）＋這封信
 2. 開工前照 [model-dispatch.md](model-dispatch.md) 分派；拿不定主意查 [judgment-rubrics.md](judgment-rubrics.md)
-3. 隨做隨存——你隨時可能被 compact，存了檔的才是全部
+3. 隨做隨存——你隨時可能被 compact，存了檔的才是全部（判準見 [model-dispatch.md](model-dispatch.md) 第 7 節）
 4. 完成前跑 [maintenance.md](maintenance.md) 第 3 節路由驗證

@@ -260,6 +260,8 @@ const totalItems = computed(() => items.value.length)
 </UModal>
 ```
 
+> 確認彈窗的 `confirm-*` testid 對應 `_common.flow.md` 的共用約定（`test/e2e/helpers` 的 `confirmDelete` 依賴它）。v2 的 spec 預設改用 `maybeConfirm`（`getByRole('dialog')` + 動詞 regex），該路徑不需要這些 testid——UModal 本身已提供 `dialog` role。
+
 ---
 
 ## 空狀態
