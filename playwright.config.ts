@@ -18,6 +18,10 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${devPort}`
 
 export default defineConfig({
   testDir: './test/e2e/specs',
+  // 收檔規則與 gate config 對齊（gate 的 'specs/**/*.spec.ts' 等價，其 testDir 高一層）：
+  // 預設 testMatch 會連 *.test.ts / *.spec.js 一起收，gate 只收 *.spec.ts —— 兩邊集合不同時，
+  // 放在凍結合約區的測試檔可能主 config 跑得到、守門卻收不到（gate 是 /vibe-check + pre-push + CI 的唯一入口）
+  testMatch: '**/*.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
