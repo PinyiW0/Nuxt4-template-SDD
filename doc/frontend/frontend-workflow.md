@@ -131,7 +131,7 @@ server/
 
 ### 定位
 
-測試合約是 UI 的**驗收標準**。spec 定義了每個 testid、互動模式、斷言預期。Phase C 的 UI 就是為了通過這些 spec 而建。
+測試合約是 UI 的**驗收標準**。spec 定義了 locator（語意 anchor 為主、testid 為 fallback）、互動模式、斷言預期。Phase C 的 UI 就是為了通過這些 spec 而建。
 
 ### 流程
 
@@ -190,20 +190,20 @@ nuxt.config.ts           # SEO meta
 
 **輸入**：`route-map.yaml`
 
-**做什麼**：依照路由對照表，建立所有頁面的**空殼**（只有 template 佔位和 testid）。
+**做什麼**：依照路由對照表，建立所有頁面的**空殼**（語意結構佔位，**不含 testid**）。
 
 **產出**：
 ```
 app/pages/
 ├── index.vue              # 根路由（client-side redirect）
 └── {resource}/            # 依 route-map.yaml 規劃建立
-    ├── index.vue          #   列表頁空殼（含 testid）
+    ├── index.vue          #   列表頁空殼（<main> + <h1>，不含 testid）
     └── [id].vue           #   詳情頁空殼（若有）
 ```
 
 **關鍵規則**：
 - 根路由 `/` 必建（使用 `navigateTo` redirect，禁止 HTTP redirect）
-- testid 若有 `*.elements.md` 以該檔為準
+- **Phase 2 不產 testid**——空殼只給語意 anchor（`<main>`、`<h1>` 可見文字）；testid 留到 Phase 5 依 `.spec.ts` 合約逐字複製。規範 SSOT 見 `.claude/skills/feature-to-flow/references/testid-conventions.md`
 - 一個頁面可對應多個 feature
 
 ### Phase 3 — Layout 建置

@@ -188,8 +188,8 @@ E2E 綠燈報告：{NN}-{name}
 
   修復摘要：
   1. app/pages/teams/index.vue
-     - L15: 加 data-testid="teams-page"
-     - L32: 加 data-testid="team-row"
+     - L15: 補 <h1>球隊列表</h1>（spec 用 getByRole('heading') 定位）
+     - L32: row 補上球隊名稱可見文字（spec 用 getByRole('row', { name }) 收窄）
   2. server/mock/data/teams.ts
      - L8: 修正球隊數量為 2
 
@@ -248,33 +248,42 @@ E2E 綠燈批次報告：01 → 05
 
 ## 修復規範
 
-### data-testid 加法
+### 補語意 anchor（最安全的修法，優先於 testid）
+
+spec 找不到元素時，先問「使用者怎麼找到它？」，把那個答案做進 UI，而不是加 testid。
 
 ```vue
-<!-- ❌ 不要改結構 -->
-<div>
-球隊列表
+<!-- ❌ 加容器 testid：SSOT 禁止的形式，且不在合約白名單 → 孤兒 -->
+<div data-testid="teams-page">
+  球隊列表
 </div>
 
-<!-- ✅ 只加 testid -->
-<div data-testid="teams-page">
-球隊列表
-</div>
+<!-- ✅ 補語意 anchor：spec 用 getByRole('heading', { name: /球隊列表/ }) 就找得到 -->
+<main>
+  <h1>球隊列表</h1>
+</main>
+
+<!-- ✅ 按鈕：可見文字或 aria-label 即 accessible name -->
+<UButton aria-label="刪除球隊">
+  <UIcon name="i-heroicons-trash" />
+</UButton>
 ```
 
-### UTable 行 testid
+### 列／實體的定位
 
 ```vue
-<!-- 在 UTable 的 row 模板中加 testid -->
+<!-- ✅ 預設：row 內含可識別的業務文字，spec 用 getByRole('row', { name: /陳小明/ }) 收窄 -->
 <template #row="{ row }">
-  <tr data-testid="team-row">
-    ...
+  <tr>
+    <td>{{ row.name }}</td>
   </tr>
 </template>
 ```
 
-> 注意：Nuxt UI v3 的 UTable 結構可能需要用 slot 自訂行模板，
-> 或在 cell 級別加 testid。先檢查現有 UTable 用法再決定。
+> **只有在 spec 斷言用的是 flow 授權的 fallback testid、而 UI 缺它時**，才補該 testid（businessId 不可見／同名碰撞／同實體多處呈現三種情境，見 SSOT [testid-conventions.md](../../../feature-to-flow/references/testid-conventions.md)）。**逐字照 spec 補，不自創**——green 階段自創 testid 等於把測試需求洩漏回 UI 合約。
+
+> 注意：Nuxt UI v3 的 UTable 可能需要用 slot 自訂行模板，才能讓 row 帶上可識別的業務文字。
+> **不要用 cell 級 testid 解決**——column-level testid 是 SSOT 明文禁止的形式（欄位呈現方式是 vibe 可動空間，凍結它等於凍結 UX）。先檢查現有 UTable 用法再決定。
 
 ### Mock 資料修正
 

@@ -1,6 +1,9 @@
 # data-testid 命名規則（v2）
 
-`.flow.md` 內**如需使用** `data-testid`（fallback 場景）必須遵守此規則。後續 `/feature-to-ui` 產出 UI 時也以此為準。
+> **本檔是 testid 規範的 SSOT / 契約**——全 repo 對「testid 該不該用、該長怎樣」只有這一份權威。
+> 消費端（`/feature-to-flow` 寫 flow、`/feature-to-ui` 產 UI、`/test e2e` 產 spec、`/vibe-e2e` 推 locator）一律指讀本檔，不自帶第二套命名規則。改本檔前先想清楚：下游全部照這裡走。
+
+`.flow.md` 內**如需使用** `data-testid`（fallback 場景）必須遵守此規則。後續 `/feature-to-ui` 產出 UI、`/test e2e` 產 spec 時也以此為準。
 
 ---
 

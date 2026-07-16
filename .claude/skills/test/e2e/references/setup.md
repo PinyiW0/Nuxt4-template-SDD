@@ -141,22 +141,32 @@ import { expect } from '@playwright/test'
 /**
  * 登入操作（對應 _common.flow.md「{role} "{account}" 已登入」）
  * ⚠️ 等待條件：離開 /login 頁面（不寫死目標 URL，因為根路由可能 redirect）
+ * v2：表單欄位用 label、送出鈕用 role+name 定位（testid 是 fallback，此處語意 anchor 足夠）。
+ * label／按鈕文案依該專案 login 頁調整——UI 側範本見 feature-to-ui/references/page-builder.md「登入表單」。
+ *
+ * ⚠️ getByLabel 用 `exact: true` 不用 regex：Playwright 的 getByLabel 對**任何**帶 aria-label 的元素
+ * 都會回傳該值（不限 form control）。密碼欄內的「顯示/隱藏密碼」切換鈕 aria-label 含「密碼」，
+ * 用 /密碼/ 會同時命中 input 與該按鈕 → strict mode violation（實測 count=2）。exact 匹配可避開；
+ * UFormField required 的 `*` 是 CSS pseudo，不計入 accessible name，故 exact 安全。
  */
 export async function login(page: Page, account: string, password: string) {
   await page.goto('/login', { waitUntil: 'networkidle' })
-  await page.getByTestId('login-account').fill(account)
-  await page.getByTestId('login-password').fill(password)
-  await page.getByTestId('login-submit').click()
+  await page.getByLabel('帳號', { exact: true }).fill(account)
+  await page.getByLabel('密碼', { exact: true }).fill(password)
+  await page.getByRole('button', { name: /登入/ }).click()
   await page.waitForURL(url => !url.pathname.startsWith('/login'))
 }
 
-/** USelect 操作：click 打開 → 選擇 option */
+/** USelect 操作：click 打開 → 選擇 option（testId 為 flow 授權的 fallback testid） */
 export async function selectOption(page: Page, testId: string, optionName: string) {
   await page.getByTestId(testId).click()
   await page.getByRole('option', { name: optionName }).click()
 }
 
-/** 確認彈窗：等待出現 → 點擊確認（對應 _common.flow.md 確認彈窗 testid） */
+/** 確認彈窗：等待出現 → 點擊確認（對應 _common.flow.md 確認彈窗 testid）
+ * ⚠️ v2 預設用 `maybeConfirm`（dialog scope + 動詞 regex，見 spec.md）；
+ * 本 helper 僅用於 flow 明示 testid 的 entity。
+ */
 export async function confirmDelete(page: Page) {
   await expect(page.getByTestId('confirm-modal')).toBeVisible()
   await page.getByTestId('confirm-ok').click()

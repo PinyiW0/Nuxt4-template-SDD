@@ -58,6 +58,8 @@ git diff <base> -- app/pages/ app/components/ app/layouts/
 
 ### Step 2.5：testid 合約對照
 
+> 本步驟是**執行時的動態判準**（白名單 grep），與靜態命名規範正交——命名規範 SSOT 見 [testid-conventions.md](../feature-to-flow/references/testid-conventions.md)。
+
 從 `test/e2e/specs/*.spec.ts` 提取所有 `getByTestId('xxx')` 字串集合 = **合約 testid 白名單**：
 
 ```bash

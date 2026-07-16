@@ -32,6 +32,12 @@ paths:
 | 自創字級（`text-[13px]` 任意值、未定義具名 token） | 依 `spec/ui-config/visual-hierarchy.md` 字級三層規則 |
 | 一頁多個大標題互搶焦點 | 頁面主標一頁一個，層級見 `visual-hierarchy.md` 文字層級表 |
 | 按鈕尺寸不依情境 | 依 `visual-hierarchy.md` 按鈕尺寸對照（列內 `xs`、工具列 `sm`、表單 `md`） |
+| **自創 `data-testid`**（含 `{page}-page` 容器、`{entity}-{field}-input` 表單欄位） | 優先給語意 anchor：按鈕可見文字／`aria-label`、表單用 `<label>`（`UFormField label`）、區塊用 `<section aria-labelledby>`。testid 只在主 spec 合約已有時逐字沿用——規範 SSOT 見 `.claude/skills/feature-to-flow/references/testid-conventions.md` |
+
+## testid
+
+**testid 是 fallback 不是預設**，且**合約外的 testid 一律不自創**（會被 `/vibe-e2e` 判為孤兒）。
+完整優先序、允許清單、禁止清單、命名格式：`.claude/skills/feature-to-flow/references/testid-conventions.md`（SSOT，本檔不重列）。
 
 ## 設定來源
 

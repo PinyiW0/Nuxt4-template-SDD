@@ -16,7 +16,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
        ↓
 /feature-to-flow → .flow.md（business invariant + UX-agnostic E2E 流程）
        ↓
-/feature-to-api  → types + mock API
+/feature-to-api  → types + mock API + client API（app/api/*.api.ts，前端呼叫 API 的唯一入口）
        ↓
 /test e2e spec   → .spec.ts（測試合約）
        ↓
@@ -28,12 +28,13 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 - **spec 變更迭代流**（後端更新 api-spec 時）：新 `api-spec` 置入 → `/feature-to-api`（Sync）→ `/test e2e spec` → `/feature-to-ui`（Sync）→ `/test e2e green` → Gate 回歸。詳見 `.claude/skills/feature-to-api/references/openapi-codegen.md`
 - **條件式跨切面關注點**（auth / realtime / streaming / rbac，偵測到才生）：由 `/feature-to-api` Phase 0 偵測寫入 `route-map.yaml`。rbac 合約見 `.claude/skills/feature-to-api/references/rbac-scaffold.md`；角色名一律從 spec 萃取、不寫死
 - **多 session 並行**：一個 issue 一個 git worktree，E2E port 自動推導不互撞。詳見 README「多 issue 並行開發」
+- **與 `/sdd-status` 七站的粒度差異**：上圖是**流程**粒度（六格），`/sdd-status` 是**盤點**粒度（七站）。對應關係：`/feature-to-api` 一格涵蓋站 3–5（API 合約／Mock/Server／Client API），`/feature-to-ui` ＋ `/test e2e green` 兩格合為站 7（UI/Green）。刻意不同粒度，不是漏畫
 
 ## 紅線（一律生效）
 
 - `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/` 凍結——PreToolUse hook 強制擋既有檔修改（含 subagent；新增放行），處理方式見 `rules/frozen-paths.md`（唯讀不受限）
 - 修改 UI 檔案時遵守 `rules/vibe-ui.md`（Business Invariants 不可破壞）
-- 完成程式碼修改後必跑 `npm run eslint` + `npm run typelint`；vibe 完 commit 前必跑 gate config
+- 完成程式碼修改後必跑 `npm run eslint` + `npm run typelint`；**動到 `app/`／`server/`**（含 vibe）commit 前必跑 gate config；動到 `.vue`／store／server 且非純格式時另跑 `/sdd-review`。完整分層與門檻見 `ops/judgment-rubrics.md` 第 2、5 節
 
 ## 可用指令
 
@@ -42,7 +43,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 | `/new-issue` | 建 issue + 綁定 linked 分支 | gh 已認證 |
 | `/sdd-status` | 唯讀盤點 SDD 七站進度＋建議下一步 | 無 |
 | `/feature-to-flow` | Feature → `.flow.md` | `.feature` 已放入 `spec/gherkin-feature/` |
-| `/feature-to-api` | Feature → 型別 + Mock API | `.flow.md` 已放入 `spec/e2e-flows/` |
+| `/feature-to-api` | Feature → 型別 + Mock API + Client API | `.flow.md` 已放入 `spec/e2e-flows/` |
 | `/feature-to-ui` | Feature → 完整 UI 畫面 | `/feature-to-api` 已完成 |
 | `/test e2e` | E2E 測試開發流程 | `.flow.md` 已放入 `spec/e2e-flows/` |
 | `/vibe-check` | Gate 守門（主 spec + vibe spec） | vibe 完 UI 後、commit 前 |
@@ -59,7 +60,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 | 檔案 | 內容 | 載入時機 |
 |------|------|----------|
-| [ops/model-dispatch.md](ops/model-dispatch.md) | 模型調度：交辦三要素、model/effort 指定、升降級、回報合約 | 要派 subagent 或多步驟任務開工前 |
+| [ops/model-dispatch.md](ops/model-dispatch.md) | 模型調度：**指揮官不下場**、交辦三要素、model 指定、升降級、回報合約、**驗證不自驗**、**隨做隨存** | 要派 subagent 或多步驟任務開工前 |
 | [ops/judgment-rubrics.md](ops/judgment-rubrics.md) | 判斷 rubric：何時升級／算完成／停下來問／換路／驗品質 | 拿不定主意時 |
 | [ops/delegation-templates.md](ops/delegation-templates.md) | 交辦 prompt 範本（搜尋/實作/重構/研究/審查） | 撰寫 subagent prompt 時 |
 | [ops/maintenance.md](ops/maintenance.md) | 維護協議：哪些檔可自改、教訓寫回哪、精簡時機 | 要改 .claude/ 下任何檔前 |
@@ -84,9 +85,13 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 ## 專案結構
 
+> 部分目錄由 SDD 指令產出後才出現（見各行註解）；模板初始狀態沒有它們是正常的。
+
 ```
 app/
+├── api/                        # 前端 client 包裝層（*.api.ts；/feature-to-api 產出，呼叫 API 的唯一入口）
 ├── components|layouts|pages/   # UI（vibe 守則管轄）
+├── composables/                # useHttp（client 層的統一 HTTP 入口）
 ├── stores/                     # Pinia stores
 └── types/api/                  # API 合約型別（/feature-to-api 產出）
 server/

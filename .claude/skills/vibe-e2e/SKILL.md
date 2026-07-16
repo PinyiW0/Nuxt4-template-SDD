@@ -198,6 +198,8 @@ vibe 改動的互動/結構驗證通過，可以 commit。
 
 ## Locator 推測規則
 
+> 本表是**推測 locator 的執行規則**；testid 該不該用、該長怎樣的規範 SSOT 見 [testid-conventions.md](../feature-to-flow/references/testid-conventions.md)。
+
 從 diff hunk 提取：
 
 | 來源 | 推測規則 |

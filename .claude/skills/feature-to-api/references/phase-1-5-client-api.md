@@ -52,6 +52,8 @@ useHttp().post/put/patch/delete ← 寫入，$fetch，回 Promise
 ## 函式命名規則
 
 > ⚠️ 以下範例一律用**假想的 notes 領域**（notebooks / notes / members / tags / attachments）示意，**不是本專案的實際端點**。實際產出以 `route-map.yaml > api_contract.endpoints` 為準，禁止照抄範例路徑。
+>
+> **唯一例外**：`/auth/login`（見下方命名表與「登入端點」段）刻意沿用跨專案通用的登入慣例，因此與 `spec/api/api-spec.yml` 的實際端點同名。它示範的是**命名規則**（`login{Subject}`），不是本專案的授權模型——實際路徑仍以 `route-map.yaml` 為準。
 
 | Endpoint pattern | Function name | 範例 |
 |---|---|---|

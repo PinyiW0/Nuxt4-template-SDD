@@ -193,9 +193,10 @@ const { data: teams, status } = listTeams({ key: 'teams', lazy: true })
 
 ## testid
 
-> **Phase 5**：直接從 `.spec.ts` 的 `getByTestId()` 複製，不自行推導。
-> **Phase 2**：使用 `elements.md` 或 [rules.md](rules.md) > testid 規範。
-> 列表內的按鈕（如 `team-delete`）可重複，E2E 用 `first()`, `nth()`, `hasText` 定位。
+> **Phase 5**：直接從 `.spec.ts` 的 `getByTestId()` 複製，不自行推導；spec 沒用到就不加。
+> **Phase 2**：**不產 testid**（骨架只給語意結構，見 [phase-2-skeleton.md](phase-2-skeleton.md)）。
+> 規範 SSOT：[testid-conventions.md](../../feature-to-flow/references/testid-conventions.md)。
+> 列表內重複的按鈕優先用語意收窄（`getByRole('row', { name: /陳小明/ }).getByRole('button', { name: /刪除/ })`），而非替每列產 testid。
 
 ---
 
@@ -250,7 +251,6 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   <UForm
     :schema="schema"
     :state="state"
-    data-testid="login-form"
     class="mx-auto w-full max-w-sm space-y-4"
     @submit="onSubmit"
   >
@@ -260,7 +260,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       class="relative mb-8"
       :ui="{ error: 'absolute top-full left-0 mt-1' }"
     >
-      <UInput v-model="state.account" data-testid="login-account" class="w-full" />
+      <UInput v-model="state.account" class="w-full" />
     </UFormField>
     <UFormField
       label="密碼"
@@ -270,7 +270,6 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     >
       <UInput
         v-model="state.password"
-        data-testid="login-password"
         :type="showPassword ? 'text' : 'password'"
         class="w-full"
       >
@@ -280,17 +279,24 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
             color="neutral"
             variant="link"
             size="sm"
+            :aria-label="showPassword ? '隱藏密碼' : '顯示密碼'"
             @click="showPassword = !showPassword"
           />
         </template>
       </UInput>
     </UFormField>
-    <UButton type="submit" data-testid="login-submit" :loading="isSubmitting" block>
+    <UButton type="submit" :loading="isSubmitting" block>
       登入
     </UButton>
   </UForm>
 </template>
 ```
+
+> **不放 testid 是刻意的**：`UFormField` 的 `label` 已把 `帳號`／`密碼` 綁成 accessible name（`<label for>` 關聯），送出鈕有可見文字「登入」——`test/e2e/helpers` 的 `login()` 用 `getByLabel('帳號', { exact: true })` ＋ `getByRole('button', { name: /登入/ })` 就定位得到（見 [setup.md](../../test/e2e/references/setup.md)）。表單欄位 testid 是 SSOT [testid-conventions.md](../../feature-to-flow/references/testid-conventions.md) 明文禁止的形式。
+>
+> ⚠️ **欄位內 icon 按鈕的 `aria-label` 不得包含該欄位的 label 字串**。Playwright 的 `getByLabel` 對任何帶 `aria-label` 的元素都會回傳該值（不限 form control），所以密碼欄配上 `aria-label="顯示密碼"` 時，`getByLabel(/密碼/)` 會同時命中 input 與該按鈕 → strict mode violation（實測 count=2）。上面範本用 `顯示密碼`／`隱藏密碼` 是為了 a11y 可讀性，因此 `login()` 端**必須**用 `exact: true` 匹配；若你改用 regex 匹配，就要把 aria-label 換成不含「密碼」的字（如 `切換顯示`）。
+>
+> **改動此範本的 label／按鈕文案時，要同步 `setup.md` 的 `login()` helper**——兩者是一對耦合。
 
 ### 一般表單
 
@@ -338,18 +344,17 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   <UForm
     :schema="schema"
     :state="state"
-    data-testid="login-form"
     class="space-y-4"
     @submit="onSubmit"
   >
     <!-- UFormField 用法依 /nuxt-ui MCP 文檔為準 -->
+    <!-- 不放 testid：label 與按鈕文字即 accessible name，helpers 的 login() 靠它定位 -->
     <UFormField
       label="帳號"
       name="account"
     >
       <UInput
         v-model="state.account"
-        data-testid="login-account"
         class="w-full"
       />
     </UFormField>
@@ -359,14 +364,12 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     >
       <UInput
         v-model="state.password"
-        data-testid="login-password"
         type="password"
         class="w-full"
       />
     </UFormField>
     <UButton
       type="submit"
-      data-testid="login-submit"
       :loading="loading"
     >
       登入
@@ -393,7 +396,6 @@ const showPassword = ref(false)
   >
     <UInput
       v-model="state.password"
-      data-testid="login-password"
       :type="showPassword ? 'text' : 'password'"
       class="w-full"
     >
@@ -404,6 +406,7 @@ const showPassword = ref(false)
           variant="link"
           size="sm"
           :padded="false"
+          :aria-label="showPassword ? '隱藏密碼' : '顯示密碼'"
           @click="showPassword = !showPassword"
         />
       </template>
