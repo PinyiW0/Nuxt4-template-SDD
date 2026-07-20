@@ -16,7 +16,17 @@ z40="0000000000000000000000000000000000000000"
 #   （E2E 守的是 UI 業務合約，git hook 邏輯不歸它守，故改 hook 不必跑 E2E）
 #   doc/ 整個目錄為純文件（含 .json metadata sidecar 等），不影響被測程式
 #   scripts/docker-gate.sh 是 gate 基礎設施本身，同 .husky/ 邏輯
-SKIP_PATTERN='(^|/)\.env($|\.)|\.md$|^docker-compose\.ya?ml$|^Dockerfile$|^\.dockerignore$|^\.gitignore$|^LICENSE$|\.txt$|(^|/)\.husky/|(^|/)doc/|^scripts/docker-gate\.sh$'
+#   i18n/locales/ 整目錄放行：E2E spec 全數跑在 defaultLocale（zh-TW）、斷言繁中業務文字，
+#   非預設語系檔（ja.json、en.json…）不影響測試結果；整目錄放行讓新增語系不必回來加 pattern。
+#   唯 defaultLocale 檔是斷言文案來源、視為程式碼，由下方 FORCE_TEST_PATTERN 拉回強制跑。
+#   模板尚無 i18n 目錄，pattern 先就位；導入 @nuxtjs/i18n（預設 restructureDir=i18n）後自動生效。
+#   ⚠️ 未來若新增「語言切換」E2E 測試情境，非預設語系檔也會影響測試 → 這條放行必須整個拿掉。
+SKIP_PATTERN='(^|/)\.env($|\.)|\.md$|^docker-compose\.ya?ml$|^Dockerfile$|^\.dockerignore$|^\.gitignore$|^LICENSE$|\.txt$|(^|/)\.husky/|(^|/)doc/|^scripts/docker-gate\.sh$|^i18n/locales/'
+
+# 強制跑清單（優先於 SKIP_PATTERN）：落在放行目錄內、但實質是「程式碼」的檔。
+# i18n defaultLocale（zh-TW）翻譯檔是 E2E 文字斷言的文案來源，改它可能改掉斷言目標。
+# 若 nuxt.config 的 defaultLocale 換了，這裡要同步改成新 defaultLocale 的檔名。
+FORCE_TEST_PATTERN='^i18n/locales/zh-TW\.json$'
 
 need_test=0
 
@@ -32,6 +42,11 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 
   files=$(git diff --name-only "$remote_sha" "$local_sha")
+  # 命中強制跑清單（defaultLocale 翻譯檔）→ 不看白名單，直接跑測試
+  if printf '%s\n' "$files" | grep -qE "$FORCE_TEST_PATTERN"; then
+    need_test=1
+    break
+  fi
   # 濾掉白名單後若仍有剩 → 有程式碼變更，需要跑測試
   # 注意：husky 以 `sh -e` 執行本檔，grep 全濾掉時回傳 1 會觸發 errexit，故加 || true
   remaining=$(printf '%s\n' "$files" | grep -vE "$SKIP_PATTERN" || true)
@@ -42,7 +57,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done
 
 if [ "$need_test" -eq 0 ]; then
-  echo "✅ 本次 push 只動到非程式碼檔（.env／docs／docker 等），不影響測試 → 跳過 gate spec。"
+  echo "✅ 本次 push 只動到非程式碼檔（.env／docs／docker／非預設語系翻譯檔等），不影響測試 → 跳過 gate spec。"
   exit 0
 fi
 
