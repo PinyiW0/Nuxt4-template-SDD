@@ -78,6 +78,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 | Vibe UI 守則 | [rules/vibe-ui.md](rules/vibe-ui.md) | 同上（paths 觸發；subagent 內不注入，2026-07-06 實測） |
 | 主 spec 凍結 | [rules/frozen-paths.md](rules/frozen-paths.md) | 修改凍結區時（hook 強制擋既有檔，含 subagent） |
 | 框架 skill 裁決 | [rules/framework-skills.md](rules/framework-skills.md) | 修改 .vue／store／composable 時（paths 觸發；subagent 內不注入，2026-07-06 實測） |
+| i18n 語系與 gate 政策 | [rules/i18n-locale-policy.md](rules/i18n-locale-policy.md) | 修改 i18n/ 翻譯檔或 .husky/pre-push 時（paths 觸發）；E2E 斷言以 defaultLocale zh-TW 為準 |
 | UI 設定 | `spec/ui-config/ui-config.yaml` | UI 實作時讀取 |
 | 視覺層級 | `spec/ui-config/visual-hierarchy.md` | UI 實作時讀取（feature-to-ui `@` 載入＋ui-conventions 指讀） |
 | 創意方向 | `spec/ui-config/creative-direction.md` | vibe 要求質感/風格/動畫、實作行銷頁 `(marketing)` 時讀取（vibe-ui＋ui-conventions 指讀） |
