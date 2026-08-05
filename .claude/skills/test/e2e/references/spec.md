@@ -22,8 +22,8 @@ v2 起，`.spec.ts` 從「testid 主導」改為「**business outcome 主導**�
 
 2. **role + name regex 為主要 locator**
    ```ts
-   page.getByRole('button', { name: /匯出.*(此次|單次|本練習)/ })
-   page.getByRole('row', { name: /FF/ })  // 找實體
+   page.getByRole('button', { name: /匯出.*(此次|單次|本觀測時段)/ })
+   page.getByRole('row', { name: /PER/ })  // 找實體
    ```
    name regex **列同義詞集合**（給 vibe 改措辭空間）。
 
@@ -83,7 +83,7 @@ v2 起，`.spec.ts` 從「testid 主導」改為「**business outcome 主導**�
 1. **一個 `.flow.md` 對應一個 `.spec.ts`**
 2. **不使用 quickpickle / Gherkin**：直接生成 Playwright `test.describe` / `test` 結構
 3. **共用操作從 helpers import**：login / selectOption / confirmDelete 不在 spec 內定義
-4. **Selector 策略以 `.flow.md` 為準（v2）**：flow 的「Selector 策略」/「Verification 策略」段授權使用哪些 locator 類型。flow 沒寫 testid 就不寫 testid 斷言；flow 用 invariant 表達就用 role/text/API spy 驗證。**禁止越權**：例如 flow 寫「pitch-001 可被識別」，spec 不得改寫成「`pitch-row-pitch-001` 包含 14 欄 testid 斷言」
+4. **Selector 策略以 `.flow.md` 為準（v2）**：flow 的「Selector 策略」/「Verification 策略」段授權使用哪些 locator 類型。flow 沒寫 testid 就不寫 testid 斷言；flow 用 invariant 表達就用 role/text/API spy 驗證。**禁止越權**：例如 flow 寫「sighting-001 可被識別」，spec 不得改寫成「`sighting-row-sighting-001` 包含 14 欄 testid 斷言」
 5. **每個 spec 獨立可執行**：透過 `test.beforeEach` reset mock data + 清理多餘實體，確保初始狀態符合 Feature Background
 6. **⚠️ 初始狀態以 Feature Background 為準**：每個 feature 的 `Background:`（逐檔形式為該 `.dsl.feature` 檔、大檔形式為對應的 `Feature:` 區塊）定義了該 feature 的初始狀態。Mock 全集是所有 feature 的 Background 合併，可能包含不屬於該 feature 的實體。Spec 必須確保測試開始時的狀態與 Feature Background 一致（見 Step 2c-2d）
 7. **spec 是生成物，禁止手動編輯**：`.flow.md` 更新時，spec 全量重新生成。green 階段**禁止修改 spec**，只能修改 UI/mock/API。如果 spec 有問題，修 flow 再重新生成
@@ -126,13 +126,13 @@ v2 起，`.spec.ts` 從「testid 主導」改為「**business outcome 主導**�
 
 ```
 Feature Background 定義：
-- 使用者：admin, coach1
-- 球隊：藍鷹隊（coach1）
+- 使用者：admin, observer1
+- 觀測點：藍鷹隊（observer1）
 → 該 feature 的測試假設「只有藍鷹隊存在」
 ```
 
 > ⚠️ **Feature Background ≠ Mock 全集**。Mock 資料是所有 feature 的 Background 合併而成的超集。
-> 例如 feature 03 的 Background 有 4 支球隊，feature 04 的 Background 只有 1 支。
+> 例如 feature 03 的 Background 有 4 支觀測點，feature 04 的 Background 只有 1 支。
 > 每個 feature 的 spec 必須基於**自己的 Background**推算預期結果，而非 mock 全集。
 
 #### 2b. 掃描 mock data + API 過濾邏輯
@@ -142,7 +142,7 @@ Feature Background 定義：
 3. **以每個測試情境的角色/參數，模擬 API 過濾**，推算該情境下 API 實際會回傳哪些資料
 4. 用推算結果寫斷言值，而非 raw data 的值
 
-> ⚠️ raw data ≠ API 回傳。例如 `mockTrainings` 有 16 筆，但經過 `status === 'active'`、`date >= today`、角色過濾後，coach1 呼叫 API 可能只拿到 3~4 筆。斷言必須基於過濾後的結果。
+> ⚠️ raw data ≠ API 回傳。例如 `mockTrainings` 有 16 筆，但經過 `status === 'active'`、`date >= today`、角色過濾後，observer1 呼叫 API 可能只拿到 3~4 筆。斷言必須基於過濾後的結果。
 >
 > ⚠️ **角色維度看 `route-map.rbac`**（若存在）：`rbac.endpoints` 列的端點對受限角色回 **403**（該角色的斷言是「被拒」非「空清單」）；`rbac.ownership` 列的端點對 `restricted_roles` 只回自己 `owner_field` 的列（依登入角色推算筆數）；`rbac.object_ownership` 列的 `/{id}` 端點，受限角色帶**他人 id** 回 **403/404**（BOLA），帶**自己 id** 才成功。mock 的 `requireRole` / `requireOwnership` / `getMockCurrentUser` 是實際守門點。
 
@@ -176,8 +176,8 @@ test.beforeEach(async ({ request }) => {
 
   // Step 2: 調整到 Feature 04 的 Background（只有藍鷹隊）
   // 刪除不屬於此 feature Background 的實體
-  await request.delete('/api/teams/2') // 紅龍隊
-  await request.delete('/api/teams/3') // 白虎隊
+  await request.delete('/api/sites/2') // 紅龍隊
+  await request.delete('/api/sites/3') // 白虎隊
 })
 ```
 
@@ -239,7 +239,7 @@ import {
 test.beforeEach(async ({ page, request }) => {
   await resetMockData(page)
   // 若 Feature Background ≠ mock 全集，在此調整
-  // await request.delete('/api/v1/teams/team-002')
+  // await request.delete('/api/v1/sites/site-002')
 })
 
 test.describe('規則：{Rule 名稱}', () => {
@@ -320,7 +320,7 @@ await expect(page.getByText({FEEDBACK}.{SUCCESS_KEY})).toBeVisible()
 
 | 資料類型 | 來源 | 說明 |
 |---------|------|------|
-| 實體識別值（人物名稱、pitch-type 等） | `server/mock/data/*.ts` | 用 mock 實際值，spec 用 regex 抽樣（如 `/陳小明/`、`/FF/`） |
+| 實體識別值（人物名稱、shower-code 等） | `server/mock/data/*.ts` | 用 mock 實際值，spec 用 regex 抽樣（如 `/陳小明/`、`/PER/`） |
 | API endpoint & method | `.flow.md` 的 Verification 策略 | URL 用 regex 容版本：`/\/<endpoint>(\?|$)/` |
 | API 錯誤訊息 | `server/api/` 的 `createError({ message })` | exact 文字斷言（這是 API 合約） |
 | 語意 locator 措辭 | `.flow.md` 的 Selector 策略 | 用 regex 含同義詞，不鎖單一措辭 |
@@ -357,7 +357,7 @@ await expect(page.getByText(/陳小明/).first()).toBeVisible()
 
 ```typescript
 // flow 明示用 data attribute 表達狀態時
-await expect(page.getByTestId('pitch-favorite-button-pitch-001')).toHaveAttribute('data-favorited', 'true')
+await expect(page.getByTestId('sighting-favorite-button-sighting-001')).toHaveAttribute('data-favorited', 'true')
 ```
 
 ---
@@ -451,9 +451,9 @@ export function waitForApiCall(page: Page, pathRegex: RegExp, method: string) {
 ```typescript
 // 監聽 destructive API call（DELETE / POST / PUT）
 const apiRequest = page.waitForRequest(
-  req => /\/pitches\/[^/]+$/.test(req.url()) && req.method() === 'DELETE',
+  req => /\/sightings\/[^/]+$/.test(req.url()) && req.method() === 'DELETE',
 )
-await findEntity(page, /FF/).getByRole('button', { name: /刪除/ }).click()
+await findEntity(page, /PER/).getByRole('button', { name: /刪除/ }).click()
 await maybeConfirm(page)
 const request = await apiRequest
 expect(request.postDataJSON()).toMatchObject({ /* expected payload */ })
@@ -465,8 +465,8 @@ expect(request.postDataJSON()).toMatchObject({ /* expected payload */ })
 
 ```typescript
 // 用 role + 語意 name 找實體（不限 row / article / listitem 形式）
-const pitchEntity = findEntity(page, /FF/)  // pitch-type 當識別
-await pitchEntity.getByRole('button', { name: /取消收藏/ }).click()
+const sightingEntity = findEntity(page, /PER/)  // shower-code 當識別
+await sightingEntity.getByRole('button', { name: /取消收藏/ }).click()
 ```
 
 testid fallback（僅 flow 明示 testid 時用）：
@@ -518,7 +518,7 @@ await expect(findEntity(page, /<deleted-name>/)).not.toBeVisible()
 
 ```typescript
 // 優先用 role
-await page.getByRole('combobox', { name: /球員/ }).click()
+await page.getByRole('combobox', { name: /觀測站/ }).click()
 await page.getByRole('option', { name: '陳小明' }).click()
 ```
 
@@ -544,7 +544,7 @@ flow 的「角色可見性不變式」+ `route-map.rbac` 一起驅動權限場�
 // test/e2e/helpers/actions.ts
 export const ROLE_ACCOUNTS = {
   super_admin: { account: 'admin', password: 'admin888' },
-  coach: { account: 'coach1', password: 'pass123' },
+  observer: { account: 'observer1', password: 'pass123' },
 } as const
 
 export async function loginAs(page: Page, role: keyof typeof ROLE_ACCOUNTS) {
@@ -564,24 +564,24 @@ export async function loginAs(page: Page, role: keyof typeof ROLE_ACCOUNTS) {
 
 ```ts
 // 範例：受限角色被端點擋（403）
-test('coach 無法取得帳號列表（僅 super_admin 可操作）', async ({ page }) => {
-  await loginAs(page, 'coach')
+test('observer 無法取得帳號列表（僅 super_admin 可操作）', async ({ page }) => {
+  await loginAs(page, 'observer')
   const denied = page.waitForResponse(r => /\/accounts(\?|$)/.test(r.url()) && r.status() === 403)
   await page.goto('/accounts', { waitUntil: 'networkidle' })
   await denied
 })
 
 // 範例：受限角色打受保護路由被導離
-test('coach 直接打 /accounts 被導離', async ({ page }) => {
-  await loginAs(page, 'coach')
+test('observer 直接打 /accounts 被導離', async ({ page }) => {
+  await loginAs(page, 'observer')
   await page.goto('/accounts', { waitUntil: 'networkidle' })
   await page.waitForURL('**/403') // 或首頁，依 protected_routes 守門目標
 })
 
 // 範例：受限角色帶「他人 id」打單筆端點被擋（OWASP BOLA / API #1）
 // 僅當 route-map.rbac.object_ownership 命中時才產；notes 為假想資源，端點 / id 用實際 rbac 值
-test('coach 無法編輯他人建立的 note（單筆歸屬）', async ({ page }) => {
-  await loginAs(page, 'coach') // coach1 = acc-002
+test('observer 無法編輯他人建立的 note（單筆歸屬）', async ({ page }) => {
+  await loginAs(page, 'observer') // observer1 = acc-002
   // 帶一筆「非自己建立」的 object id（取自 mock 種子中 createdBy 屬於他人的那筆）
   const denied = page.waitForResponse(r => /\/notes\/note-of-other(\?|$|\/)/.test(r.url()) && [403, 404].includes(r.status()))
   await page.goto('/notes/note-of-other/edit', { waitUntil: 'networkidle' })
@@ -636,7 +636,7 @@ test.skip('成功調整排序', async () => {
 
 // ✅ 寫完整步驟
 test('成功調整排序', async ({ page }) => {
-  await login(page, 'coach1', 'pass123')
+  await login(page, 'observer1', 'pass123')
   await page.goto('/items/1/list', { waitUntil: 'networkidle' })
   await page.getByTestId('sort-handle').first().dragTo(page.getByTestId('sort-handle').nth(2))
 })
@@ -677,7 +677,7 @@ test.skip('帳號鎖定後重新登入', async () => {
 - [ ] **flow 沒寫 testid 的地方，spec 也沒用 testid**（沒越權）
 - [ ] **destructive / async outcome 用 API spy 驗證**（不只靠 UI 斷言）
 - [ ] **API URL 用 regex（`/\/<endpoint>(\?|$)/`）容版本路徑**，不寫死 `/api/exports`
-- [ ] **語意 regex 含同義詞集合**（如 `/匯出.*(此次|單次|本練習)/`），不鎖單一措辭
+- [ ] **語意 regex 含同義詞集合**（如 `/匯出.*(此次|單次|本觀測時段)/`），不鎖單一措辭
 - [ ] **confirm 步驟用 `maybeConfirm(page)`**（dialog scope + 動詞 regex），不寫死 confirm testid
 - [ ] **反饋元素用 `getFeedbackElement(page)`** 或 `getByRole('alert' / 'status')`
 - [ ] **實體查找用 `findEntity(page, /<name>/)`**，不寫死 row layout

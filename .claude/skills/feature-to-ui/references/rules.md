@@ -67,7 +67,7 @@ UI 配色以 **primary + neutral** 為主（佔 90%），語意色只用在狀�
 
 ## SSR / Hydration 安全 `[P3, P4, P5]`
 
-Nuxt 預設 SSR：server 先渲染 HTML，client hydration 重算一次。**兩端算出不同結果 = hydration mismatch**（dev console 出現 `Hydration ... mismatch` 警告，E2E 守門會攔）。完整踩坑清單見 nuxt skill 的 `references/best-practices-ssr.md`。
+Nuxt 預設 SSR：server 先渲染 HTML，client hydration 重算一次。**兩端算出不同結果 = hydration mismatch**（dev console 出現 `Hydration ... mismatch` 警告，E2E 守門會攔）。完整踩坑清單見 nuxt skill 的 `references/best-watches-ssr.md`。
 
 ### 正確心智模型：persist 預設存 cookie，SSR 讀得到
 
@@ -125,10 +125,10 @@ server 不知道使用者的深淺偏好，`colorMode.value` 兩端必不同。�
 
 ```typescript
 // [X] Zod v3（禁止 required_error、invalid_type_error）
-z.number({ required_error: '請輸入背號' })
+z.number({ required_error: '請輸入站號' })
 
 // [O] Zod v4：用 error 或 validator message
-z.number({ error: '請輸入背號' })
+z.number({ error: '請輸入站號' })
 z.string().min(1, '請輸入姓名')  // 推薦
 ```
 
@@ -171,16 +171,16 @@ confirmColor?: 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'error
 Nuxt UI v3 的 `<USelect>` **禁止** `value: ''`。「全部/不篩選」用 `undefined` + `placeholder`：
 
 ```typescript
-// [X] { label: '全部球隊', value: '' }  → 報錯
+// [X] { label: '全部觀測點', value: '' }  → 報錯
 // [O]
 const selected = ref<string | undefined>(undefined)
 ```
 
 ```vue
-<USelect v-model="selected" :items="options" value-key="value" placeholder="全部球隊" />
+<USelect v-model="selected" :items="options" value-key="value" placeholder="全部觀測點" />
 ```
 
-> API query 判斷：`...(selected.value ? { team_id: selected.value } : {})`
+> API query 判斷：`...(selected.value ? { site_id: selected.value } : {})`
 
 ### FormSubmitEvent
 
@@ -199,7 +199,7 @@ USelect 從 items 的 value 推斷 v-model 型別。窄型別會和 Zod 的 `str
 
 ```typescript
 // [O] 用 string[]
-const positionOptions = ['投手', '捕手', '一壘手', '游擊手']
+const positionOptions = ['觀測站', '捕手', '一壘手', '游擊手']
 // [X] 標 Position[] → 和 Zod 的 string 打架
 ```
 
@@ -237,8 +237,8 @@ const heatMapPoints = computed<HeatMapPoint[]>(() => analysis.value?.heat_map_da
 
 | 檔案 | 路徑 | 方法 |
 |------|------|------|
-| `server/api/teams/index.get.ts` | `/api/teams` | GET |
-| `server/api/teams/[id].put.ts` | `/api/teams/${id}` | PUT |
+| `server/api/sites/index.get.ts` | `/api/sites` | GET |
+| `server/api/sites/[id].put.ts` | `/api/sites/${id}` | PUT |
 | `server/api/ai/start.post.ts` | `/api/ai/start` | POST |
 
 ---

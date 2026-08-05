@@ -11,7 +11,7 @@ paths:
 
 修改 `app/pages/`、`app/components/`、`app/layouts/` 時，必須遵守：
 
-- **不得破壞 Business Invariants**：實體必須可被使用者識別（用業務語意如 username、playerName、deviceId）、業務狀態文字必須保留語意（「連線中」「已斷線」「進行中」「已結束」「建立成功」「已刪除」等）、業務操作必須可被觸發（不一定要按鈕，但要有可達路徑）
+- **不得破壞 Business Invariants**：實體必須可被使用者識別（用業務語意如 username、stationName、deviceId）、業務狀態文字必須保留語意（「連線中」「已斷線」「進行中」「已結束」「建立成功」「已刪除」等）、業務操作必須可被觸發（不一定要按鈕，但要有可達路徑）
 - **不得修改凍結區**（主 spec 與其來源）——路徑清單與處理方式見 `rules/frozen-paths.md`（hook 強制擋，此處不重列）
 - **vibe 完 commit 前必跑 gate**：走 `/vibe-check`（綠燈 = vibe 安全；pre-push 跑同一份 config，執行環境差異見 /vibe-check「目的」段）。裸指令 `npx playwright test --config playwright.gate.config.ts` 等價**但少了前置檢查**——gate 範圍尚無測試檔時它回 exit 1（`No tests found`），`/vibe-check` 與 pre-push 則會判定「無 spec 可守」放行
 - vibe spec（`test/e2e/vibe/`）不凍結，但刪改去留是使用者的決定——紅燈時列選項詢問，不可擅自刪改

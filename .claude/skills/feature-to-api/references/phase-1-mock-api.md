@@ -24,11 +24,11 @@ Sync 模式額外讀取：
 
 > ⚠️ **型別定義（`app/types/api/*.ts`）由 Phase 0 建立**。Phase 1 讀取這些型別檔作為 mock data 和 API 端點的合約依據，不再從 YAML 翻譯型別。
 >
-> ⚠️ **Mock 資料的實體名稱、數值等，必須優先使用 `.flow.md` 中出現的假設值**。若 `.flow.md` 引用了「球隊C」，mock 補建時就用「球隊C」，不要自行發明名稱。這確保 spec（從 flow 生成）的斷言值與 mock 資料一致，減少 green 階段的回修。
+> ⚠️ **Mock 資料的實體名稱、數值等，必須優先使用 `.flow.md` 中出現的假設值**。若 `.flow.md` 引用了「觀測點C」，mock 補建時就用「觀測點C」，不要自行發明名稱。這確保 spec（從 flow 生成）的斷言值與 mock 資料一致，減少 green 階段的回修。
 >
 > ⚠️ **`server/api/` 資料夾結構必須對齊 `path_prefix`**
-> - 例：`path_prefix = /api/v1` + endpoint `/api/v1/teams` → 檔案 `server/api/v1/teams/index.get.ts`
-> - 例：`path_prefix = /api` + endpoint `/api/teams` → 檔案 `server/api/teams/index.get.ts`
+> - 例：`path_prefix = /api/v1` + endpoint `/api/v1/sites` → 檔案 `server/api/v1/sites/index.get.ts`
+> - 例：`path_prefix = /api` + endpoint `/api/sites` → 檔案 `server/api/sites/index.get.ts`
 > - 下方所有範例為示意，**實際資料夾與 endpoint 路徑以本專案 `route-map.yaml > api_contract.path_prefix` 為準**
 
 > ⚠️ **Business Invariant 常數檔**：滿足 [invariants.md](invariants.md) 適用條件時，Phase 1 須一併建立／更新 `app/constants/invariants.ts`（來源：`.flow.md` Business Invariants 段；與 mock data 並列產出，UI 與 spec 是消費端）。
@@ -62,16 +62,16 @@ Phase 1 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 Phase 1 增量更新完成
 
 型別變更：
-- [done] app/types/api/teams.ts：CreateTeamBody 新增 description 欄位
-- [done] app/types/api/coaches.ts：新建（CoachItem, CreateCoachBody）
+- [done] app/types/api/sites.ts：CreateSiteBody 新增 description 欄位
+- [done] app/types/api/observers.ts：新建（ObserverItem, CreateObserverBody）
 
 端點變更：
-- [done] server/api/teams/index.post.ts：調整 body 結構
-- [done] server/api/coaches/index.get.ts：新建
-- [done] server/api/coaches/index.post.ts：新建
+- [done] server/api/sites/index.post.ts：調整 body 結構
+- [done] server/api/observers/index.get.ts：新建
+- [done] server/api/observers/index.post.ts：新建
 
 待刪除（不自動執行）：
-- ⚠️ server/api/teams/[id].delete.ts（05-刪除球隊 已移除）
+- ⚠️ server/api/sites/[id].delete.ts（05-刪除觀測點 已移除）
 
 確認後繼續？
 ```
@@ -133,7 +133,7 @@ Phase 1 增量更新完成
      4. **`rbac.ownership`**（列表級 ACL）：用 `getMockCurrentUser(event)` 取當前角色，`restricted_roles` 內的角色過濾 `owner_field === me.accountId`，其餘角色不過濾；該資源 mock data 需含 `owner_field`（如 `createdBy`，值為 accountId）
      5. **`rbac.object_ownership`**（單筆 object 級 ACL / **OWASP API #1 BOLA**）：`/{id}` 端點 handler 內**先查到該筆 object → `requireOwnership(event, obj.owner_field, restricted_roles)` → 才動作**，受限角色帶他人 id → 403（`notfound: true` 則 404）；mock data 同需含 `owner_field`。**最常漏、卻是 OWASP 排名第 1**
      6. **`rbac.business_guards`** 只是登錄、不在此自動生（last-super-admin 409、self-vs-others 改密疊加條件等留手寫）
-     > 角色名一律用 `rbac.roles` 的實際值，**不寫死** `super_admin`/`coach`；判準是「受限 vs 全權」「哪些角色 allow」的語意。
+     > 角色名一律用 `rbac.roles` 的實際值，**不寫死** `super_admin`/`observer`；判準是「受限 vs 全權」「哪些角色 allow」的語意。
    - **沒有 `rbac` 區塊、但 route-map 有 `auth` 區塊** → 無角色分層仍要擋未登入：建精簡版 `server/mock/auth-context.ts`（只需 `getMockCurrentUser` ＋ `requireAuth`——由 Bearer mock-token 反查使用者，查無 → `createError` 401），**寫入端點與登入後才可讀的端點** handler 首行 `requireAuth(event)`；`auth.public_paths` 對應的公開讀取端點與 `/auth/*` 不加。不做 ownership 過濾。
    - **`rbac` 與 `auth` 都沒有** → 純公開專案，所有端點不加守門、不加 ownership 過濾。
 6.5. **讀回完整性自查（產完端點必跑）**：逐一列出每個寫入 handler（`.post.ts` / `.put.ts` / `.patch.ts`）更新進 mock data 的欄位，確認：
@@ -159,23 +159,23 @@ app/
     └── api/
         ├── index.ts           # 統一 re-export + 共用型別
         ├── auth.ts            # LoginData, LoginRequest
-        ├── teams.ts           # TeamItem, CreateTeamBody
-        └── players.ts         # PlayerItem, CreatePlayerBody
+        ├── sites.ts           # SiteItem, CreateSiteBody
+        └── stations.ts         # StationItem, CreateStationBody
 
 server/
 ├── mock/
 │   └── data/
 │       ├── index.ts
 │       ├── users.ts
-│       ├── teams.ts
-│       └── players.ts
+│       ├── sites.ts
+│       └── stations.ts
 ├── validation/
-│   └── teams.ts           # 寫入端點的 zod schema（server-security.md 第 4 條）
+│   └── sites.ts           # 寫入端點的 zod schema（server-security.md 第 4 條）
 └── api/
     ├── auth/
     │   ├── login.post.ts
     │   └── logout.post.ts
-    └── teams/
+    └── sites/
         ├── index.get.ts
         └── [id].get.ts
 ```
@@ -183,27 +183,27 @@ server/
 ## API 合約型別範例
 
 ```typescript
-// app/types/api/teams.ts
-export interface TeamListItem {
-  teamId: string // uuid
-  teamName: string
-  playerCount: number
+// app/types/api/sites.ts
+export interface SiteListItem {
+  siteId: string // uuid
+  siteName: string
+  stationCount: number
 }
 
-export interface TeamCreatedEvent {
-  teamId: string
-  teamName: string
+export interface SiteCreatedEvent {
+  siteId: string
+  siteName: string
 }
 
-export interface CreateTeamBody {
-  teamName: string
+export interface CreateSiteBody {
+  siteName: string
 }
 ```
 
 ```typescript
-export type { CoachLoggedInEvent, LoginBody } from './auth'
+export type { ObserverLoggedInEvent, LoginBody } from './auth'
 // app/types/api/index.ts — 統一 re-export
-export type { CreateTeamBody, TeamCreatedEvent, TeamListItem } from './teams'
+export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```
 
 > ⚠️ **命名慣例**：欄位 `camelCase`、型別 `PascalCase`、UUID/日期皆用 `string`
@@ -215,7 +215,7 @@ export type { CreateTeamBody, TeamCreatedEvent, TeamListItem } from './teams'
 // server/mock/data/users.ts
 export const mockUsers = [
   { accountId: 'acc-001', account: 'admin', password: 'admin888', name: '系統管理員', roles: ['super_admin'], deletedAt: null },
-  { accountId: 'acc-002', account: 'coach1', password: 'pass123', name: '王教練', roles: ['coach'], deletedAt: null },
+  { accountId: 'acc-002', account: 'observer1', password: 'pass123', name: '王思婷', roles: ['observer'], deletedAt: null },
 ]
 ```
 
@@ -229,11 +229,11 @@ export const mockUsers = [
 ```typescript
 // server/api/auth/login.post.ts
 import type { H3Event } from 'h3'
-import type { CoachLoggedInEvent, LoginBody } from '../../../app/types/api/auth'
+import type { ObserverLoggedInEvent, LoginBody } from '../../../app/types/api/auth'
 
 import { mockUsers } from '../../mock/data/users'
 
-export default defineEventHandler(async (event: H3Event): Promise<CoachLoggedInEvent> => {
+export default defineEventHandler(async (event: H3Event): Promise<ObserverLoggedInEvent> => {
   const body = await readBody<LoginBody>(event)
 
   if (!body?.username || !body?.password) {
@@ -266,26 +266,26 @@ export default defineEventHandler(async (event: H3Event): Promise<CoachLoggedInE
 > ⚠️ **回應信封依 openapi-conventions §3 模式回傳（見上方指讀），不挑欄位**
 
 ```typescript
-// server/api/teams/index.get.ts
+// server/api/sites/index.get.ts
 import type { H3Event } from 'h3'
-import type { TeamListItem } from '../../../app/types/api/teams'
+import type { SiteListItem } from '../../../app/types/api/sites'
 
-import { mockTeams } from '../../mock/data/teams'
+import { mockSites } from '../../mock/data/sites'
 
-export default defineEventHandler((event: H3Event): TeamListItem[] => {
-  return mockTeams
+export default defineEventHandler((event: H3Event): SiteListItem[] => {
+  return mockSites
     .filter(t => !t.deletedAt)
     .map(t => ({
-      teamId: t.teamId,
-      teamName: t.teamName,
-      playerCount: t.playerCount,
+      siteId: t.siteId,
+      siteName: t.siteName,
+      stationCount: t.stationCount,
     }))
 })
 ```
 
 > ⚠️ **預設不加分頁**——OpenAPI spec 沒寫 `page / page_size` 就不要自加，避免和 spec 偏離。若該頁面確實需要分頁（如歷史紀錄），請先在 `api-spec.yml` 加 `parameters`，再來實作 mock。
 >
-> ⚠️ `.map()` 只用在「mock data 結構含內部欄位（如 `deletedAt`、`password`）需要過濾」時——若 mock data 結構已與 type 完全一致，可直接 `return mockTeams.filter(...)`。
+> ⚠️ `.map()` 只用在「mock data 結構含內部欄位（如 `deletedAt`、`password`）需要過濾」時——若 mock data 結構已與 type 完全一致，可直接 `return mockSites.filter(...)`。
 
 ### POST 端點範例（直接回 Event，含輸入驗證）
 
@@ -293,59 +293,59 @@ export default defineEventHandler((event: H3Event): TeamListItem[] => {
 數字 `.int().min().max()`、enum `z.enum([...])`、字串 `.trim().max()`——界限從 spec 萃取（OpenAPI `minimum`/`maximum`/`enum`），spec 沒寫的用型別常識界限（如數量非負、int32 上限）。
 
 ```typescript
-// server/validation/teams.ts
+// server/validation/sites.ts
 import { z } from 'zod'
 
-export const createTeamSchema = z.object({
-  teamName: z.string().trim().min(1, '請輸入隊伍名稱').max(50, '隊伍名稱過長'),
+export const createSiteSchema = z.object({
+  siteName: z.string().trim().min(1, '請輸入觀測點名稱').max(50, '觀測點名稱過長'),
 })
 // 數字欄示例（本型別無數字欄，示意）：z.number().int().min(0).max(2147483647) 擋 NaN／浮點／負值／int4 溢位
 // enum 欄示例：z.enum(['pending', 'done']) —— runtime 白名單，值從 spec 的 enum 萃取
 ```
 
 ```typescript
-// server/api/teams/index.post.ts
+// server/api/sites/index.post.ts
 import type { H3Event } from 'h3'
-import type { TeamCreatedEvent } from '../../../app/types/api/teams'
+import type { SiteCreatedEvent } from '../../../app/types/api/sites'
 
-import { mockTeams } from '../../mock/data/teams'
-import { createTeamSchema } from '../../validation/teams'
+import { mockSites } from '../../mock/data/sites'
+import { createSiteSchema } from '../../validation/sites'
 
-export default defineEventHandler(async (event: H3Event): Promise<TeamCreatedEvent> => {
-  const parsed = await readValidatedBody(event, createTeamSchema.safeParse)
+export default defineEventHandler(async (event: H3Event): Promise<SiteCreatedEvent> => {
+  const parsed = await readValidatedBody(event, createSiteSchema.safeParse)
   if (!parsed.success) {
     throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
   }
   const body = parsed.data
 
-  if (mockTeams.some(t => t.teamName === body.teamName && !t.deletedAt)) {
-    throw createError({ statusCode: 409, statusMessage: '隊伍名稱已存在' })
+  if (mockSites.some(t => t.siteName === body.siteName && !t.deletedAt)) {
+    throw createError({ statusCode: 409, statusMessage: '觀測點名稱已存在' })
   }
 
   // [O] 逐欄白名單手構；[X] 禁止 { ...body }——body 可覆蓋 server 決定的欄位（id／owner／租戶）＝跨租戶寫入（wedding-host 實戰）
-  const teamId = crypto.randomUUID()
-  mockTeams.unshift({ teamId, teamName: body.teamName, playerCount: 0, deletedAt: null })
+  const siteId = crypto.randomUUID()
+  mockSites.unshift({ siteId, siteName: body.siteName, stationCount: 0, deletedAt: null })
 
   setResponseStatus(event, 201)
-  return { teamId, teamName: body.teamName }
+  return { siteId, siteName: body.siteName }
 })
 ```
 
 ### DELETE 端點範例（軟刪除回 204）
 
 ```typescript
-// server/api/teams/[teamId].delete.ts
+// server/api/sites/[siteId].delete.ts
 import type { H3Event } from 'h3'
 
-import { mockTeams } from '../../mock/data/teams'
+import { mockSites } from '../../mock/data/sites'
 
 export default defineEventHandler((event: H3Event) => {
-  const teamId = getRouterParam(event, 'teamId')
-  const team = mockTeams.find(t => t.teamId === teamId && !t.deletedAt)
-  if (!team) {
-    throw createError({ statusCode: 404, statusMessage: '隊伍不存在' })
+  const siteId = getRouterParam(event, 'siteId')
+  const site = mockSites.find(t => t.siteId === siteId && !t.deletedAt)
+  if (!site) {
+    throw createError({ statusCode: 404, statusMessage: '觀測點不存在' })
   }
-  team.deletedAt = new Date().toISOString()
+  site.deletedAt = new Date().toISOString()
 
   setResponseStatus(event, 204)
   // 204 不帶 body
@@ -356,7 +356,7 @@ export default defineEventHandler((event: H3Event) => {
 
 > ⚠️ **鐵律：path 有幾個參數、查詢條件就用幾個參數；同目錄兄弟 handler 的 scope 條件逐字等價。**
 > wedding-host 實戰：DELETE 漏帶父層參數而同目錄 PATCH 有——任何登入者換個父層 id 就能跨租戶刪除（IDOR）。
-> （projects/tasks 為假想資源，僅示意巢狀寫法；上方 teams 範例是**平面**資源才只用自身 id。）
+> （projects/tasks 為假想資源，僅示意巢狀寫法；上方 sites 範例是**平面**資源才只用自身 id。）
 
 ```typescript
 // server/api/projects/[projectId]/tasks/[taskId].get.ts
@@ -412,7 +412,7 @@ setResponseStatus(event, 204)
 ## Auth Store 範例
 
 auth 命中時的 store（login／isAuthenticated／clearAuth／persist）**完整範本見 [auth-scaffold.md §3a](auth-scaffold.md)（含 single-flight refresh、cookie 細節），以該檔為唯一權威版本，勿在此複製**。
-login 為寫入操作走 `$fetch`，回傳直接是裸 Event 型別（如 `CoachLoggedInEvent`），無 `.data` 解包。
+login 為寫入操作走 `$fetch`，回傳直接是裸 Event 型別（如 `ObserverLoggedInEvent`），無 `.data` 解包。
 
 > ⚠️ **persist 儲存位置**：`pinia-plugin-persistedstate/nuxt` 預設 storage 是 **cookie**（SSR 可讀），不是 localStorage。
 > **禁止**在註解或 middleware 寫「登入狀態存 localStorage、SSR 讀不到」——錯誤心智模型會導致 hydration mismatch

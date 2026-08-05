@@ -38,11 +38,11 @@ Phase 2 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 Phase 2 增量更新完成
 
 新建頁面：
-- [done] app/pages/coaches/index.vue（空殼，含 testid）
+- [done] app/pages/observers/index.vue（空殼，含 testid）
 
 跳過（已存在）：
 - [skip] app/pages/login.vue
-- [skip] app/pages/teams/index.vue
+- [skip] app/pages/sites/index.vue
 
 待刪除（不自動執行）：
 - （無）
@@ -103,39 +103,39 @@ definePageMeta({ layout: 'auth' })
 ```
 
 ```vue
-<!-- app/pages/teams/index.vue -->
+<!-- app/pages/sites/index.vue -->
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 </script>
 
 <template>
   <main class="flex h-full flex-col">
-    <h1>球隊列表</h1>
-    <!-- Phase 5 實作：球隊列表 -->
-    <p class="text-neutral-500">球隊列表頁面（待實作）</p>
+    <h1>觀測點列表</h1>
+    <!-- Phase 5 實作：觀測點列表 -->
+    <p class="text-neutral-500">觀測點列表頁面（待實作）</p>
   </main>
 </template>
 ```
 
 ```vue
-<!-- app/pages/teams/[id].vue -->
+<!-- app/pages/sites/[id].vue -->
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
 const route = useRoute()
-const teamId = computed(() => route.params.id)
+const siteId = computed(() => route.params.id)
 </script>
 
 <template>
   <main class="flex h-full flex-col">
-    <h1>球隊詳情</h1>
-    <!-- Phase 5 實作：球隊詳情 -->
-    <p class="text-neutral-500">球隊詳情頁面 #{{ teamId }}（待實作）</p>
+    <h1>觀測點詳情</h1>
+    <!-- Phase 5 實作：觀測點詳情 -->
+    <p class="text-neutral-500">觀測點詳情頁面 #{{ siteId }}（待實作）</p>
   </main>
 </template>
 ```
 
-> `<h1>` 的可見文字就是 Phase 5 / spec 用來定位頁面的語意 anchor（`page.getByRole('heading', { name: /球隊列表/ })`）——比 `teams-page` 容器 testid 更穩、且不需要進合約白名單。
+> `<h1>` 的可見文字就是 Phase 5 / spec 用來定位頁面的語意 anchor（`page.getByRole('heading', { name: /觀測點列表/ })`）——比 `sites-page` 容器 testid 更穩、且不需要進合約白名單。
 
 ## Auth middleware 範本（僅 `route-map.auth.required` 時產出）
 
@@ -226,9 +226,9 @@ export default defineNuxtRouteMiddleware((to) => {
 app/pages/
 ├── login.vue
 ├── index.vue
-├── teams/
+├── sites/
 │   ├── index.vue
 │   └── [id].vue
-└── players/
+└── stations/
     └── index.vue
 ```

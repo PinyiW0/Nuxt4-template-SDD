@@ -132,14 +132,14 @@ cat test/e2e/test-results/.last-run.json 2>/dev/null
 | route | 頁面 | 狀態 |
 |-------|------|------|
 | /accounts | app/pages/accounts/index.vue | ✅ 已實作 |
-| /teams | app/pages/teams/index.vue | ✅ 已實作 |
+| /sites | app/pages/sites/index.vue | ✅ 已實作 |
 | /camera | app/pages/camera/index.vue | ⬜ 待實作 |
 
 Feature 貫通度（主鍵：flow 模組）：
 | 模組 | flow | api | spec | ui | 卡在 |
 |------|------|-----|------|-----|------|
 | accounts | ✅ | ✅ | ✅ | ✅ | 全貫通 |
-| teams | ✅ | ✅ | ✅ | ✅ | 全貫通 |
+| sites | ✅ | ✅ | ✅ | ✅ | 全貫通 |
 | camera | ✅ | ✅ | ⬜ | ⬜ | 主 spec |
 | report | ✅ | ⬜ | ⬜ | ⬜ | API 合約 |
 

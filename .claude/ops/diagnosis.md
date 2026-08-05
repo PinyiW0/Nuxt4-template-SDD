@@ -8,7 +8,7 @@
 **證據**：
 - 專案 `.claude/CLAUDE.md` 曾達 123 行全內容型，每 session 全文常載
 - 全域 `~/.claude/CLAUDE.md` 引用 `~/.claude/rules/vue.md`、`nuxt.md`、`vitest.md`——三檔皆不存在（2026-07-05 實測）。指向空氣的規則等於沒寫，而且沒有任何機制會發現
-- UserPromptSubmit hook（internal-research-rag）每個 prompt 注入 2–3 個 chunk，經常與任務無關（實測：UIUX 討論被注入棒球研究與硬體採購試算表）
+- UserPromptSubmit hook（internal-research-rag）每個 prompt 注入 2–3 個 chunk，經常與任務無關（實測：UIUX 討論被注入無關領域的研究文件與採購試算表）
 
 **修法（可直接執行）**：
 1. `CLAUDE.md` 只當索引，上限 150 行。超過就把內容抽到引用檔，索引留一行連結 + 一句載入時機

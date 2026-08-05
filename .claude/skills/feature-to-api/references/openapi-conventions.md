@@ -14,29 +14,29 @@
 
 | 規則 | 範例 |
 |---|---|
-| **欄位用 camelCase** | `accountId`、`teamName`、`newPassword`、`connectionStatus` |
+| **欄位用 camelCase** | `accountId`、`siteName`、`newPassword`、`connectionStatus` |
 | **絕不用 snake_case** | ❌ `account_id`、❌ `new_password` |
 | **布林前綴用 `is` / `has`** | `isFavorited`、`hasPermission` |
 | **時間欄位後綴 `At`** | `createdAt`、`startedAt`、`deletedAt` |
-| **計數欄位後綴 `Count`** | `pitchCount`、`playerCount` |
+| **計數欄位後綴 `Count`** | `sightingCount`、`stationCount` |
 
 > ⚠️ **codegen 例外（OpenAPI 模式）**：上述 camelCase 規則管的是「**手寫 / Feature 推導**的型別」。
 > 由 `gen:api` 從 `api-spec.yml` **機器鏡像**的 `_schema.d.ts` 一律**忠實照 spec**，spec 是 snake_case
-> （如裝置 ingestion 的 `raw_traj`、`pitch_traj_Xc0`）就照 snake_case——契約以後端為準，不可改寫，
+> （如裝置 ingestion 的 `raw_traj`、`sighting_traj_Xc0`）就照 snake_case——契約以後端為準，不可改寫，
 > 改寫反而與真實後端漂移。view alias 直接沿用該欄名即可。詳見 [openapi-codegen.md](openapi-codegen.md) § 8。
 
 ### 型別名稱（interface name）
 
 | 用途 | 命名規則 | 範例 |
 |---|---|---|
-| **寫入動作回應**（POST/PATCH/DELETE 的結果） | `XxxEvent`，動詞用過去式 | `TeamCreatedEvent`、`AccountPasswordChangedEvent`、`PitchFavoritedEvent` |
-| **列表 view**（GET 列表的單筆 item） | `XxxListItem` | `TeamListItem`、`PlayerListItem`、`AccountListItem` |
-| **詳情 view**（GET 單筆） | `XxxDetail` 或直接用實體名 | `PracticeDetail` |
-| **Request body** | `XxxBody` 或 `XxxRequest` | `CreateTeamBody`、`StartPracticeBody` |
+| **寫入動作回應**（POST/PATCH/DELETE 的結果） | `XxxEvent`，動詞用過去式 | `SiteCreatedEvent`、`AccountPasswordChangedEvent`、`SightingFavoritedEvent` |
+| **列表 view**（GET 列表的單筆 item） | `XxxListItem` | `SiteListItem`、`StationListItem`、`AccountListItem` |
+| **詳情 view**（GET 單筆） | `XxxDetail` 或直接用實體名 | `WatchDetail` |
+| **Request body** | `XxxBody` 或 `XxxRequest` | `CreateSiteBody`、`StartWatchBody` |
 | **錯誤** | `ErrorResponse` | `ErrorResponse` |
 | **enum 字串聯集** | TS literal union | `'connected' \| 'disconnected'` |
 
-> ⚠️ 嚴禁用模糊命名（如 `TeamData`、`TeamInfo`）——區分是 event、view、body、detail 才能避免 schema 漂移。
+> ⚠️ 嚴禁用模糊命名（如 `SiteData`、`SiteInfo`）——區分是 event、view、body、detail 才能避免 schema 漂移。
 
 ---
 
@@ -58,19 +58,19 @@
 
 ```yaml
 # OpenAPI
-TeamCreatedEvent:
+SiteCreatedEvent:
   type: object
-  required: [teamId, teamName]
+  required: [siteId, siteName]
   properties:
-    teamId: {type: string, format: uuid}
-    teamName: {type: string}
+    siteId: {type: string, format: uuid}
+    siteName: {type: string}
 ```
 
 ```typescript
 // TypeScript
-export interface TeamCreatedEvent {
-  teamId: string
-  teamName: string
+export interface SiteCreatedEvent {
+  siteId: string
+  siteName: string
 }
 ```
 
@@ -81,7 +81,7 @@ export interface TeamCreatedEvent {
 | 模式 | 底層型別 | view 型別 |
 |------|---------|----------|
 | **Feature 推導模式**（無 spec） | 無 | **手寫 interface**（依本節對應規則人工翻譯） |
-| **OpenAPI 模式**（`spec/api/api-spec.yml` 存在） | `npm run gen:api` 產 `_schema.d.ts`（機器產、不漂移） | **手寫 alias** 疊在 `_schema` 上：`export type TeamListItem = components['schemas']['TeamListItem']` |
+| **OpenAPI 模式**（`spec/api/api-spec.yml` 存在） | `npm run gen:api` 產 `_schema.d.ts`（機器產、不漂移） | **手寫 alias** 疊在 `_schema` 上：`export type SiteListItem = components['schemas']['SiteListItem']` |
 
 > 兩種模式的 **view 型別命名一致**（§ 1 的 Event / ListItem / Body / Detail），差別只在底層是「手抄」或「codegen」。
 > OpenAPI 模式詳見 [openapi-codegen.md](openapi-codegen.md)（含 alias、合約測試、Sync 重生 loop）。
@@ -91,7 +91,7 @@ export interface TeamCreatedEvent {
 ## 3. Response shape（mock 端點回傳）
 
 回應外層分兩種模式，由 `runtimeConfig.public.apiEnvelope` 決定（預設 **envelope 模式**）。
-**兩種模式下「型別」都不變**——view 型別永遠是 `data` 的裸 schema（`TeamListItem` / `TeamDetail` / `XxxEvent`），
+**兩種模式下「型別」都不變**——view 型別永遠是 `data` 的裸 schema（`SiteListItem` / `SiteDetail` / `XxxEvent`），
 因為 `useHttp` 在 envelope 模式會自動拆掉外層、回傳裸 data。差別只在「mock 端點要不要包」。
 
 ### 模式 A（預設）：Envelope —— 對齊團隊後端 `{ success, data, message, meta }`
@@ -109,9 +109,9 @@ export function page<T>(items: T[], pagination: { page: number, pageSize: number
 ```
 
 ```typescript
-// GET 列表（無分頁）         return ok(mockTeams)            // 前端拿到 TeamListItem[]
-// GET 列表（分頁）           return page(items, pagination)  // useHttp 攤平成 TeamListItem[]，meta 存 response._meta
-// GET 單筆                   return ok(team)                 // 前端拿到 TeamDetail
+// GET 列表（無分頁）         return ok(mockSites)            // 前端拿到 SiteListItem[]
+// GET 列表（分頁）           return page(items, pagination)  // useHttp 攤平成 SiteListItem[]，meta 存 response._meta
+// GET 單筆                   return ok(site)                 // 前端拿到 SiteDetail
 // POST 建立                  setResponseStatus(event, 201); return ok(createdEvent)
 ```
 
@@ -120,9 +120,9 @@ export function page<T>(items: T[], pagination: { page: number, pageSize: number
 直接回 schema 裸物件 / 陣列（不包）：
 
 ```typescript
-return mockTeams      // → TeamListItem[]
-return team           // → TeamDetail
-return createdEvent   // → TeamCreatedEvent（POST 201）
+return mockSites      // → SiteListItem[]
+return site           // → SiteDetail
+return createdEvent   // → SiteCreatedEvent（POST 201）
 ```
 
 > ⚠️ **絕不要自創第三種包裝**（如 `{ status, data, meta }`、snake_case 的 `page_size`）——
@@ -174,7 +174,7 @@ server / mock 端依模式拋錯：
 | 場景 | Code | 備註 |
 |---|---|---|
 | GET 成功 | 200 | |
-| POST 建立 / 觸發動作（含 login / 收藏 / 結束練習 / 匯出） | 201 | OpenAPI 明示 `'201'` 一律照辦 |
+| POST 建立 / 觸發動作（含 login / 收藏 / 結束觀測時段 / 匯出） | 201 | OpenAPI 明示 `'201'` 一律照辦 |
 | PATCH 更新 | 200 | |
 | DELETE 軟刪除 | 204 | **無 response body** |
 | 驗證錯誤（refinement 違反） | 400 | |
@@ -230,7 +230,7 @@ server / mock 端依模式拋錯：
 | OpenAPI 有定義 | 行為 |
 |---|---|
 | `parameters` 有 `page`、`page_size` | mock 端點實作分頁 |
-| `parameters` 只有 filter（如 `teamId`、`playerId`） | mock 端點只實作 filter，**不要自加分頁**（避免 spec 偏離） |
+| `parameters` 只有 filter（如 `siteId`、`stationId`） | mock 端點只實作 filter，**不要自加分頁**（避免 spec 偏離） |
 | 無 parameters | 直接回完整陣列，無分頁、無 filter |
 
 Feature 推導模式下，**列表預設不加分頁**，除非該頁明確需要（如歷史紀錄列表 ≥ 11 筆）。要加時請同步更新 `route-map.yaml` 與後續產 spec 的人。
@@ -275,4 +275,4 @@ Feature 推導模式下，**列表預設不加分頁**，除非該頁明確需�
 | 收藏切換 | `DELETE .../favorite` | `POST .../unfavorite` |
 | 密碼修改 | `PATCH /accounts/{id}/change-password` | `POST /accounts/{id}/password` |
 
-下游 composable / store / page 必須同步調整。建議按資源批次遷移（accounts → teams → players → practice → pitches → cameras → exports），每批跑一次 typecheck + lint。
+下游 composable / store / page 必須同步調整。建議按資源批次遷移（accounts → sites → stations → watch → sightings → cameras → exports），每批跑一次 typecheck + lint。

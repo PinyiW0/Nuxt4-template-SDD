@@ -171,9 +171,9 @@ for each spec/e2e-flows/{NN}-{name}.flow.md:
 ### spec 摘要
 
 ```
-E2E Spec 完成：04-建立球隊
+E2E Spec 完成：04-建立觀測點
 
-  spec → test/e2e/specs/04-建立球隊.spec.ts ✅
+  spec → test/e2e/specs/04-建立觀測點.spec.ts ✅
   測試數：4（正常 3 + skip 1）
 ```
 
@@ -182,10 +182,10 @@ E2E Spec 完成：04-建立球隊
 ```
 E2E Batch 完成：03 → 06
 
-  03-查詢球隊列表  ✅
-  04-建立球隊      ✅
-  05-編輯球隊      ✅
-  06-刪除球隊      ✅
+  03-查詢觀測點列表  ✅
+  04-建立觀測點      ✅
+  05-編輯觀測點      ✅
+  06-刪除觀測點      ✅
 
   成功：4 / 4
 ```
@@ -193,15 +193,15 @@ E2E Batch 完成：03 → 06
 ### pipeline 摘要
 
 ```
-E2E Pipeline 完成：04-建立球隊
+E2E Pipeline 完成：04-建立觀測點
 
-  spec  → test/e2e/specs/04-建立球隊.spec.ts ✅（已存在，跳過）
+  spec  → test/e2e/specs/04-建立觀測點.spec.ts ✅（已存在，跳過）
   red   → 2 fail / 1 pass / 1 skip
   green → ✅ 全部通過（迭代 2 次）
 
   修復：
-  - app/pages/teams/index.vue（2 處 testid）
-  - server/mock/data/teams.ts（1 處數值）
+  - app/pages/sites/index.vue（2 處 testid）
+  - server/mock/data/sites.ts（1 處數值）
 ```
 
 ---

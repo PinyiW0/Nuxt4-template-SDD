@@ -8,7 +8,7 @@ EventSource 單向推播的完整實作。萃取自實戰 SSE store，已驗證�
 
 ## 連線模型（對齊本範例後端慣例；連線 / 訂閱形狀以各自 api-spec 為準）
 
-- **訂閱透過連線 URL 的 query 達成**：`/events?token={jwt}&channels=practice:{id},account:{id}`。無 `connectionId`、無額外 REST 訂閱端點。
+- **訂閱透過連線 URL 的 query 達成**：`/events?token={jwt}&channels=watch:{id},account:{id}`。無 `connectionId`、無額外 REST 訂閱端點。
 - **變更訂閱 = 以新 channels 重連**；channels 不變則沿用既有連線（避免無謂斷線）。
 - **連線預設必訂自己的 `account:{accountId}`**（個人通知頻道），其餘頻道按需加入。
 - **auth 放哪以 api-spec 為準，別寫死**：原生 `EventSource` 無法帶 header → 原生只剩 query token 或 cookie；要用 header 認證得改 `@microsoft/fetch-event-source`（非原生）。選哪個是後端合約（`route-map.realtime.auth`）。本後端 spec 定義 `/events` 為 `?token=` query（`security: []`），故走 query。**query token 僅用短效 token**（會進 access log / 瀏覽器歷史）。
@@ -24,15 +24,15 @@ SSE 信封固定外層 `{ id, type, channel, timestamp, data }`，`data` 隨 `ty
 // app/types/api/notifications.ts
 interface SseBase { id: string, channel: string, timestamp: string }
 interface ConnectEventData { channels?: string[] }                       // connected 歡迎訊息：回報 RBAC 剔除後的實際頻道
-interface PitchCreatedEventData { pitchId: string, practiceId: string }  // 只帶輕量索引，不含完整資料
-interface PracticeAiEventData { practiceId: string }
+interface SightingCreatedEventData { sightingId: string, watchId: string }  // 只帶輕量索引，不含完整資料
+interface WatchCaptureEventData { watchId: string }
 
 // 真正的 discriminated union：type 綁定對應 data
 export type NotificationEvent
   = | (SseBase & { type: 'connected', data: ConnectEventData })
-    | (SseBase & { type: 'pitchCreated', data: PitchCreatedEventData })
-    | (SseBase & { type: 'practiceAiStarted', data: PracticeAiEventData })
-    | (SseBase & { type: 'practiceAiStopped', data: PracticeAiEventData })
+    | (SseBase & { type: 'sightingCreated', data: SightingCreatedEventData })
+    | (SseBase & { type: 'watchCaptureStarted', data: WatchCaptureEventData })
+    | (SseBase & { type: 'watchCaptureStopped', data: WatchCaptureEventData })
 ```
 
 > **不要寫成 `data: A | B | C` 鬆散 union**——那樣 `switch (evt.type)` 不會收斂 `evt.data`，`handleEvent` 又得寫 `evt.data as XxxData`，等於沒做到 discriminated union（這是 review 抓到的反例）。
@@ -42,7 +42,7 @@ export type NotificationEvent
 
 核心 store（萃取自 `app/stores/notifications.ts`，保留教學關鍵段）：
 
-> **此範例把「連線層 + 領域層」放同一 store（對齊實戰、求教學完整）。跨專案重用時應拆開**：連線層只管 status / channels / raw event 流；`pitchList`、`fetchPracticePitches` 這類業務概念移到領域 store 消費事件（見 SKILL.md「傳輸層 vs 領域層」註）。
+> **此範例把「連線層 + 領域層」放同一 store（對齊實戰、求教學完整）。跨專案重用時應拆開**：連線層只管 status / channels / raw event 流；`sightingList`、`fetchWatchSightinges` 這類業務概念移到領域 store 消費事件（見 SKILL.md「傳輸層 vs 領域層」註）。
 
 ```ts
 import { useEventSource } from '@vueuse/core'
@@ -62,8 +62,8 @@ function isAccessTokenAlive(token: string): boolean {
 
 export const useNotificationsStore = defineStore('notifications', () => {
   const status = ref<ConnectionStatus>('idle')
-  const pitchList = ref<PitchListItem[]>([])
-  const activePracticeIds = reactive<Set<string>>(new Set())  // 想保持訂閱的 id；連線依此組 channels
+  const sightingList = ref<SightingListItem[]>([])
+  const activeWatchIds = reactive<Set<string>>(new Set())  // 想保持訂閱的 id；連線依此組 channels
 
   let closeFn: (() => void) | null = null
   let connScope: ReturnType<typeof effectScope> | null = null  // 包住本條連線的 watcher，重連/離場一次回收
@@ -75,21 +75,21 @@ export const useNotificationsStore = defineStore('notifications', () => {
   let reopenBackoffMs = 500                  // 手動重連 backoff；連上後 reset
 
   // --- 去重：upsert by id（補抓會與即時事件、進場 backfill 重疊）---
-  function upsertPitch(pitch: PitchListItem) {
-    const idx = pitchList.value.findIndex(p => p.pitchId === pitch.pitchId)
-    if (idx >= 0) pitchList.value[idx] = pitch
-    else pitchList.value.push(pitch)
+  function upsertSighting(sighting: SightingListItem) {
+    const idx = sightingList.value.findIndex(p => p.sightingId === sighting.sightingId)
+    if (idx >= 0) sightingList.value[idx] = sighting
+    else sightingList.value.push(sighting)
   }
-  function backfill(pitches: PitchListItem[]) { for (const p of pitches) upsertPitch(p) }
+  function backfill(sightings: SightingListItem[]) { for (const p of sightings) upsertSighting(p) }
 
   // --- 重連補抓：對所有訂閱中的資源重抓，補齊斷線期間漏掉的 ---
-  async function refetchPractice(practiceId: string) {
-    try { backfill(await fetchPracticePitches(practiceId)) }
+  async function refetchWatch(watchId: string) {
+    try { backfill(await fetchWatchSightinges(watchId)) }
     catch { /* 補抓失敗忽略，不影響後續即時事件 */ }
   }
   async function refetchActive() {
     // 並行重抓（訂閱多時，序列 await 會疊加延遲）
-    await Promise.all([...activePracticeIds].map(id => refetchPractice(id)))
+    await Promise.all([...activeWatchIds].map(id => refetchWatch(id)))
   }
 
   // --- 事件分派：switch by type，default 忽略未知型別（向前相容）---
@@ -102,11 +102,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
       if (hasConnectedOnce) void refetchActive()
       hasConnectedOnce = true
     }
-    else if (evt.type === 'pitchCreated') {
-      // evt.data 已被 union 收斂成 PitchCreatedEventData（免 as）。
-      // 粒度注意：優先抓「單顆球」（GET /pitches/{id}）再 upsert；這裡退回重抓整場，
-      // 是因為本後端只有 practice-pitches 端點——有單筆端點時別重抓整場（連投時 O(n²)）。
-      void refetchPractice(evt.data.practiceId)
+    else if (evt.type === 'sightingCreated') {
+      // evt.data 已被 union 收斂成 SightingCreatedEventData（免 as）。
+      // 粒度注意：優先抓「單筆事件」（GET /sightings/{id}）再 upsert；這裡退回重抓整場，
+      // 是因為本後端只有 watch-sightings 端點——有單筆端點時別重抓整場（密集出現時 O(n²)）。
+      void refetchWatch(evt.data.watchId)
     }
     // ...其餘 type
   }
@@ -115,7 +115,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const { accountId } = storeToRefs(useAuthStore())
     const channels: string[] = []
     if (accountId.value) channels.push(`account:${accountId.value}`)  // 必訂個人頻道
-    for (const id of activePracticeIds) channels.push(`practice:${id}`)
+    for (const id of activeWatchIds) channels.push(`watch:${id}`)
     return channels
   }
 
@@ -215,8 +215,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }, delay)
   }
 
-  function subscribe(practiceId: string) { activePracticeIds.add(practiceId); openConnection() }
-  function unsubscribe(practiceId: string) { activePracticeIds.delete(practiceId); openConnection() }
+  function subscribe(watchId: string) { activeWatchIds.add(watchId); openConnection() }
+  function unsubscribe(watchId: string) { activeWatchIds.delete(watchId); openConnection() }
 
   function close() {
     teardownConnection(); currentUrl = null
@@ -227,13 +227,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
   // --- 離場完整重置：關連線 + 清資料 + 清訂閱 + 重置旗標 ---
   function reset() {
     close()
-    pitchList.value = []
-    activePracticeIds.clear()
+    sightingList.value = []
+    activeWatchIds.clear()
     hasConnectedOnce = false
     status.value = 'idle'
   }
 
-  return { status, pitchList, backfill, upsertPitch, handleEvent, subscribe, unsubscribe, close, reset }
+  return { status, sightingList, backfill, upsertSighting, handleEvent, subscribe, unsubscribe, close, reset }
 })
 ```
 
@@ -243,13 +243,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
 // pages 進場：seed → 訂閱 → 進場 backfill；離場 reset
 const store = useNotificationsStore()
 onMounted(async () => {
-  store.subscribe(practiceId)              // 加 channel 並（重）連
-  store.backfill(await fetchPracticePitches(practiceId))  // 首次進場打底（重連補抓由 store 自理）
+  store.subscribe(watchId)              // 加 channel 並（重）連
+  store.backfill(await fetchWatchSightinges(watchId))  // 首次進場打底（重連補抓由 store 自理）
 })
 onBeforeUnmount(() => store.reset())       // 離場關連線、清乾淨
 ```
 
-元件**只**呼叫 store 方法、讀 `store.status` / `store.pitchList`，不自己碰 EventSource。
+元件**只**呼叫 store 方法、讀 `store.status` / `store.sightingList`，不自己碰 EventSource。
 
 ## Mock SSE 端點（給本地開發 / E2E）
 
@@ -295,7 +295,7 @@ mock hub（`server/mock/sse-hub.ts`）維護 `Map<connectionId, { stream, channe
 | 重連不停舊 watcher | 每次重連洩漏一批 `watch`（store action 內無 active scope） | 連線 watcher 綁 `effectScope`，重連 / 離場 `scope.stop()` |
 | 信封用 `data: A \| B \| C` 鬆散 union | `switch` 不收斂，又得寫 `as` | 真正的 discriminated union（`type` 綁對應 `data`） |
 | 連線 store 混進業務清單 | 連線層綁死單一業務、難跨專案 | 連線層只管連線；領域清單放領域 store |
-| 單顆事件重抓整個集合 | 連投時 O(n²) 流量 | 優先抓單一實體；無單筆端點才退回抓集合 |
+| 單顆事件重抓整個集合 | 密集出現時 O(n²) 流量 | 優先抓單一實體；無單筆端點才退回抓集合 |
 | `autoReconnect: true` 無上限 | server 真掛時固定間隔狂敲（非指數退避） | 設 `retries` 上限或 `onFailed` 退避；手動 backoff 設上限（如 15s） |
 | 推播塞完整 model | payload 肥、與 backfill 兩套渲染路徑 | 事件只帶 id → REST 補整包 → upsert 去重 |
 | 盲目 push | 補抓與即時事件重複 → 畫面重複項 | 一律 `upsert by id` |

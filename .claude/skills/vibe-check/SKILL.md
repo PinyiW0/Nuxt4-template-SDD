@@ -120,7 +120,7 @@ vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
 失敗清單：
 
 1. 01-accounts.spec.ts › 規則：顯示帳號列表（v2） › 顯示帳號列表
-   失敗訊息：findAccountEntity(/coach_wang/) 找不到 element
+   失敗訊息：findAccountEntity(/observer_wang/) 找不到 element
    對應 flow：spec/e2e-flows/01-accounts.flow.md → Flow: 顯示帳號列表
    可能違反的 invariant：
    - 「列表必須能識別未刪除的帳號實體」
@@ -128,7 +128,7 @@ vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
    嫌疑 vibe 改動（grep app/pages/accounts/）：
    - app/pages/accounts/index.vue 是否還顯示 username 欄位？是否還能用 username 找到 row？
    建議行動：
-   - 確認 coach_wang 帳號列在 /accounts 頁、且其 username 字串「coach_wang」可被視覺/讀屏識別
+   - 確認 observer_wang 帳號列在 /accounts 頁、且其 username 字串「observer_wang」可被視覺/讀屏識別
    - 不要修改 test/e2e/specs/01-accounts.spec.ts
 
 2. ...
@@ -145,9 +145,9 @@ vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
 ```
 ⚠️ 以下失敗是 vibe 層 spec（test/e2e/vibe/），不是業務合約：
 
-1. interaction-practice-lazy-load.spec.ts › vibe：投球清單 lazy loading
+1. interaction-watch-lazy-load.spec.ts › vibe：目擊事件清單 lazy loading
    失敗訊息：…
-   來源 hunk（spec 首行 marker）：app/pages/practice/[practiceId].vue:148-180
+   來源 hunk（spec 首行 marker）：app/pages/watch/[watchId].vue:148-180
    這支 spec 守的行為：滾動 lazy load 可持續載入、不在分頁交界卡死
 
    你的選項（請選一個，我不會代你決定）：

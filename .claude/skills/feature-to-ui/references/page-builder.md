@@ -23,14 +23,14 @@ Background:
 interface User {
   account: string
   password: string
-  role: '管理者' | '教練'
+  role: '管理者' | '觀測員'
 }
 ```
 
 ### 從 When 提取表單欄位
 
 ```gherkin
-When 使用者以帳號 "coach1" 密碼 "pass123" 登入
+When 使用者以帳號 "observer1" 密碼 "pass123" 登入
 ```
 
 → 表單欄位：`account`, `password`
@@ -39,7 +39,7 @@ When 使用者以帳號 "coach1" 密碼 "pass123" 登入
 
 | DSL Rule | Zod 驗證 |
 |----------|----------|
-| `背號範圍為 0-99` | `z.number().min(0).max(99)` |
+| `站號範圍為 0-99` | `z.number().min(0).max(99)` |
 | `必填欄位` | `z.string().min(1, '請輸入...')` |
 | `帳號或密碼錯誤` | API 層驗證，前端顯示錯誤 |
 
@@ -112,15 +112,15 @@ And 系統顯示 "帳號或密碼錯誤"
 
 ```vue
 <script setup lang="ts">
-import type { CreateTeamBody } from '~/types/api/teams'
-import { createTeam, listTeams } from '~/api'
+import type { CreateSiteBody } from '~/types/api/sites'
+import { createSite, listSites } from '~/api'
 
 const toast = useToast()
 // 列表用 get()（reactive）+ 穩定 key，拿到 refresh 控制權
-const { data: teams, refresh } = listTeams({ key: 'teams' })
+const { data: sites, refresh } = listSites({ key: 'sites' })
 
-async function handleCreate(body: CreateTeamBody) {
-  await createTeam(body)
+async function handleCreate(body: CreateSiteBody) {
+  await createSite(body)
   toast.add({ title: '建立成功', color: 'success' })
   await refresh() // ← 寫入後刷新，列表立即反映最新資料（少了這行就會 stale）
 }
@@ -131,11 +131,11 @@ async function handleCreate(body: CreateTeamBody) {
 
 ```ts
 // 父層：列表帶穩定 key
-const { data: teams } = listTeams({ key: 'teams' })
+const { data: sites } = listSites({ key: 'sites' })
 
 // 子元件（建立 modal）：寫完用同一把 key 觸發父層重抓
-await createTeam(body)
-await refreshNuxtData('teams')
+await createSite(body)
+await refreshNuxtData('sites')
 ```
 
 > ⚠️ 別把刷新寫成「手動再 push 一筆進 local array」——那會與後端真實狀態漂移（漏算衍生欄位、排序、權限過濾）。一律重抓。
@@ -162,10 +162,10 @@ await refreshNuxtData('teams')
 
 ```vue
 <script setup lang="ts">
-import { listTeams } from '~/api'
+import { listSites } from '~/api'
 
 // 主資料 lazy：切頁即時，pending 期間渲染 skeleton
-const { data: teams, status } = listTeams({ key: 'teams', lazy: true })
+const { data: sites, status } = listSites({ key: 'sites', lazy: true })
 </script>
 
 <template>
@@ -174,8 +174,8 @@ const { data: teams, status } = listTeams({ key: 'teams', lazy: true })
     <USkeleton v-for="i in 4" :key="i" class="h-12 w-full" />
   </div>
   <!-- 成功且空 → 空狀態；有資料 → 列表（UTable 用 #empty slot 同理） -->
-  <div v-else-if="!teams?.length">尚無資料</div>
-  <UTable v-else :data="teams" ... />
+  <div v-else-if="!sites?.length">尚無資料</div>
+  <UTable v-else :data="sites" ... />
 </template>
 ```
 

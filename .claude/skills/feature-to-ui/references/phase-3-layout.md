@@ -116,8 +116,8 @@ const isCollapsed = ref(false)
 
 const navigation = [
   { label: '首頁', icon: 'i-heroicons-home', to: '/' },
-  { label: '球隊', icon: 'i-heroicons-user-group', to: '/teams' },
-  { label: '球員', icon: 'i-heroicons-users', to: '/players' },
+  { label: '觀測點', icon: 'i-heroicons-user-group', to: '/sites' },
+  { label: '觀測站', icon: 'i-heroicons-users', to: '/stations' },
 ]
 
 function toggleSidebar() {

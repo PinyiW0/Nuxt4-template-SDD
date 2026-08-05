@@ -54,7 +54,7 @@
 | `Given the X event has occurred` | `### 業務脈絡`：初始事件/資料狀態 |
 | `Given the AccountList view returns` | `### 業務脈絡`：初始畫面資料 |
 | `Given no prior events` | `### 業務脈絡`：「系統無既有資料」 |
-| `When Coach sends Create*` | `### E2E 驗證流程`：使用者意圖步驟（觸發動作、填表單，不寫 testid） |
+| `When Observer sends Create*` | `### E2E 驗證流程`：使用者意圖步驟（觸發動作、填表單，不寫 testid） |
 | `When System sends ...`（System / Translator） | **不轉成使用者步驟**——該 Flow 標記`（背景同步）`，流程改寫「背景觸發條件」（見第 5 節） |
 | `When the X view is queried` | `### E2E 驗證流程`：「進入 /xxx 頁面」 |
 | `Then the X event is emitted` | `### Verification 策略`：API spy ＋ 使用者可感知的成功反饋（語意反饋元素） |
@@ -67,9 +67,9 @@
 
 **輸入（.feature）：**
 ```gherkin
-When Coach sends CreateAccount on stream "acc-001":
+When Observer sends CreateAccount on stream "acc-001":
   """
-  { "name": "王教練", "username": "coach_wang", "password": "pass1234", "remark": "U12 教練" }
+  { "name": "王思婷", "username": "observer_wang", "password": "pass1234", "remark": "北站觀測員" }
   """
 ```
 
@@ -78,15 +78,15 @@ When Coach sends CreateAccount on stream "acc-001":
 1. 進入 `/accounts` 頁面
 2. 觸發「建立帳號」（位置與形式不限：toolbar / float button / menu）
 3. 填寫表單欄位：
-   - 姓名 → 王教練
-   - 帳號 → coach_wang
+   - 姓名 → 王思婷
+   - 帳號 → observer_wang
    - 密碼 → pass1234
-   - 備註 → U12 教練
+   - 備註 → 北站觀測員
 4. 提交表單
 
 ### Verification 策略
 - API spy：`POST /api/v1/accounts` 被呼叫，payload 含上述四欄
-- UI：表單關閉、列表新增「王教練」實體
+- UI：表單關閉、列表新增「王思婷」實體
 
 ### 不再凍結
 - 觸發按鈕的形式與位置
@@ -100,7 +100,7 @@ When Coach sends CreateAccount on stream "acc-001":
 ```markdown
 ❌ 1. 點擊 `[data-testid="account-create-button"]`
 ❌ 2. 驗證 `[data-testid="account-create-modal"]` 顯示
-❌ 3. 在 `[data-testid="account-name-input"]` 填入「王教練」
+❌ 3. 在 `[data-testid="account-name-input"]` 填入「王思婷」
 ... (8 步全寫死 testid)
 ```
 
@@ -121,19 +121,19 @@ When Coach sends CreateAccount on stream "acc-001":
 `.flow.md` 的 spec 必須涵蓋：
 
 1. **主要識別欄位**（讓使用者識別這是哪筆資料）
-   - 例：pitch-type、player name、practice item
-   - 用語意 locator 找實體：`getByRole('row', { name: /FF/ })`
+   - 例：shower-code、station name、watch item
+   - 用語意 locator 找實體：`getByRole('row', { name: /PER/ })`
 2. **業務狀態欄位**（驅動 user behavior）
    - 例：已收藏 / 未收藏、進行中 / 已結束、連線中 / 已斷線
    - 用文字 / role 語意斷言
 3. **代表性 metric 抽樣**（一兩個關鍵數值代表「資料有流到 UI」）
-   - 例：speed = 130 找得到、player name 找得到
+   - 例：speed = 130 找得到、station name 找得到
    - **不必驗每欄具體值**——單位/格式可能迭代（如 inch→cm、°→HH:mm、imperial→metric）
 
 不在主 flow 寫的細節欄位，分兩種處理：
 
-- **(a) 抽樣式概覽斷言**：在主 flow 寫「speed 130 出現於 pitch-001 範圍」一條代表
-- **(b) 深度 sub-flow**：另起一個 `## Flow: 開啟 pitch detail / drawer` scenario，獨立驗證所有 metric 可達
+- **(a) 抽樣式概覽斷言**：在主 flow 寫「speed 130 出現於 sighting-001 範圍」一條代表
+- **(b) 深度 sub-flow**：另起一個 `## Flow: 開啟 sighting detail / drawer` scenario，獨立驗證所有 metric 可達
 
 ---
 
@@ -158,8 +158,8 @@ Business Invariant 寫**業務意圖層**（使用者能做什麼、能識別什
 Then the view returns:
   """
   [
-    { "accountId": "acc-001", "name": "王教練", "username": "coach_wang", "remark": "U12" },
-    { "accountId": "acc-002", "name": "李教練", "username": "coach_li", "remark": null }
+    { "accountId": "acc-001", "name": "王思婷", "username": "observer_wang", "remark": "U12" },
+    { "accountId": "acc-002", "name": "李文彥", "username": "observer_li", "remark": null }
   ]
   """
 ```
@@ -172,9 +172,9 @@ Then the view returns:
 2. 期待：列表上能識別兩個帳號實體（不限 layout）
 
 ### Verification 策略
-- `getByRole('row', { name: /王教練/ })` 或 `getByText(/王教練/)` 找實體
-- entity 範圍內驗 username（`coach_wang`）與 remark（`U12`）可達
-- 同樣驗 acc-002：李教練 / coach_li / remark 為空（用 `:not(:has-text("U"))` 或省略 remark 斷言）
+- `getByRole('row', { name: /王思婷/ })` 或 `getByText(/王思婷/)` 找實體
+- entity 範圍內驗 username（`observer_wang`）與 remark（`U12`）可達
+- 同樣驗 acc-002：李文彥 / observer_li / remark 為空（用 `:not(:has-text("U"))` 或省略 remark 斷言）
 
 ### Business Invariant 必涵蓋
 - 兩筆帳號可被識別
@@ -184,9 +184,9 @@ Then the view returns:
 
 ---
 
-#### 多欄位範例（投球 14 欄 — 抽象化重點）
+#### 多欄位範例（目擊事件 14 欄 — 抽象化重點）
 
-輸入見 `gherkin-export.feature` 的 PracticePitches view returns。
+輸入見 `gherkin-export.feature` 的 WatchSightinges view returns。
 
 **舊風格（v1，已淘汰）**：14 條 testid 斷言全寫死，包含具體單位（°、cm、km/h）與具體數值（38、-15、2200）。後果：vibe 把 row 改 card / drawer，14 條全紅；vibe 改單位（imperial→metric），數值對不上。
 
@@ -194,19 +194,19 @@ Then the view returns:
 
 ```markdown
 ### E2E 驗證流程
-1. 進入 `/practice/practice-001`
-2. 識別 pitch-001（pitch-type = FF）與 pitch-002（pitch-type = CB）
-3. 驗證收藏狀態：pitch-001 顯示「已收藏」、pitch-002 顯示「未收藏」
+1. 進入 `/watch/watch-001`
+2. 識別 sighting-001（shower-code = PER）與 sighting-002（shower-code = GEM）
+3. 驗證收藏狀態：sighting-001 顯示「已收藏」、sighting-002 顯示「未收藏」
 
 ### Verification 策略
-- `findEntity(/FF/)` / `findEntity(/CB/)` 找球
+- `findEntity(/PER/)` / `findEntity(/GEM/)` 找目擊事件
 - entity 內找 `getByRole('button', { name: /取消收藏/ })`（已收藏）或 `/^收藏/`（未收藏）
-- 抽樣：能在 pitch-001 範圍內找到 speed `130`、player `陳小明`（代表資料流通）
+- 抽樣：能在 sighting-001 範圍內找到 speed `130`、station `陳小明`（代表資料流通）
 
 ### 完整 metric 驗證（sub-flow，可選）
-另起 `## Flow: 開啟投球詳情（happy-path）`：
-1. 從投球清單觸發「查看詳情」進入 detail / drawer
-2. 驗證 detail 有可達的 metric 標籤：球速、轉速、轉軸、效率、ssw、進壘角、垂直位移、水平位移、定位、影片連結
+另起 `## Flow: 開啟目擊事件詳情（happy-path）`：
+1. 從目擊事件清單觸發「查看詳情」進入 detail / drawer
+2. 驗證 detail 有可達的 metric 標籤：入射速度、光度、轉軸、效率、ssw、進壘角、垂直位移、水平位移、定位、影片連結
 3. **不驗具體數值或單位**，只驗 label 與對應值能對到
 
 ### 不再凍結
@@ -250,19 +250,19 @@ v2 用不同機制達成同樣目的：
 #### 反例對照
 
 ```markdown
-❌ - `[data-testid="pitch-row-pitch-001-spin-axis"]` 顯示「210」(°)
+❌ - `[data-testid="sighting-row-sighting-001-radiant-axis"]` 顯示「210」(°)
    ← 凍結了 row layout + 單位 + 具體值，vibe 三項都動就紅
 
-✅ - 在 pitch-001 範圍內，spin-axis 對應的數值或時鐘字串可被找到
+✅ - 在 sighting-001 範圍內，radiant-axis 對應的數值或時鐘字串可被找到
    ← 描述 invariant，不鎖呈現
 
-✅ - `[data-testid="pitch-row-pitch-001"]` 包含「FF」（pitch-type 識別）
+✅ - `[data-testid="sighting-row-sighting-001"]` 包含「PER」（shower-code 識別）
    ← 抽樣識別欄，OK
 ```
 
 ### 5. 處理 System / Translator Scenario
 
-`.feature` 中由 `System` 或 `Translator` 觸發的 Scenario（例如「記錄投球」、「註冊相機」、「更新相機狀態」）並非使用者直接操作。寫入 `.flow.md` 時：
+`.feature` 中由 `System` 或 `Translator` 觸發的 Scenario（例如「記錄目擊事件」、「註冊相機」、「更新相機狀態」）並非使用者直接操作。寫入 `.flow.md` 時：
 
 - 仍保留為一個 `## Flow:` 區段（標註 `（背景同步）`）
 - `### E2E 驗證流程` 改為「背景觸發條件」，列出觸發來源
@@ -295,11 +295,11 @@ flow 含即時需求（即時 / 推播 / 通知 / live / 斷線重連）時，Bu
 
 ### 影音串流（與即時連線不同）
 
-與「連線狀態」不同，**影音播放的畫面呈現屬 UI / vibe 範疇，flow 不凍結它**——真實 flow 通常只以路由暗示直播頁（如 `/practice/live` 的「live」字），不寫「直播狀態可見」這類不變式（影片要不要顯示 LIVE / 無訊號 / 載入失敗，是 vibe 可自由迭代的呈現）。串流的合約在 OpenAPI 的播放 URL 端點（`/streams` → `hlsUrl`），由 feature-to-api Phase 0「Streaming 偵測」寫入 route-map；實作知識（播放器掛載、看門狗、延遲調校、多路對齊、teardown）由 `streaming` skill 提供。**flow 層不需為串流新增業務不變式**（對比：相機「連線中 / 已斷線」屬即時連線領域，那才是 flow 該捕捉的，見上一節）。
+與「連線狀態」不同，**影音播放的畫面呈現屬 UI / vibe 範疇，flow 不凍結它**——真實 flow 通常只以路由暗示直播頁（如 `/watch/live` 的「live」字），不寫「直播狀態可見」這類不變式（影片要不要顯示 LIVE / 無訊號 / 載入失敗，是 vibe 可自由迭代的呈現）。串流的合約在 OpenAPI 的播放 URL 端點（`/streams` → `hlsUrl`），由 feature-to-api Phase 0「Streaming 偵測」寫入 route-map；實作知識（播放器掛載、看門狗、延遲調校、多路對齊、teardown）由 `streaming` skill 提供。**flow 層不需為串流新增業務不變式**（對比：相機「連線中 / 已斷線」屬即時連線領域，那才是 flow 該捕捉的，見上一節）。
 
 ### 角色分層 / 授權
 
-feature 含**不同角色看到 / 能做的事不一樣**（「以管理員登入」vs「以教練登入」清單或可操作不同、「僅…可」「無權限」語意）時，Business Invariants 須捕捉兩條 **UX-agnostic** 不變式：① 「{操作 / 資源} 僅 {role} 可達」；② 「無權角色被擋——看不到入口、或被導離、或操作被拒（任一語意反饋皆可）」。**不指定守門形式**（403 頁 / 導回首頁 / 入口隱藏由 vibe 決定）。角色名用 feature 實際出現的詞、不寫死。授權的合約（端點存取 / 列表 ACL / 單筆 object 歸屬（BOLA）/ 受保護路由）由 feature-to-api Phase 0「授權（RBAC）偵測」萃取進 `route-map.rbac`，實作範本見 [rbac-scaffold.md](../../feature-to-api/references/rbac-scaffold.md)；flow 只負責把「角色可見性」立成業務不變式（含「只能操作自己的」這類單筆歸屬語意），讓 spec 有依據產拒絕場景。
+feature 含**不同角色看到 / 能做的事不一樣**（「以管理員登入」vs「以觀測員登入」清單或可操作不同、「僅…可」「無權限」語意）時，Business Invariants 須捕捉兩條 **UX-agnostic** 不變式：① 「{操作 / 資源} 僅 {role} 可達」；② 「無權角色被擋——看不到入口、或被導離、或操作被拒（任一語意反饋皆可）」。**不指定守門形式**（403 頁 / 導回首頁 / 入口隱藏由 vibe 決定）。角色名用 feature 實際出現的詞、不寫死。授權的合約（端點存取 / 列表 ACL / 單筆 object 歸屬（BOLA）/ 受保護路由）由 feature-to-api Phase 0「授權（RBAC）偵測」萃取進 `route-map.rbac`，實作範本見 [rbac-scaffold.md](../../feature-to-api/references/rbac-scaffold.md)；flow 只負責把「角色可見性」立成業務不變式（含「只能操作自己的」這類單筆歸屬語意），讓 spec 有依據產拒絕場景。
 
 ---
 

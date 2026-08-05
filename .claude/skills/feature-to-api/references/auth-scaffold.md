@@ -316,7 +316,7 @@ runtimeConfig: {
 
 ---
 
-## 4. 防「導向迴圈」硬性要求（jsjh-2026-frontend 實戰：此 bug 一直復發）
+## 4. 防「導向迴圈」硬性要求（某前端專案實戰：此 bug 一直復發）
 
 **根因**：middleware 信任 `refreshAlive` 放行但自己不 refresh → 進受保護頁 → 該頁並發多個 API 帶過期 token →
 **同時噴多個 401** → 每個各自 `forceLogout` → **各自 `navigateTo('/login')`** → Vue Router「redundant / duplicated navigation」錯。
