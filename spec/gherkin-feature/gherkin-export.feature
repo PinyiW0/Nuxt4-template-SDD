@@ -4,7 +4,7 @@
 # 本檔為模板 dogfood 範例，非本專案業務規格——衍生新專案時應置換為真規格或移除
 
 Feature: 帳號列表
-  顯示所有教練帳號清單（權限管理頁），排除已刪除帳號
+  顯示所有觀測員帳號清單（權限管理頁），排除已刪除帳號
 
   @happy-path @happy-path
   Rule: 顯示帳號列表
@@ -15,18 +15,18 @@ Feature: 帳號列表
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
-          "remark": "U12",
-          "username": "coach_wang",
+          "name": "王思婷",
+          "remark": "北站",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
       And the AccountCreated event has occurred on stream "acc-002":
         """
         {
-          "name": "李教練",
+          "name": "李文彥",
           "remark": null,
-          "username": "coach_li",
+          "username": "observer_li",
           "hashedPassword": "<<hashed>>"
         }
         """
@@ -35,15 +35,15 @@ Feature: 帳號列表
         """
         [
           {
-            "name": "王教練",
-            "remark": "U12",
-            "username": "coach_wang",
+            "name": "王思婷",
+            "remark": "北站",
+            "username": "observer_wang",
             "accountId": "acc-001"
           },
           {
-            "name": "李教練",
+            "name": "李文彥",
             "remark": null,
-            "username": "coach_li",
+            "username": "observer_li",
             "accountId": "acc-002"
           }
         ]
@@ -58,18 +58,18 @@ Feature: 帳號列表
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
       And the AccountCreated event has occurred on stream "acc-002":
         """
         {
-          "name": "李教練",
+          "name": "李文彥",
           "remark": null,
-          "username": "coach_li",
+          "username": "observer_li",
           "hashedPassword": "<<hashed>>"
         }
         """
@@ -82,9 +82,9 @@ Feature: 帳號列表
         """
         [
           {
-            "name": "王教練",
+            "name": "王思婷",
             "remark": null,
-            "username": "coach_wang",
+            "username": "observer_wang",
             "accountId": "acc-001"
           }
         ]
@@ -96,447 +96,447 @@ Feature: 帳號列表
       When the AccountList view is queried
       Then the view returns an empty list
 
-Feature: 球員列表
-  顯示球員清單，支援球隊篩選與姓名搜尋，排除已刪除球員
+Feature: 觀測站列表
+  顯示觀測站清單，支援觀測點篩選與姓名搜尋，排除已刪除觀測站
 
   @happy-path @happy-path
-  Rule: 顯示球員列表
-    存在球員時正確顯示列表
+  Rule: 顯示觀測站列表
+    存在觀測站時正確顯示列表
 
-    Scenario: 顯示球員列表
-      兩名球員存在，顯示兩筆紀錄
-      Given the PlayerCreated event has occurred on stream "player-001":
+    Scenario: 顯示觀測站列表
+      兩座觀測站存在，顯示兩筆紀錄
+      Given the StationCreated event has occurred on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      And the PlayerCreated event has occurred on stream "player-002":
+      And the StationCreated event has occurred on stream "station-002":
         """
         {
-          "height": 170,
-          "teamId": "team-001",
-          "weight": 60,
-          "playerName": "林大華",
-          "battingHand": "left",
-          "throwingHand": "left"
+          "latitude": 24.98,
+          "siteId": "site-001",
+          "longitude": 121.54,
+          "stationName": "陽明山南站",
+          "mountType": "經緯儀",
+          "opticsType": "魚眼"
         }
         """
-      When the PlayerList view is queried
+      When the StationList view is queried
       Then the view returns:
         """
         [
           {
-            "height": 165,
-            "teamId": "team-001",
-            "weight": 55,
-            "playerId": "player-001",
-            "playerName": "陳小明",
-            "battingHand": "right",
-            "throwingHand": "right"
+            "latitude": 24.14,
+            "siteId": "site-001",
+            "longitude": 121.27,
+            "stationId": "station-001",
+            "stationName": "合歡山北站",
+            "mountType": "赤道儀",
+            "opticsType": "廣角"
           },
           {
-            "height": 170,
-            "teamId": "team-001",
-            "weight": 60,
-            "playerId": "player-002",
-            "playerName": "林大華",
-            "battingHand": "left",
-            "throwingHand": "left"
+            "latitude": 24.98,
+            "siteId": "site-001",
+            "longitude": 121.54,
+            "stationId": "station-002",
+            "stationName": "陽明山南站",
+            "mountType": "經緯儀",
+            "opticsType": "魚眼"
           }
         ]
         """
 
-  @derivation @exclude-deleted-players
-  Rule: 排除已刪除球員
-    已刪除球員不顯示在列表中
+  @derivation @exclude-deleted-stations
+  Rule: 排除已刪除觀測站
+    已刪除觀測站不顯示在列表中
 
-    Scenario: 排除已刪除球員
-      球員已刪除，列表中不顯示
-      Given the PlayerCreated event has occurred on stream "player-001":
+    Scenario: 排除已刪除觀測站
+      觀測站已刪除，列表中不顯示
+      Given the StationCreated event has occurred on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      And the PlayerCreated event has occurred on stream "player-002":
+      And the StationCreated event has occurred on stream "station-002":
         """
         {
-          "height": 170,
-          "teamId": "team-001",
-          "weight": 60,
-          "playerName": "林大華",
-          "battingHand": "left",
-          "throwingHand": "left"
+          "latitude": 24.98,
+          "siteId": "site-001",
+          "longitude": 121.54,
+          "stationName": "陽明山南站",
+          "mountType": "經緯儀",
+          "opticsType": "魚眼"
         }
         """
-      And the PlayerDeleted event has occurred on stream "player-002":
+      And the StationDeleted event has occurred on stream "station-002":
         """
         {}
         """
-      When the PlayerList view is queried
+      When the StationList view is queried
       Then the view returns:
         """
         [
           {
-            "height": 165,
-            "teamId": "team-001",
-            "weight": 55,
-            "playerId": "player-001",
-            "playerName": "陳小明",
-            "battingHand": "right",
-            "throwingHand": "right"
+            "latitude": 24.14,
+            "siteId": "site-001",
+            "longitude": 121.27,
+            "stationId": "station-001",
+            "stationName": "合歡山北站",
+            "mountType": "赤道儀",
+            "opticsType": "廣角"
           }
         ]
         """
 
     Scenario: 空列表
-      尚無任何球員時回傳空列表
+      尚無任何觀測站時回傳空列表
       Given no prior events
-      When the PlayerList view is queried
+      When the StationList view is queried
       Then the view returns an empty list
 
-Feature: 練習歷史總覽
-  歷史總覽：依日期與球員分組顯示練習 sessions，含投球數統計
+Feature: 觀測時段歷史總覽
+  歷史總覽：依日期與觀測站分組顯示觀測時段 sessions，含目擊事件數統計
 
   @happy-path @happy-path
-  Rule: 顯示練習歷史
-    存在練習時正確顯示歷史總覽
+  Rule: 顯示觀測時段歷史
+    存在觀測時段時正確顯示歷史總覽
 
-    Scenario: 顯示練習歷史
-      一次練習含兩球，正確顯示投球數統計
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 顯示觀測時段歷史
+      一次觀測時段含兩球，正確顯示目擊事件數統計
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 125,
-          "pitchType": "CU",
-          "haaDegrees": -4.8,
-          "vaaDegrees": -10.2,
-          "gyroDegrees": 25,
-          "trueSpinRpm": 2300,
-          "sideVideoUrl": "https://example.com/side2.mp4",
-          "totalSpinRpm": 2400,
-          "frontVideoUrl": "https://example.com/front2.mp4",
-          "sswVerticalCm": 42,
-          "spinDirDegrees": 180,
-          "spinEfficiency": 0.92,
-          "sswHorizontalCm": -10,
-          "verticalBreakCm": 42,
-          "horizontalBreakCm": -10,
-          "strikeZoneLocationXCm": -5,
-          "strikeZoneLocationZCm": 65
+          "stationId": "station-001",
+          "speedKms": 125,
+          "showerCode": "ORI",
+          "azimuthDegrees": -4.8,
+          "entryDegrees": -10.2,
+          "zenithDegrees": 25,
+          "trueLightMag": 2300,
+          "secondaryVideoUrl": "https://example.com/side2.mp4",
+          "totalLightMag": 2400,
+          "primaryVideoUrl": "https://example.com/front2.mp4",
+          "decelVerticalKms": 42,
+          "radiantRaDegrees": 180,
+          "lightEfficiency": 0.92,
+          "decelHorizontalKms": -10,
+          "verticalDriftKm": 42,
+          "horizontalDriftKm": -10,
+          "terminalLocationXKm": -5,
+          "terminalLocationZKm": 65
         }
         """
-      And the PracticeEnded event has occurred on stream "practice-001":
+      And the WatchEnded event has occurred on stream "watch-001":
         """
         {}
         """
-      When the PracticeHistory view is queried
+      When the WatchHistory view is queried
       Then the view returns:
         """
         [
           {
             "status": "ended",
-            "playerIds": [
-              "player-001"
+            "stationIds": [
+              "station-001"
             ],
-            "pitchCount": 2,
-            "practiceId": "practice-001",
-            "practiceItem": "投球訓練"
+            "sightingCount": 2,
+            "watchId": "watch-001",
+            "watchItem": "英仙座觀測"
           }
         ]
         """
 
   @derivation @derivation
   Rule: 投影邏輯
-    練習歷史投影邏輯，含進行中狀態與空列表
+    觀測時段歷史投影邏輯，含進行中狀態與空列表
 
-    Scenario: 練習進行中
-      練習尚未結束時 status 為 in-progress
-      Given the PracticeStarted event has occurred on stream "practice-002":
+    Scenario: 觀測時段進行中
+      觀測時段尚未結束時 status 為 in-progress
+      Given the WatchStarted event has occurred on stream "watch-002":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-002":
+      And the SightingRecorded event has occurred on stream "watch-002":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      When the PracticeHistory view is queried
+      When the WatchHistory view is queried
       Then the view returns:
         """
         [
           {
             "status": "in-progress",
-            "playerIds": [
-              "player-001"
+            "stationIds": [
+              "station-001"
             ],
-            "pitchCount": 1,
-            "practiceId": "practice-002",
-            "practiceItem": "投球訓練"
+            "sightingCount": 1,
+            "watchId": "watch-002",
+            "watchItem": "英仙座觀測"
           }
         ]
         """
 
     Scenario: 空列表
-      尚無練習時回傳空列表
+      尚無觀測時段時回傳空列表
       Given no prior events
-      When the PracticeHistory view is queried
+      When the WatchHistory view is queried
       Then the view returns an empty list
 
-Feature: 練習投球清單
-  顯示單次練習中所有投球紀錄的詳細數據，含收藏與刪除狀態
+Feature: 觀測時段目擊事件清單
+  顯示單次觀測時段中所有目擊事件紀錄的詳細數據，含收藏與刪除狀態
 
   @happy-path @happy-path
-  Rule: 顯示投球清單
-    存在投球紀錄時正確顯示清單
+  Rule: 顯示目擊事件清單
+    存在目擊事件紀錄時正確顯示清單
 
-    Scenario: 顯示投球清單
+    Scenario: 顯示目擊事件清單
       一球已收藏、一球未收藏，正確顯示收藏狀態
-      Given the PracticeStarted event has occurred on stream "practice-001":
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 125,
-          "pitchType": "CU",
-          "haaDegrees": -4.8,
-          "vaaDegrees": -10.2,
-          "gyroDegrees": 25,
-          "trueSpinRpm": 2300,
-          "sideVideoUrl": "https://example.com/side2.mp4",
-          "totalSpinRpm": 2400,
-          "frontVideoUrl": "https://example.com/front2.mp4",
-          "sswVerticalCm": 42,
-          "spinDirDegrees": 180,
-          "spinEfficiency": 0.92,
-          "sswHorizontalCm": -10,
-          "verticalBreakCm": 42,
-          "horizontalBreakCm": -10,
-          "strikeZoneLocationXCm": -5,
-          "strikeZoneLocationZCm": 65
+          "stationId": "station-001",
+          "speedKms": 125,
+          "showerCode": "ORI",
+          "azimuthDegrees": -4.8,
+          "entryDegrees": -10.2,
+          "zenithDegrees": 25,
+          "trueLightMag": 2300,
+          "secondaryVideoUrl": "https://example.com/side2.mp4",
+          "totalLightMag": 2400,
+          "primaryVideoUrl": "https://example.com/front2.mp4",
+          "decelVerticalKms": 42,
+          "radiantRaDegrees": 180,
+          "lightEfficiency": 0.92,
+          "decelHorizontalKms": -10,
+          "verticalDriftKm": 42,
+          "horizontalDriftKm": -10,
+          "terminalLocationXKm": -5,
+          "terminalLocationZKm": 65
         }
         """
-      And the PitchFavorited event has occurred on stream "practice-001":
+      And the SightingFavorited event has occurred on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      When the PracticePitches view is queried
+      When the WatchSightinges view is queried
       Then the view returns:
         """
         [
           {
-            "ssw": 1.8,
+            "decel": 1.8,
             "speed": 130,
-            "pitchId": "pitch-001",
-            "playerId": "player-001",
-            "spinAxis": 210,
-            "spinRate": 2200,
+            "sightingId": "sighting-001",
+            "stationId": "station-001",
+            "radiantAxis": 210,
+            "lightPeak": 2200,
             "isDeleted": false,
             "locationX": 0.1,
             "locationY": 0.5,
-            "pitchType": "FF",
-            "practiceId": "practice-001",
+            "showerCode": "PER",
+            "watchId": "watch-001",
             "isFavorited": true,
-            "sideVideoUrl": "https://example.com/side.mp4",
-            "approachAngle": -5.2,
-            "frontVideoUrl": "https://example.com/front.mp4",
-            "verticalBreak": 38,
-            "spinEfficiency": 95,
-            "horizontalBreak": -15,
-            "effectiveSpinRate": 2100
+            "secondaryVideoUrl": "https://example.com/side.mp4",
+            "inclinationAngle": -5.2,
+            "primaryVideoUrl": "https://example.com/front.mp4",
+            "verticalDrift": 38,
+            "lightEfficiency": 95,
+            "horizontalDrift": -15,
+            "effectiveLightMag": 2100
           },
           {
-            "ssw": 1.9,
+            "decel": 1.9,
             "speed": 125,
-            "pitchId": "pitch-002",
-            "playerId": "player-001",
-            "spinAxis": 180,
-            "spinRate": 2400,
+            "sightingId": "sighting-002",
+            "stationId": "station-001",
+            "radiantAxis": 180,
+            "lightPeak": 2400,
             "isDeleted": false,
             "locationX": -0.1,
             "locationY": 0.3,
-            "pitchType": "CB",
-            "practiceId": "practice-001",
+            "showerCode": "GEM",
+            "watchId": "watch-001",
             "isFavorited": false,
-            "sideVideoUrl": "https://example.com/side2.mp4",
-            "approachAngle": -4.8,
-            "frontVideoUrl": "https://example.com/front2.mp4",
-            "verticalBreak": 42,
-            "spinEfficiency": 92,
-            "horizontalBreak": -10,
-            "effectiveSpinRate": 2300
+            "secondaryVideoUrl": "https://example.com/side2.mp4",
+            "inclinationAngle": -4.8,
+            "primaryVideoUrl": "https://example.com/front2.mp4",
+            "verticalDrift": 42,
+            "lightEfficiency": 92,
+            "horizontalDrift": -10,
+            "effectiveLightMag": 2300
           }
         ]
         """
 
   @derivation @derivation
   Rule: 投影邏輯
-    投球清單投影邏輯，含刪除標記與空列表
+    目擊事件清單投影邏輯，含刪除標記與空列表
 
-    Scenario: 已刪除投球標記 isDeleted
-      投球被刪除後 isDeleted 為 true
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 已刪除目擊事件標記 isDeleted
+      目擊事件被刪除後 isDeleted 為 true
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      And the PitchDeleted event has occurred on stream "practice-001":
+      And the SightingDeleted event has occurred on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      When the PracticePitches view is queried
+      When the WatchSightinges view is queried
       Then the view returns:
         """
         [
           {
-            "ssw": 1.8,
+            "decel": 1.8,
             "speed": 130,
-            "pitchId": "pitch-001",
-            "playerId": "player-001",
-            "spinAxis": 210,
-            "spinRate": 2200,
+            "sightingId": "sighting-001",
+            "stationId": "station-001",
+            "radiantAxis": 210,
+            "lightPeak": 2200,
             "isDeleted": true,
             "locationX": 0.1,
             "locationY": 0.5,
-            "pitchType": "FF",
-            "practiceId": "practice-001",
+            "showerCode": "PER",
+            "watchId": "watch-001",
             "isFavorited": false,
-            "sideVideoUrl": "https://example.com/side.mp4",
-            "approachAngle": -5.2,
-            "frontVideoUrl": "https://example.com/front.mp4",
-            "verticalBreak": 38,
-            "spinEfficiency": 95,
-            "horizontalBreak": -15,
-            "effectiveSpinRate": 2100
+            "secondaryVideoUrl": "https://example.com/side.mp4",
+            "inclinationAngle": -5.2,
+            "primaryVideoUrl": "https://example.com/front.mp4",
+            "verticalDrift": 38,
+            "lightEfficiency": 95,
+            "horizontalDrift": -15,
+            "effectiveLightMag": 2100
           }
         ]
         """
 
     Scenario: 空列表
-      尚無投球紀錄時回傳空列表
+      尚無目擊事件紀錄時回傳空列表
       Given no prior events
-      When the PracticePitches view is queried
+      When the WatchSightinges view is queried
       Then the view returns an empty list
 
 Feature: 相機狀態列表
@@ -552,14 +552,14 @@ Feature: 相機狀態列表
         """
         {
           "deviceId": "CAM-A1",
-          "position": "本壘後方"
+          "position": "天頂方向"
         }
         """
       And the CameraRegistered event has occurred on stream "camera-002":
         """
         {
           "deviceId": "CAM-B1",
-          "position": "一壘側"
+          "position": "東側"
         }
         """
       And the CameraStatusUpdated event has occurred on stream "camera-002":
@@ -575,13 +575,13 @@ Feature: 相機狀態列表
           {
             "cameraId": "camera-001",
             "deviceId": "CAM-A1",
-            "position": "本壘後方",
+            "position": "天頂方向",
             "connectionStatus": "connected"
           },
           {
             "cameraId": "camera-002",
             "deviceId": "CAM-B1",
-            "position": "一壘側",
+            "position": "東側",
             "connectionStatus": "disconnected"
           }
         ]
@@ -597,7 +597,7 @@ Feature: 相機狀態列表
         """
         {
           "deviceId": "CAM-A1",
-          "position": "本壘後方"
+          "position": "天頂方向"
         }
         """
       When the CameraStatusList view is queried
@@ -607,7 +607,7 @@ Feature: 相機狀態列表
           {
             "cameraId": "camera-001",
             "deviceId": "CAM-A1",
-            "position": "本壘後方",
+            "position": "天頂方向",
             "connectionStatus": "connected"
           }
         ]
@@ -620,7 +620,7 @@ Feature: 相機狀態列表
       Then the view returns an empty list
 
 Feature: 建立帳號
-  教練建立新帳號（姓名、帳號、密碼、備註）
+  觀測員建立新帳號（姓名、帳號、密碼、備註）
 
   @happy-path @happy-path
   Rule: 成功建立帳號
@@ -629,21 +629,21 @@ Feature: 建立帳號
     Scenario: 成功建立帳號
       新帳號名稱不重複，建立成功並產生 AccountCreated 事件
       Given no prior events
-      When Coach sends CreateAccount on stream "acc-001":
+      When Observer sends CreateAccount on stream "acc-001":
         """
         {
-          "name": "王教練",
-          "remark": "U12 教練",
+          "name": "王思婷",
+          "remark": "北站觀測員",
           "password": "pass1234",
-          "username": "coach_wang"
+          "username": "observer_wang"
         }
         """
       Then the AccountCreated event is emitted with:
         """
         {
-          "name": "王教練",
-          "remark": "U12 教練",
-          "username": "coach_wang",
+          "name": "王思婷",
+          "remark": "北站觀測員",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
@@ -653,45 +653,45 @@ Feature: 建立帳號
     同名帳號已存在時拒絕建立
 
     Scenario: 帳號名稱重複
-      帳號 coach_wang 已被使用，拒絕建立
+      帳號 observer_wang 已被使用，拒絕建立
       Given the AccountList view returns:
         """
         {
           "items": [
             {
-              "name": "舊教練",
-              "username": "coach_wang",
+              "name": "舊觀測員",
+              "username": "observer_wang",
               "accountId": "acc-existing"
             }
           ]
         }
         """
-      When Coach sends CreateAccount on stream "acc-002":
+      When Observer sends CreateAccount on stream "acc-002":
         """
         {
-          "name": "新教練",
+          "name": "新觀測員",
           "remark": null,
           "password": "pass5678",
-          "username": "coach_wang"
+          "username": "observer_wang"
         }
         """
       Then the operation fails with: 帳號名稱已存在
 
 Feature: 登入
-  教練以帳號密碼登入系統
+  觀測員以帳號密碼登入系統
 
   @happy-path @happy-path
   Rule: 成功登入
     帳號存在且密碼正確時成功登入
 
     Scenario: 成功登入
-      帳號存在且密碼正確，產生 CoachLoggedIn
+      帳號存在且密碼正確，產生 ObserverLoggedIn
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
@@ -699,10 +699,10 @@ Feature: 登入
         """
         {
           "password": "pass1234",
-          "username": "coach_wang"
+          "username": "observer_wang"
         }
         """
-      Then the CoachLoggedIn event is emitted with:
+      Then the ObserverLoggedIn event is emitted with:
         """
         {}
         """
@@ -732,9 +732,9 @@ Feature: 登入
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
@@ -746,13 +746,13 @@ Feature: 登入
         """
         {
           "password": "pass1234",
-          "username": "coach_wang"
+          "username": "observer_wang"
         }
         """
       Then the operation fails with: 帳號已刪除
 
 Feature: 修改密碼
-  教練修改帳號密碼
+  觀測員修改帳號密碼
 
   @happy-path @happy-path
   Rule: 成功修改密碼
@@ -763,13 +763,13 @@ Feature: 修改密碼
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
-      When Coach sends ChangePassword on stream "acc-001":
+      When Observer sends ChangePassword on stream "acc-001":
         """
         {
           "newPassword": "newpass5678"
@@ -789,7 +789,7 @@ Feature: 修改密碼
     Scenario: 帳號不存在
       帳號 stream 無事件，拒絕修改
       Given no prior events
-      When Coach sends ChangePassword on stream "acc-unknown":
+      When Observer sends ChangePassword on stream "acc-unknown":
         """
         {
           "newPassword": "newpass5678"
@@ -806,9 +806,9 @@ Feature: 修改密碼
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
@@ -816,7 +816,7 @@ Feature: 修改密碼
         """
         {}
         """
-      When Coach sends ChangePassword on stream "acc-001":
+      When Observer sends ChangePassword on stream "acc-001":
         """
         {
           "newPassword": "newpass5678"
@@ -825,7 +825,7 @@ Feature: 修改密碼
       Then the operation fails with: 帳號已刪除
 
 Feature: 修改備註
-  教練修改帳號備註
+  觀測員修改帳號備註
 
   @happy-path @happy-path
   Rule: 成功修改備註
@@ -836,22 +836,22 @@ Feature: 修改備註
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
-      When Coach sends UpdateRemark on stream "acc-001":
+      When Observer sends UpdateRemark on stream "acc-001":
         """
         {
-          "remark": "U15 教練"
+          "remark": "南站觀測員"
         }
         """
       Then the AccountRemarkUpdated event is emitted with:
         """
         {
-          "remark": "U15 教練"
+          "remark": "南站觀測員"
         }
         """
 
@@ -862,7 +862,7 @@ Feature: 修改備註
     Scenario: 帳號不存在
       帳號 stream 無事件，拒絕修改備註
       Given no prior events
-      When Coach sends UpdateRemark on stream "acc-unknown":
+      When Observer sends UpdateRemark on stream "acc-unknown":
         """
         {
           "remark": "測試"
@@ -879,9 +879,9 @@ Feature: 修改備註
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
@@ -889,16 +889,16 @@ Feature: 修改備註
         """
         {}
         """
-      When Coach sends UpdateRemark on stream "acc-001":
+      When Observer sends UpdateRemark on stream "acc-001":
         """
         {
-          "remark": "U15 教練"
+          "remark": "南站觀測員"
         }
         """
       Then the operation fails with: 帳號已刪除
 
 Feature: 刪除帳號
-  教練刪除帳號
+  觀測員刪除帳號
 
   @happy-path @happy-path
   Rule: 成功刪除帳號
@@ -909,13 +909,13 @@ Feature: 刪除帳號
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
-      When Coach sends DeleteAccount on stream "acc-001":
+      When Observer sends DeleteAccount on stream "acc-001":
         """
         {}
         """
@@ -931,7 +931,7 @@ Feature: 刪除帳號
     Scenario: 帳號不存在
       帳號 stream 無事件，拒絕刪除
       Given no prior events
-      When Coach sends DeleteAccount on stream "acc-unknown":
+      When Observer sends DeleteAccount on stream "acc-unknown":
         """
         {}
         """
@@ -946,9 +946,9 @@ Feature: 刪除帳號
       Given the AccountCreated event has occurred on stream "acc-001":
         """
         {
-          "name": "王教練",
+          "name": "王思婷",
           "remark": null,
-          "username": "coach_wang",
+          "username": "observer_wang",
           "hashedPassword": "<<hashed>>"
         }
         """
@@ -956,838 +956,838 @@ Feature: 刪除帳號
         """
         {}
         """
-      When Coach sends DeleteAccount on stream "acc-001":
+      When Observer sends DeleteAccount on stream "acc-001":
         """
         {}
         """
       Then the operation fails with: 帳號已刪除
 
-Feature: 建立隊伍
-  教練建立新隊伍
+Feature: 建立觀測點
+  觀測員建立新觀測點
 
   @happy-path @happy-path
-  Rule: 成功建立隊伍
-    提供隊伍名稱時成功建立
+  Rule: 成功建立觀測點
+    提供觀測點名稱時成功建立
 
-    Scenario: 成功建立隊伍
-      建立新隊伍，產生 TeamCreated
+    Scenario: 成功建立觀測點
+      建立新觀測點，產生 SiteCreated
       Given no prior events
-      When Coach sends CreateTeam on stream "team-001":
+      When Observer sends CreateSite on stream "site-001":
         """
         {
-          "teamName": "台北少棒隊"
+          "siteName": "陽明山觀測點"
         }
         """
-      Then the TeamCreated event is emitted with:
+      Then the SiteCreated event is emitted with:
         """
         {
-          "teamName": "台北少棒隊"
+          "siteName": "陽明山觀測點"
         }
         """
 
-Feature: 刪除隊伍
-  教練刪除隊伍
+Feature: 刪除觀測點
+  觀測員刪除觀測點
 
   @happy-path @happy-path
-  Rule: 成功刪除隊伍
-    隊伍存在且未刪除時成功刪除
+  Rule: 成功刪除觀測點
+    觀測點存在且未刪除時成功刪除
 
-    Scenario: 成功刪除隊伍
-      隊伍存在，產生 TeamDeleted
-      Given the TeamCreated event has occurred on stream "team-001":
+    Scenario: 成功刪除觀測點
+      觀測點存在，產生 SiteDeleted
+      Given the SiteCreated event has occurred on stream "site-001":
         """
         {
-          "teamName": "台北少棒隊"
+          "siteName": "陽明山觀測點"
         }
         """
-      When Coach sends DeleteTeam on stream "team-001":
+      When Observer sends DeleteSite on stream "site-001":
         """
         {}
         """
-      Then the TeamDeleted event is emitted with:
+      Then the SiteDeleted event is emitted with:
         """
         {}
         """
 
-  @not-found @team-not-found
-  Rule: 隊伍不存在
-    隊伍不存在時拒絕刪除
+  @not-found @site-not-found
+  Rule: 觀測點不存在
+    觀測點不存在時拒絕刪除
 
-    Scenario: 隊伍不存在
-      隊伍 stream 無事件，拒絕刪除
+    Scenario: 觀測點不存在
+      觀測點 stream 無事件，拒絕刪除
       Given no prior events
-      When Coach sends DeleteTeam on stream "team-unknown":
+      When Observer sends DeleteSite on stream "site-unknown":
         """
         {}
         """
-      Then the operation fails with: 隊伍不存在
+      Then the operation fails with: 觀測點不存在
 
-  @condition @team-already-deleted
-  Rule: 隊伍已刪除
-    隊伍已被刪除時拒絕重複刪除
+  @condition @site-already-deleted
+  Rule: 觀測點已刪除
+    觀測點已被刪除時拒絕重複刪除
 
-    Scenario: 隊伍已刪除
-      隊伍已刪除，拒絕重複刪除
-      Given the TeamCreated event has occurred on stream "team-001":
+    Scenario: 觀測點已刪除
+      觀測點已刪除，拒絕重複刪除
+      Given the SiteCreated event has occurred on stream "site-001":
         """
         {
-          "teamName": "台北少棒隊"
+          "siteName": "陽明山觀測點"
         }
         """
-      And the TeamDeleted event has occurred on stream "team-001":
+      And the SiteDeleted event has occurred on stream "site-001":
         """
         {}
         """
-      When Coach sends DeleteTeam on stream "team-001":
+      When Observer sends DeleteSite on stream "site-001":
         """
         {}
         """
-      Then the operation fails with: 隊伍已刪除
+      Then the operation fails with: 觀測點已刪除
 
-Feature: 建立球員
-  教練建立球員（姓名、隊伍、投打習慣、身高、體重）
+Feature: 建立觀測站
+  觀測員建立觀測站（姓名、觀測點、投打習慣、緯度、經度）
 
   @happy-path @happy-path
-  Rule: 成功建立球員
-    提供有效資料時成功建立球員
+  Rule: 成功建立觀測站
+    提供有效資料時成功建立觀測站
 
-    Scenario: 成功建立球員
-      建立新球員，產生 PlayerCreated
+    Scenario: 成功建立觀測站
+      建立新觀測站，產生 StationCreated
       Given no prior events
-      When Coach sends CreatePlayer on stream "player-001":
+      When Observer sends CreateStation on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      Then the PlayerCreated event is emitted with:
+      Then the StationCreated event is emitted with:
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
 
-Feature: 編輯球員
-  教練編輯球員資料
+Feature: 編輯觀測站
+  觀測員編輯觀測站資料
 
   @happy-path @happy-path
-  Rule: 成功編輯球員
-    球員存在且未刪除時成功編輯
+  Rule: 成功編輯觀測站
+    觀測站存在且未刪除時成功編輯
 
-    Scenario: 成功編輯球員
-      球員存在，產生 PlayerUpdated
-      Given the PlayerCreated event has occurred on stream "player-001":
+    Scenario: 成功編輯觀測站
+      觀測站存在，產生 StationUpdated
+      Given the StationCreated event has occurred on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      When Coach sends UpdatePlayer on stream "player-001":
+      When Observer sends UpdateStation on stream "station-001":
         """
         {
-          "height": 170,
-          "teamId": "team-001",
-          "weight": 60,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.98,
+          "siteId": "site-001",
+          "longitude": 121.54,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      Then the PlayerUpdated event is emitted with:
+      Then the StationUpdated event is emitted with:
         """
         {
-          "height": 170,
-          "teamId": "team-001",
-          "weight": 60,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.98,
+          "siteId": "site-001",
+          "longitude": 121.54,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
 
-  @not-found @player-not-found
-  Rule: 球員不存在
-    球員不存在時拒絕編輯
+  @not-found @station-not-found
+  Rule: 觀測站不存在
+    觀測站不存在時拒絕編輯
 
-    Scenario: 球員不存在
-      球員 stream 無事件，拒絕編輯
+    Scenario: 觀測站不存在
+      觀測站 stream 無事件，拒絕編輯
       Given no prior events
-      When Coach sends UpdatePlayer on stream "player-unknown":
+      When Observer sends UpdateStation on stream "station-unknown":
         """
         {
-          "height": 170,
-          "teamId": "team-001",
-          "weight": 60,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.98,
+          "siteId": "site-001",
+          "longitude": 121.54,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      Then the operation fails with: 球員不存在
+      Then the operation fails with: 觀測站不存在
 
-  @condition @player-deleted
-  Rule: 球員已刪除
-    球員已刪除時拒絕編輯
+  @condition @station-deleted
+  Rule: 觀測站已刪除
+    觀測站已刪除時拒絕編輯
 
-    Scenario: 球員已刪除
-      球員已刪除，拒絕編輯
-      Given the PlayerCreated event has occurred on stream "player-001":
+    Scenario: 觀測站已刪除
+      觀測站已刪除，拒絕編輯
+      Given the StationCreated event has occurred on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      And the PlayerDeleted event has occurred on stream "player-001":
+      And the StationDeleted event has occurred on stream "station-001":
         """
         {}
         """
-      When Coach sends UpdatePlayer on stream "player-001":
+      When Observer sends UpdateStation on stream "station-001":
         """
         {
-          "height": 170,
-          "teamId": "team-001",
-          "weight": 60,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.98,
+          "siteId": "site-001",
+          "longitude": 121.54,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      Then the operation fails with: 球員已刪除
+      Then the operation fails with: 觀測站已刪除
 
-Feature: 刪除球員
-  教練刪除球員
+Feature: 刪除觀測站
+  觀測員刪除觀測站
 
   @happy-path @happy-path
-  Rule: 成功刪除球員
-    球員存在且未刪除時成功刪除
+  Rule: 成功刪除觀測站
+    觀測站存在且未刪除時成功刪除
 
-    Scenario: 成功刪除球員
-      球員存在，產生 PlayerDeleted
-      Given the PlayerCreated event has occurred on stream "player-001":
+    Scenario: 成功刪除觀測站
+      觀測站存在，產生 StationDeleted
+      Given the StationCreated event has occurred on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      When Coach sends DeletePlayer on stream "player-001":
+      When Observer sends DeleteStation on stream "station-001":
         """
         {}
         """
-      Then the PlayerDeleted event is emitted with:
+      Then the StationDeleted event is emitted with:
         """
         {}
         """
 
-  @not-found @player-not-found
-  Rule: 球員不存在
-    球員不存在時拒絕刪除
+  @not-found @station-not-found
+  Rule: 觀測站不存在
+    觀測站不存在時拒絕刪除
 
-    Scenario: 球員不存在
-      球員 stream 無事件，拒絕刪除
+    Scenario: 觀測站不存在
+      觀測站 stream 無事件，拒絕刪除
       Given no prior events
-      When Coach sends DeletePlayer on stream "player-unknown":
+      When Observer sends DeleteStation on stream "station-unknown":
         """
         {}
         """
-      Then the operation fails with: 球員不存在
+      Then the operation fails with: 觀測站不存在
 
-  @condition @player-already-deleted
-  Rule: 球員已刪除
-    球員已刪除時拒絕重複刪除
+  @condition @station-already-deleted
+  Rule: 觀測站已刪除
+    觀測站已刪除時拒絕重複刪除
 
-    Scenario: 球員已刪除
-      球員已刪除，拒絕重複刪除
-      Given the PlayerCreated event has occurred on stream "player-001":
+    Scenario: 觀測站已刪除
+      觀測站已刪除，拒絕重複刪除
+      Given the StationCreated event has occurred on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      And the PlayerDeleted event has occurred on stream "player-001":
+      And the StationDeleted event has occurred on stream "station-001":
         """
         {}
         """
-      When Coach sends DeletePlayer on stream "player-001":
+      When Observer sends DeleteStation on stream "station-001":
         """
         {}
         """
-      Then the operation fails with: 球員已刪除
+      Then the operation fails with: 觀測站已刪除
 
-Feature: 開啟練習
-  教練選擇球員與練習項目，開啟投球練習
+Feature: 開啟觀測時段
+  觀測員選擇觀測站與觀測時段項目，開啟目擊事件觀測時段
 
   @happy-path @happy-path
-  Rule: 成功開啟練習
-    選擇球員與項目後成功開啟練習
+  Rule: 成功開啟觀測時段
+    選擇觀測站與項目後成功開啟觀測時段
 
-    Scenario: 成功開啟練習
-      新練習建立，產生 PracticeStarted
+    Scenario: 成功開啟觀測時段
+      新觀測時段建立，產生 WatchStarted
       Given no prior events
-      When Coach sends StartPractice on stream "practice-001":
+      When Observer sends StartWatch on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      Then the PracticeStarted event is emitted with:
+      Then the WatchStarted event is emitted with:
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
 
-Feature: 結束練習
-  結束練習，不可重新開啟
+Feature: 結束觀測時段
+  結束觀測時段，不可重新開啟
 
   @happy-path @happy-path
-  Rule: 成功結束練習
-    練習進行中時成功結束
+  Rule: 成功結束觀測時段
+    觀測時段進行中時成功結束
 
-    Scenario: 成功結束練習
-      練習進行中，結束練習，產生 PracticeEnded
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 成功結束觀測時段
+      觀測時段進行中，結束觀測時段，產生 WatchEnded
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      When Coach sends EndPractice on stream "practice-001":
+      When Observer sends EndWatch on stream "watch-001":
         """
         {}
         """
-      Then the PracticeEnded event is emitted with:
+      Then the WatchEnded event is emitted with:
         """
         {}
         """
 
-  @condition @practice-already-ended
-  Rule: 練習已結束
-    練習已結束時拒絕重複結束
+  @condition @watch-already-ended
+  Rule: 觀測時段已結束
+    觀測時段已結束時拒絕重複結束
 
-    Scenario: 練習已結束
-      練習已結束，拒絕重複結束
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 觀測時段已結束
+      觀測時段已結束，拒絕重複結束
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PracticeEnded event has occurred on stream "practice-001":
+      And the WatchEnded event has occurred on stream "watch-001":
         """
         {}
         """
-      When Coach sends EndPractice on stream "practice-001":
+      When Observer sends EndWatch on stream "watch-001":
         """
         {}
         """
-      Then the operation fails with: 練習已結束
+      Then the operation fails with: 觀測時段已結束
 
-Feature: 記錄投球
-  系統自動擷取單球投球指標與影片（由 PitchDataTranslator 觸發）
+Feature: 記錄目擊事件
+  系統自動擷取單筆目擊事件指標與影片（由 SightingDataTranslator 觸發）
 
   @happy-path @happy-path
-  Rule: 成功記錄投球
-    練習進行中時成功記錄投球數據
+  Rule: 成功記錄目擊事件
+    觀測時段進行中時成功記錄目擊事件數據
 
-    Scenario: 成功記錄投球
-      練習進行中，系統記錄一球數據，產生 PitchRecorded
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 成功記錄目擊事件
+      觀測時段進行中，系統記錄一球數據，產生 SightingRecorded
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PendingPitchPair view returns:
+      And the PendingSightingPair view returns:
         """
         {
-          "bsaEventId": "evt-bsa-001",
-          "practiceId": "practice-001",
+          "photoEventId": "evt-photo-001",
+          "watchId": "watch-001",
           "receivedAt": "2026-05-19T10:00:00Z",
-          "bt3dEventId": "evt-bt3d-001"
+          "trajEventId": "evt-traj-001"
         }
         """
-      When System sends RecordPitch on stream "practice-001":
+      When System sends RecordSighting on stream "watch-001":
         """
         {
-          "ssw": 1.8,
+          "decel": 1.8,
           "speed": 130,
-          "playerId": "player-001",
-          "spinAxis": 210,
-          "spinRate": 2200,
+          "stationId": "station-001",
+          "radiantAxis": 210,
+          "lightPeak": 2200,
           "locationX": 0.1,
           "locationY": 0.5,
-          "pitchType": "FF",
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "approachAngle": -5.2,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "verticalBreak": 38,
-          "spinEfficiency": 95,
-          "horizontalBreak": -15,
-          "effectiveSpinRate": 2100
+          "showerCode": "PER",
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "inclinationAngle": -5.2,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "verticalDrift": 38,
+          "lightEfficiency": 95,
+          "horizontalDrift": -15,
+          "effectiveLightMag": 2100
         }
         """
-      Then the PitchRecorded event is emitted with:
+      Then the SightingRecorded event is emitted with:
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
 
-  @condition @practice-ended
-  Rule: 練習已結束
-    練習已結束時拒絕記錄投球
+  @condition @watch-ended
+  Rule: 觀測時段已結束
+    觀測時段已結束時拒絕記錄目擊事件
 
-    Scenario: 練習已結束
-      練習已結束，拒絕記錄投球
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 觀測時段已結束
+      觀測時段已結束，拒絕記錄目擊事件
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PracticeEnded event has occurred on stream "practice-001":
+      And the WatchEnded event has occurred on stream "watch-001":
         """
         {}
         """
-      And the PendingPitchPair view returns:
+      And the PendingSightingPair view returns:
         """
         {
-          "bsaEventId": "evt-bsa-001",
-          "practiceId": "practice-001",
+          "photoEventId": "evt-photo-001",
+          "watchId": "watch-001",
           "receivedAt": "2026-05-19T10:00:00Z",
-          "bt3dEventId": "evt-bt3d-001"
+          "trajEventId": "evt-traj-001"
         }
         """
-      When System sends RecordPitch on stream "practice-001":
+      When System sends RecordSighting on stream "watch-001":
         """
         {
-          "ssw": 1.8,
+          "decel": 1.8,
           "speed": 130,
-          "playerId": "player-001",
-          "spinAxis": 210,
-          "spinRate": 2200,
+          "stationId": "station-001",
+          "radiantAxis": 210,
+          "lightPeak": 2200,
           "locationX": 0.1,
           "locationY": 0.5,
-          "pitchType": "FF",
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "approachAngle": -5.2,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "verticalBreak": 38,
-          "spinEfficiency": 95,
-          "horizontalBreak": -15,
-          "effectiveSpinRate": 2100
+          "showerCode": "PER",
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "inclinationAngle": -5.2,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "verticalDrift": 38,
+          "lightEfficiency": 95,
+          "horizontalDrift": -15,
+          "effectiveLightMag": 2100
         }
         """
-      Then the operation fails with: 練習已結束
+      Then the operation fails with: 觀測時段已結束
 
-Feature: 收藏單球
-  教練收藏單球紀錄
+Feature: 收藏單筆
+  觀測員收藏單筆紀錄
 
   @happy-path @happy-path
   Rule: 成功收藏
-    投球存在且未收藏時成功收藏
+    目擊事件存在且未收藏時成功收藏
 
     Scenario: 成功收藏
-      投球紀錄存在且未收藏，產生 PitchFavorited
-      Given the PracticeStarted event has occurred on stream "practice-001":
+      目擊事件紀錄存在且未收藏，產生 SightingFavorited
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      When Coach sends FavoritePitch on stream "practice-001":
+      When Observer sends FavoriteSighting on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      Then the PitchFavorited event is emitted with:
+      Then the SightingFavorited event is emitted with:
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
 
-  @condition @pitch-already-favorited
-  Rule: 投球已收藏
-    投球已被收藏時拒絕重複收藏
+  @condition @sighting-already-favorited
+  Rule: 目擊事件已收藏
+    目擊事件已被收藏時拒絕重複收藏
 
-    Scenario: 投球已收藏
-      投球已收藏，拒絕重複收藏
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 目擊事件已收藏
+      目擊事件已收藏，拒絕重複收藏
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      And the PitchFavorited event has occurred on stream "practice-001":
+      And the SightingFavorited event has occurred on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      When Coach sends FavoritePitch on stream "practice-001":
+      When Observer sends FavoriteSighting on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      Then the operation fails with: 投球已收藏
+      Then the operation fails with: 目擊事件已收藏
 
-  @condition @pitch-deleted
-  Rule: 投球已刪除
-    投球已被刪除時拒絕收藏
+  @condition @sighting-deleted
+  Rule: 目擊事件已刪除
+    目擊事件已被刪除時拒絕收藏
 
-    Scenario: 投球已刪除
-      投球已刪除，拒絕收藏
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 目擊事件已刪除
+      目擊事件已刪除，拒絕收藏
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      And the PitchDeleted event has occurred on stream "practice-001":
+      And the SightingDeleted event has occurred on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      When Coach sends FavoritePitch on stream "practice-001":
+      When Observer sends FavoriteSighting on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      Then the operation fails with: 投球已刪除
+      Then the operation fails with: 目擊事件已刪除
 
 Feature: 取消收藏
-  教練取消收藏單球紀錄
+  觀測員取消收藏單筆紀錄
 
   @happy-path @happy-path
   Rule: 成功取消收藏
-    投球已收藏時成功取消
+    目擊事件已收藏時成功取消
 
     Scenario: 成功取消收藏
-      投球已收藏，取消後產生 PitchUnfavorited
-      Given the PracticeStarted event has occurred on stream "practice-001":
+      目擊事件已收藏，取消後產生 SightingUnfavorited
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      And the PitchFavorited event has occurred on stream "practice-001":
+      And the SightingFavorited event has occurred on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      When Coach sends UnfavoritePitch on stream "practice-001":
+      When Observer sends UnfavoriteSighting on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      Then the PitchUnfavorited event is emitted with:
+      Then the SightingUnfavorited event is emitted with:
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
 
-  @condition @pitch-not-favorited
-  Rule: 投球未收藏
-    投球未被收藏時拒絕取消
+  @condition @sighting-not-favorited
+  Rule: 目擊事件未收藏
+    目擊事件未被收藏時拒絕取消
 
-    Scenario: 投球未收藏
-      投球未收藏，拒絕取消收藏
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 目擊事件未收藏
+      目擊事件未收藏，拒絕取消收藏
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      When Coach sends UnfavoritePitch on stream "practice-001":
+      When Observer sends UnfavoriteSighting on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      Then the operation fails with: 投球未收藏
+      Then the operation fails with: 目擊事件未收藏
 
-Feature: 刪除單球
-  教練刪除單球紀錄
+Feature: 刪除單筆
+  觀測員刪除單筆紀錄
 
   @happy-path @happy-path
-  Rule: 成功刪除單球
-    投球存在且未刪除時成功刪除
+  Rule: 成功刪除單筆
+    目擊事件存在且未刪除時成功刪除
 
-    Scenario: 成功刪除單球
-      投球紀錄存在，產生 PitchDeleted
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 成功刪除單筆
+      目擊事件紀錄存在，產生 SightingDeleted
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      When Coach sends DeletePitch on stream "practice-001":
+      When Observer sends DeleteSighting on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      Then the PitchDeleted event is emitted with:
+      Then the SightingDeleted event is emitted with:
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
 
-  @condition @pitch-already-deleted
-  Rule: 投球已刪除
-    投球已被刪除時拒絕重複刪除
+  @condition @sighting-already-deleted
+  Rule: 目擊事件已刪除
+    目擊事件已被刪除時拒絕重複刪除
 
-    Scenario: 投球已刪除
-      投球已刪除，拒絕重複刪除
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 目擊事件已刪除
+      目擊事件已刪除，拒絕重複刪除
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PitchRecorded event has occurred on stream "practice-001":
+      And the SightingRecorded event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
-      And the PitchDeleted event has occurred on stream "practice-001":
+      And the SightingDeleted event has occurred on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      When Coach sends DeletePitch on stream "practice-001":
+      When Observer sends DeleteSighting on stream "watch-001":
         """
         {
-          "pitchId": "pitch-001"
+          "sightingId": "sighting-001"
         }
         """
-      Then the operation fails with: 投球已刪除
+      Then the operation fails with: 目擊事件已刪除
 
 Feature: 註冊相機
   相機裝置上線時自動註冊（由 CameraRegistrationTranslator 觸發）
@@ -1802,21 +1802,21 @@ Feature: 註冊相機
         """
         {
           "deviceId": "CAM-A1",
-          "position": "本壘後方"
+          "position": "天頂方向"
         }
         """
       When System sends RegisterCamera on stream "camera-001":
         """
         {
           "deviceId": "CAM-A1",
-          "position": "本壘後方"
+          "position": "天頂方向"
         }
         """
       Then the CameraRegistered event is emitted with:
         """
         {
           "deviceId": "CAM-A1",
-          "position": "本壘後方"
+          "position": "天頂方向"
         }
         """
 
@@ -1830,14 +1830,14 @@ Feature: 註冊相機
         """
         {
           "deviceId": "CAM-A1",
-          "position": "本壘後方"
+          "position": "天頂方向"
         }
         """
       When System sends RegisterCamera on stream "camera-001":
         """
         {
           "deviceId": "CAM-A1",
-          "position": "本壘後方"
+          "position": "天頂方向"
         }
         """
       Then the operation fails with: 裝置已註冊
@@ -1855,7 +1855,7 @@ Feature: 更新相機狀態
         """
         {
           "deviceId": "CAM-A1",
-          "position": "本壘後方"
+          "position": "天頂方向"
         }
         """
       And the external event arrives via CameraStatusTranslator on stream "camera-001":
@@ -1894,27 +1894,27 @@ Feature: 更新相機狀態
       Then the operation fails with: 相機未註冊
 
 Feature: 請求匯出
-  教練請求匯出單次練習或全部歷史為 CSV
+  觀測員請求匯出單次觀測時段或全部歷史為 CSV
 
   @happy-path @happy-path-single
-  Rule: 匯出單次練習
-    匯出單次練習為 CSV
+  Rule: 匯出單次觀測時段
+    匯出單次觀測時段為 CSV
 
-    Scenario: 匯出單次練習
-      指定 practiceId 匯出單次練習，產生 ExportRequested
+    Scenario: 匯出單次觀測時段
+      指定 watchId 匯出單次觀測時段，產生 ExportRequested
       Given no prior events
-      When Coach sends RequestExport on stream "export-001":
+      When Observer sends RequestExport on stream "export-001":
         """
         {
-          "exportType": "single-practice",
-          "practiceId": "practice-001"
+          "exportType": "single-watch",
+          "watchId": "watch-001"
         }
         """
       Then the ExportRequested event is emitted with:
         """
         {
-          "exportType": "single-practice",
-          "practiceId": "practice-001"
+          "exportType": "single-watch",
+          "watchId": "watch-001"
         }
         """
 
@@ -1923,503 +1923,503 @@ Feature: 請求匯出
     匯出全部歷史為 CSV
 
     Scenario: 匯出全部歷史
-      匯出全部歷史，practiceId 為 null，產生 ExportRequested
+      匯出全部歷史，watchId 為 null，產生 ExportRequested
       Given no prior events
-      When Coach sends RequestExport on stream "export-002":
+      When Observer sends RequestExport on stream "export-002":
         """
         {
           "exportType": "all-history",
-          "practiceId": null
+          "watchId": null
         }
         """
       Then the ExportRequested event is emitted with:
         """
         {
           "exportType": "all-history",
-          "practiceId": null
+          "watchId": null
         }
         """
 
-  @field-validation @missing-practice-id-for-single
-  Rule: 缺少練習 ID
-    匯出單次練習時未提供 practiceId
+  @field-validation @missing-watch-id-for-single
+  Rule: 缺少觀測時段 ID
+    匯出單次觀測時段時未提供 watchId
 
-    Scenario: 缺少練習 ID
-      exportType 為 single-practice 但 practiceId 為 null，拒絕匯出
+    Scenario: 缺少觀測時段 ID
+      exportType 為 single-watch 但 watchId 為 null，拒絕匯出
       Given no prior events
-      When Coach sends RequestExport on stream "export-003":
+      When Observer sends RequestExport on stream "export-003":
         """
         {
-          "exportType": "single-practice",
-          "practiceId": null
+          "exportType": "single-watch",
+          "watchId": null
         }
         """
-      Then the operation fails with: 匯出單次練習時必須提供 practiceId
+      Then the operation fails with: 匯出單次觀測時段時必須提供 watchId
 
-Feature: 球隊列表
-  顯示所有隊伍與其球員數，排除已刪除隊伍，球員數會隨已刪除球員遞減
+Feature: 觀測點列表
+  顯示所有觀測點與其觀測站數，排除已刪除觀測點，觀測站數會隨已刪除觀測站遞減
 
   @happy-path @happy-path
-  Rule: 顯示球隊列表
-    存在隊伍時正確顯示列表，並計算各隊球員數
+  Rule: 顯示觀測點列表
+    存在觀測點時正確顯示列表，並計算各隊觀測站數
 
-    Scenario: 顯示球隊列表
-      兩隊各有不同球員數,正確顯示 playerCount
-      Given the TeamCreated event has occurred on stream "team-001":
+    Scenario: 顯示觀測點列表
+      兩隊各有不同觀測站數,正確顯示 stationCount
+      Given the SiteCreated event has occurred on stream "site-001":
         """
         {
-          "teamName": "台北少棒隊"
+          "siteName": "陽明山觀測點"
         }
         """
-      And the TeamCreated event has occurred on stream "team-002":
+      And the SiteCreated event has occurred on stream "site-002":
         """
         {
-          "teamName": "台中少棒隊"
+          "siteName": "合歡山觀測點"
         }
         """
-      And the PlayerCreated event has occurred on stream "player-001":
+      And the StationCreated event has occurred on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      And the PlayerCreated event has occurred on stream "player-002":
+      And the StationCreated event has occurred on stream "station-002":
         """
         {
-          "height": 170,
-          "teamId": "team-001",
-          "weight": 60,
-          "playerName": "林大華",
-          "battingHand": "left",
-          "throwingHand": "left"
+          "latitude": 24.98,
+          "siteId": "site-001",
+          "longitude": 121.54,
+          "stationName": "陽明山南站",
+          "mountType": "經緯儀",
+          "opticsType": "魚眼"
         }
         """
-      And the PlayerCreated event has occurred on stream "player-003":
+      And the StationCreated event has occurred on stream "station-003":
         """
         {
-          "height": 172,
-          "teamId": "team-002",
-          "weight": 62,
-          "playerName": "黃志強",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 23.47,
+          "siteId": "site-002",
+          "longitude": 120.95,
+          "stationName": "鹿林山西站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      When the TeamList view is queried
+      When the SiteList view is queried
       Then the view returns:
         """
         [
           {
-            "teamId": "team-001",
-            "teamName": "台北少棒隊",
-            "playerCount": 2
+            "siteId": "site-001",
+            "siteName": "陽明山觀測點",
+            "stationCount": 2
           },
           {
-            "teamId": "team-002",
-            "teamName": "台中少棒隊",
-            "playerCount": 1
+            "siteId": "site-002",
+            "siteName": "合歡山觀測點",
+            "stationCount": 1
           }
         ]
         """
 
   @derivation @exclude-deleted-and-decrement-count
-  Rule: 排除已刪除隊伍並遞減球員數
-    已刪除隊伍不顯示；已刪除球員不計入 playerCount
+  Rule: 排除已刪除觀測點並遞減觀測站數
+    已刪除觀測點不顯示；已刪除觀測站不計入 stationCount
 
-    Scenario: 排除已刪除隊伍與球員
-      team-002 已刪除整筆消失;team-001 內 player-002 已刪除 playerCount 由 2 變 1
-      Given the TeamCreated event has occurred on stream "team-001":
+    Scenario: 排除已刪除觀測點與觀測站
+      site-002 已刪除整筆消失;site-001 內 station-002 已刪除 stationCount 由 2 變 1
+      Given the SiteCreated event has occurred on stream "site-001":
         """
         {
-          "teamName": "台北少棒隊"
+          "siteName": "陽明山觀測點"
         }
         """
-      And the TeamCreated event has occurred on stream "team-002":
+      And the SiteCreated event has occurred on stream "site-002":
         """
         {
-          "teamName": "台中少棒隊"
+          "siteName": "合歡山觀測點"
         }
         """
-      And the PlayerCreated event has occurred on stream "player-001":
+      And the StationCreated event has occurred on stream "station-001":
         """
         {
-          "height": 165,
-          "teamId": "team-001",
-          "weight": 55,
-          "playerName": "陳小明",
-          "battingHand": "right",
-          "throwingHand": "right"
+          "latitude": 24.14,
+          "siteId": "site-001",
+          "longitude": 121.27,
+          "stationName": "合歡山北站",
+          "mountType": "赤道儀",
+          "opticsType": "廣角"
         }
         """
-      And the PlayerCreated event has occurred on stream "player-002":
+      And the StationCreated event has occurred on stream "station-002":
         """
         {
-          "height": 170,
-          "teamId": "team-001",
-          "weight": 60,
-          "playerName": "林大華",
-          "battingHand": "left",
-          "throwingHand": "left"
+          "latitude": 24.98,
+          "siteId": "site-001",
+          "longitude": 121.54,
+          "stationName": "陽明山南站",
+          "mountType": "經緯儀",
+          "opticsType": "魚眼"
         }
         """
-      And the PlayerDeleted event has occurred on stream "player-002":
+      And the StationDeleted event has occurred on stream "station-002":
         """
         {}
         """
-      And the TeamDeleted event has occurred on stream "team-002":
+      And the SiteDeleted event has occurred on stream "site-002":
         """
         {}
         """
-      When the TeamList view is queried
+      When the SiteList view is queried
       Then the view returns:
         """
         [
           {
-            "teamId": "team-001",
-            "teamName": "台北少棒隊",
-            "playerCount": 1
+            "siteId": "site-001",
+            "siteName": "陽明山觀測點",
+            "stationCount": 1
           }
         ]
         """
 
     Scenario: 空列表
-      尚無任何隊伍時回傳空列表
+      尚無任何觀測點時回傳空列表
       Given no prior events
-      When the TeamList view is queried
+      When the SiteList view is queried
       Then the view returns an empty list
 
-Feature: 接收 bt3d 軌跡資料
-  bt3d-module 擷取的投球 3D 軌跡原始資料轉譯為內部事件（由 Bt3dTranslator 觸發）
+Feature: 接收 traj 軌跡資料
+  traj-module 擷取的目擊事件 3D 軌跡原始資料轉譯為內部事件（由 TrajTranslator 觸發）
 
   @happy-path @happy-path
-  Rule: 成功接收 bt3d 資料
-    練習進行中時成功接收 bt3d 軌跡原始資料
+  Rule: 成功接收 traj 資料
+    觀測時段進行中時成功接收 traj 軌跡原始資料
 
     Scenario: 成功接收
-      練習進行中，接收 bt3d 3D 軌跡資料，產生 Bt3dDataReceived
-      Given the PracticeStarted event has occurred on stream "practice-001":
+      觀測時段進行中，接收 traj 3D 軌跡資料，產生 TrajDataReceived
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the external event arrives via Bt3dTranslator on stream "practice-001":
+      And the external event arrives via TrajTranslator on stream "watch-001":
         """
         {
           "rawTraj": "..raw-3d-traj..",
           "trajEndTs": 1.2,
           "trajStartTs": 0.8,
-          "pitchTrajXc0": 0.1,
-          "pitchTrajXc1": -25.5,
-          "pitchTrajXc2": 0.3,
-          "pitchTrajYc0": 0.05,
-          "pitchTrajYc1": 0.2,
-          "pitchTrajYc2": -9.8,
-          "pitchTrajZc0": 1.8,
-          "pitchTrajZc1": -0.5,
-          "pitchTrajZc2": -4.9,
+          "pathTrajXc0": 0.1,
+          "pathTrajXc1": -25.5,
+          "pathTrajXc2": 0.3,
+          "pathTrajYc0": 0.05,
+          "pathTrajYc1": 0.2,
+          "pathTrajYc2": -9.8,
+          "pathTrajZc0": 1.8,
+          "pathTrajZc1": -0.5,
+          "pathTrajZc2": -4.9,
           "rawTraj2dCam0": "..cam0-2d..",
           "rawTraj2dCam1": "..cam1-2d.."
         }
         """
-      When System sends ReceiveBt3dData on stream "practice-001":
+      When System sends ReceiveTrajData on stream "watch-001":
         """
         {
           "rawTraj": "..raw-3d-traj..",
           "trajEndTs": 1.2,
           "trajStartTs": 0.8,
-          "pitchTrajXc0": 0.1,
-          "pitchTrajXc1": -25.5,
-          "pitchTrajXc2": 0.3,
-          "pitchTrajYc0": 0.05,
-          "pitchTrajYc1": 0.2,
-          "pitchTrajYc2": -9.8,
-          "pitchTrajZc0": 1.8,
-          "pitchTrajZc1": -0.5,
-          "pitchTrajZc2": -4.9,
+          "pathTrajXc0": 0.1,
+          "pathTrajXc1": -25.5,
+          "pathTrajXc2": 0.3,
+          "pathTrajYc0": 0.05,
+          "pathTrajYc1": 0.2,
+          "pathTrajYc2": -9.8,
+          "pathTrajZc0": 1.8,
+          "pathTrajZc1": -0.5,
+          "pathTrajZc2": -4.9,
           "rawTraj2dCam0": "..cam0-2d..",
           "rawTraj2dCam1": "..cam1-2d.."
         }
         """
-      Then the Bt3dDataReceived event is emitted with:
+      Then the TrajDataReceived event is emitted with:
         """
         {
           "rawTraj": "..raw-3d-traj..",
           "trajEndTs": 1.2,
           "trajStartTs": 0.8,
-          "pitchTrajXc0": 0.1,
-          "pitchTrajXc1": -25.5,
-          "pitchTrajXc2": 0.3,
-          "pitchTrajYc0": 0.05,
-          "pitchTrajYc1": 0.2,
-          "pitchTrajYc2": -9.8,
-          "pitchTrajZc0": 1.8,
-          "pitchTrajZc1": -0.5,
-          "pitchTrajZc2": -4.9,
+          "pathTrajXc0": 0.1,
+          "pathTrajXc1": -25.5,
+          "pathTrajXc2": 0.3,
+          "pathTrajYc0": 0.05,
+          "pathTrajYc1": 0.2,
+          "pathTrajYc2": -9.8,
+          "pathTrajZc0": 1.8,
+          "pathTrajZc1": -0.5,
+          "pathTrajZc2": -4.9,
           "rawTraj2dCam0": "..cam0-2d..",
           "rawTraj2dCam1": "..cam1-2d.."
         }
         """
 
-  @condition @practice-ended
-  Rule: 練習已結束
-    練習已結束時拒絕接收 bt3d 資料
+  @condition @watch-ended
+  Rule: 觀測時段已結束
+    觀測時段已結束時拒絕接收 traj 資料
 
-    Scenario: 練習已結束
-      練習已結束，拒絕接收 bt3d 資料
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 觀測時段已結束
+      觀測時段已結束，拒絕接收 traj 資料
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PracticeEnded event has occurred on stream "practice-001":
+      And the WatchEnded event has occurred on stream "watch-001":
         """
         {}
         """
-      And the external event arrives via Bt3dTranslator on stream "practice-001":
+      And the external event arrives via TrajTranslator on stream "watch-001":
         """
         {
           "rawTraj": "..raw-3d-traj..",
           "trajEndTs": 1.2,
           "trajStartTs": 0.8,
-          "pitchTrajXc0": 0.1,
-          "pitchTrajXc1": -25.5,
-          "pitchTrajXc2": 0.3,
-          "pitchTrajYc0": 0.05,
-          "pitchTrajYc1": 0.2,
-          "pitchTrajYc2": -9.8,
-          "pitchTrajZc0": 1.8,
-          "pitchTrajZc1": -0.5,
-          "pitchTrajZc2": -4.9,
+          "pathTrajXc0": 0.1,
+          "pathTrajXc1": -25.5,
+          "pathTrajXc2": 0.3,
+          "pathTrajYc0": 0.05,
+          "pathTrajYc1": 0.2,
+          "pathTrajYc2": -9.8,
+          "pathTrajZc0": 1.8,
+          "pathTrajZc1": -0.5,
+          "pathTrajZc2": -4.9,
           "rawTraj2dCam0": "..cam0-2d..",
           "rawTraj2dCam1": "..cam1-2d.."
         }
         """
-      When System sends ReceiveBt3dData on stream "practice-001":
+      When System sends ReceiveTrajData on stream "watch-001":
         """
         {
           "rawTraj": "..raw-3d-traj..",
           "trajEndTs": 1.2,
           "trajStartTs": 0.8,
-          "pitchTrajXc0": 0.1,
-          "pitchTrajXc1": -25.5,
-          "pitchTrajXc2": 0.3,
-          "pitchTrajYc0": 0.05,
-          "pitchTrajYc1": 0.2,
-          "pitchTrajYc2": -9.8,
-          "pitchTrajZc0": 1.8,
-          "pitchTrajZc1": -0.5,
-          "pitchTrajZc2": -4.9,
+          "pathTrajXc0": 0.1,
+          "pathTrajXc1": -25.5,
+          "pathTrajXc2": 0.3,
+          "pathTrajYc0": 0.05,
+          "pathTrajYc1": 0.2,
+          "pathTrajYc2": -9.8,
+          "pathTrajZc0": 1.8,
+          "pathTrajZc1": -0.5,
+          "pathTrajZc2": -4.9,
           "rawTraj2dCam0": "..cam0-2d..",
           "rawTraj2dCam1": "..cam1-2d.."
         }
         """
-      Then the operation fails with: 練習已結束
+      Then the operation fails with: 觀測時段已結束
 
-Feature: 接收 bsa 旋轉資料
-  bsa-module 擷取的旋轉原始資料轉譯為內部事件（由 BsaTranslator 觸發）
+Feature: 接收 photo 光度資料
+  photo-module 擷取的輻射點原始資料轉譯為內部事件（由 PhotoTranslator 觸發）
 
   @happy-path @happy-path
-  Rule: 成功接收 bsa 資料
-    練習進行中時成功接收 bsa 旋轉原始資料
+  Rule: 成功接收 photo 資料
+    觀測時段進行中時成功接收 photo 輻射點原始資料
 
     Scenario: 成功接收
-      練習進行中，接收 bsa 旋轉資料，產生 BsaDataReceived
-      Given the PracticeStarted event has occurred on stream "practice-001":
+      觀測時段進行中，接收 photo 光度資料，產生 PhotoDataReceived
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the external event arrives via BsaTranslator on stream "practice-001":
+      And the external event arrives via PhotoTranslator on stream "watch-001":
         """
         {
-          "rpm": 2200,
-          "axisX": 0.15,
-          "axisY": 0.85,
-          "axisZ": -0.5,
-          "spinDirHhmm": "11:30",
-          "spinTiltHhmm": "2:15",
-          "spinDirDegrees": 210,
-          "spinTiltDegrees": 45
+          "peakMag": 2200,
+          "radiantX": 0.15,
+          "radiantY": 0.85,
+          "radiantZ": -0.5,
+          "radiantRaHhmm": "11:30",
+          "culminationHhmm": "2:15",
+          "radiantRaDegrees": 210,
+          "culminationDegrees": 45
         }
         """
-      When System sends ReceiveBsaData on stream "practice-001":
+      When System sends ReceivePhotoData on stream "watch-001":
         """
         {
-          "rpm": 2200,
-          "axisX": 0.15,
-          "axisY": 0.85,
-          "axisZ": -0.5,
-          "spinDirHhmm": "11:30",
-          "spinTiltHhmm": "2:15",
-          "spinDirDegrees": 210,
-          "spinTiltDegrees": 45
+          "peakMag": 2200,
+          "radiantX": 0.15,
+          "radiantY": 0.85,
+          "radiantZ": -0.5,
+          "radiantRaHhmm": "11:30",
+          "culminationHhmm": "2:15",
+          "radiantRaDegrees": 210,
+          "culminationDegrees": 45
         }
         """
-      Then the BsaDataReceived event is emitted with:
+      Then the PhotoDataReceived event is emitted with:
         """
         {
-          "rpm": 2200,
-          "axisX": 0.15,
-          "axisY": 0.85,
-          "axisZ": -0.5,
-          "spinDirHhmm": "11:30",
-          "spinTiltHhmm": "2:15",
-          "spinDirDegrees": 210,
-          "spinTiltDegrees": 45
+          "peakMag": 2200,
+          "radiantX": 0.15,
+          "radiantY": 0.85,
+          "radiantZ": -0.5,
+          "radiantRaHhmm": "11:30",
+          "culminationHhmm": "2:15",
+          "radiantRaDegrees": 210,
+          "culminationDegrees": 45
         }
         """
 
-  @condition @practice-ended
-  Rule: 練習已結束
-    練習已結束時拒絕接收 bsa 資料
+  @condition @watch-ended
+  Rule: 觀測時段已結束
+    觀測時段已結束時拒絕接收 photo 資料
 
-    Scenario: 練習已結束
-      練習已結束，拒絕接收 bsa 資料
-      Given the PracticeStarted event has occurred on stream "practice-001":
+    Scenario: 觀測時段已結束
+      觀測時段已結束，拒絕接收 photo 資料
+      Given the WatchStarted event has occurred on stream "watch-001":
         """
         {
-          "playerId": "player-001",
-          "practiceItem": "投球訓練"
+          "stationId": "station-001",
+          "watchItem": "英仙座觀測"
         }
         """
-      And the PracticeEnded event has occurred on stream "practice-001":
+      And the WatchEnded event has occurred on stream "watch-001":
         """
         {}
         """
-      And the external event arrives via BsaTranslator on stream "practice-001":
+      And the external event arrives via PhotoTranslator on stream "watch-001":
         """
         {
-          "rpm": 2200,
-          "axisX": 0.15,
-          "axisY": 0.85,
-          "axisZ": -0.5,
-          "spinDirHhmm": "11:30",
-          "spinTiltHhmm": "2:15",
-          "spinDirDegrees": 210,
-          "spinTiltDegrees": 45
+          "peakMag": 2200,
+          "radiantX": 0.15,
+          "radiantY": 0.85,
+          "radiantZ": -0.5,
+          "radiantRaHhmm": "11:30",
+          "culminationHhmm": "2:15",
+          "radiantRaDegrees": 210,
+          "culminationDegrees": 45
         }
         """
-      When System sends ReceiveBsaData on stream "practice-001":
+      When System sends ReceivePhotoData on stream "watch-001":
         """
         {
-          "rpm": 2200,
-          "axisX": 0.15,
-          "axisY": 0.85,
-          "axisZ": -0.5,
-          "spinDirHhmm": "11:30",
-          "spinTiltHhmm": "2:15",
-          "spinDirDegrees": 210,
-          "spinTiltDegrees": 45
+          "peakMag": 2200,
+          "radiantX": 0.15,
+          "radiantY": 0.85,
+          "radiantZ": -0.5,
+          "radiantRaHhmm": "11:30",
+          "culminationHhmm": "2:15",
+          "radiantRaDegrees": 210,
+          "culminationDegrees": 45
         }
         """
-      Then the operation fails with: 練習已結束
+      Then the operation fails with: 觀測時段已結束
 
-Feature: 投球融合處理
-  監看 PendingPitchPair 視圖，當 bt3d + bsa 原始資料配對完成後融合計算投球指標（由 PitchFusionProcessor 觸發）
+Feature: 目擊事件融合處理
+  監看 PendingSightingPair 視圖，當 traj + photo 原始資料配對完成後融合計算目擊事件指標（由 SightingFusionProcessor 觸發）
 
   @happy-path @happy-path
-  Rule: 成功融合投球資料
-    bt3d + bsa 配對完成後融合計算並記錄投球
+  Rule: 成功融合目擊事件資料
+    traj + photo 配對完成後融合計算並記錄目擊事件
 
     Scenario: 成功融合
-      PendingPitchPair 配對完成，融合產生 PitchRecorded
-      Given the PendingPitchPair view returns:
+      PendingSightingPair 配對完成，融合產生 SightingRecorded
+      Given the PendingSightingPair view returns:
         """
         {
-          "bsaEventId": "evt-bsa-001",
-          "practiceId": "practice-001",
+          "photoEventId": "evt-photo-001",
+          "watchId": "watch-001",
           "receivedAt": "2026-05-19T10:00:00Z",
-          "bt3dEventId": "evt-bt3d-001"
+          "trajEventId": "evt-traj-001"
         }
         """
-      When System sends RecordPitch on stream "practice-001":
+      When System sends RecordSighting on stream "watch-001":
         """
         {
-          "ssw": 1.8,
+          "decel": 1.8,
           "speed": 130,
-          "playerId": "player-001",
-          "spinAxis": 210,
-          "spinRate": 2200,
+          "stationId": "station-001",
+          "radiantAxis": 210,
+          "lightPeak": 2200,
           "locationX": 0.1,
           "locationY": 0.5,
-          "pitchType": "FF",
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "approachAngle": -5.2,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "verticalBreak": 38,
-          "spinEfficiency": 95,
-          "horizontalBreak": -15,
-          "effectiveSpinRate": 2100
+          "showerCode": "PER",
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "inclinationAngle": -5.2,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "verticalDrift": 38,
+          "lightEfficiency": 95,
+          "horizontalDrift": -15,
+          "effectiveLightMag": 2100
         }
         """
-      Then the PitchRecorded event is emitted with:
+      Then the SightingRecorded event is emitted with:
         """
         {
-          "playerId": "player-001",
-          "speedKmh": 130,
-          "pitchType": "FF",
-          "haaDegrees": -5.2,
-          "vaaDegrees": -8.5,
-          "gyroDegrees": 15,
-          "trueSpinRpm": 2100,
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "totalSpinRpm": 2200,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "sswVerticalCm": 38,
-          "spinDirDegrees": 210,
-          "spinEfficiency": 0.95,
-          "sswHorizontalCm": -15,
-          "verticalBreakCm": 38,
-          "horizontalBreakCm": -15,
-          "strikeZoneLocationXCm": 5,
-          "strikeZoneLocationZCm": 75
+          "stationId": "station-001",
+          "speedKms": 130,
+          "showerCode": "PER",
+          "azimuthDegrees": -5.2,
+          "entryDegrees": -8.5,
+          "zenithDegrees": 15,
+          "trueLightMag": 2100,
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "totalLightMag": 2200,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "decelVerticalKms": 38,
+          "radiantRaDegrees": 210,
+          "lightEfficiency": 0.95,
+          "decelHorizontalKms": -15,
+          "verticalDriftKm": 38,
+          "horizontalDriftKm": -15,
+          "terminalLocationXKm": 5,
+          "terminalLocationZKm": 75
         }
         """
 
   @condition @condition
-  Rule: 練習已結束
-    練習已結束時拒絕融合
+  Rule: 觀測時段已結束
+    觀測時段已結束時拒絕融合
 
-    Scenario: 練習已結束
-      練習已結束，拒絕融合投球資料
-      Given the PendingPitchPair view returns:
+    Scenario: 觀測時段已結束
+      觀測時段已結束，拒絕融合目擊事件資料
+      Given the PendingSightingPair view returns:
         """
         {
-          "bsaEventId": "evt-bsa-001",
-          "practiceId": "practice-001",
+          "photoEventId": "evt-photo-001",
+          "watchId": "watch-001",
           "receivedAt": "2026-05-19T10:00:00Z",
-          "bt3dEventId": "evt-bt3d-001"
+          "trajEventId": "evt-traj-001"
         }
         """
-      When System sends RecordPitch on stream "practice-001":
+      When System sends RecordSighting on stream "watch-001":
         """
         {
-          "ssw": 1.8,
+          "decel": 1.8,
           "speed": 130,
-          "playerId": "player-001",
-          "spinAxis": 210,
-          "spinRate": 2200,
+          "stationId": "station-001",
+          "radiantAxis": 210,
+          "lightPeak": 2200,
           "locationX": 0.1,
           "locationY": 0.5,
-          "pitchType": "FF",
-          "sideVideoUrl": "https://example.com/side.mp4",
-          "approachAngle": -5.2,
-          "frontVideoUrl": "https://example.com/front.mp4",
-          "verticalBreak": 38,
-          "spinEfficiency": 95,
-          "horizontalBreak": -15,
-          "effectiveSpinRate": 2100
+          "showerCode": "PER",
+          "secondaryVideoUrl": "https://example.com/side.mp4",
+          "inclinationAngle": -5.2,
+          "primaryVideoUrl": "https://example.com/front.mp4",
+          "verticalDrift": 38,
+          "lightEfficiency": 95,
+          "horizontalDrift": -15,
+          "effectiveLightMag": 2100
         }
         """
-      Then the operation fails with: 練習已結束
+      Then the operation fails with: 觀測時段已結束
