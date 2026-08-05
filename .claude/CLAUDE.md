@@ -25,7 +25,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 /test e2e green  → 修 UI 直到 spec 全過
 ```
 
-- **spec 變更迭代流**（後端更新 api-spec 時）：新 `api-spec` 置入 → `/feature-to-api`（Sync）→ `/test e2e spec` → `/feature-to-ui`（Sync）→ `/test e2e green` → Gate 回歸。詳見 `.claude/skills/feature-to-api/references/openapi-codegen.md`
+- **sync 模式**（又稱 spec 變更迭代流；後端更新 api-spec 時）：新 `api-spec` 置入 → `/feature-to-api`（Sync）→ `/test e2e spec` → `/feature-to-ui`（Sync）→ `/test e2e green` → Gate 回歸。詳見 `.claude/skills/feature-to-api/references/openapi-codegen.md`
 - **條件式跨切面關注點**（auth / realtime / streaming / rbac，偵測到才生）：由 `/feature-to-api` Phase 0 偵測寫入 `route-map.yaml`。rbac 合約見 `.claude/skills/feature-to-api/references/rbac-scaffold.md`；角色名一律從 spec 萃取、不寫死
 - **多 session 並行**：一個 issue 一個 git worktree，E2E port 自動推導不互撞。詳見 README「多 issue 並行開發」
 - **與 `/sdd-status` 七站的粒度差異**：上圖是**流程**粒度（六格），`/sdd-status` 是**盤點**粒度（七站）。對應關係：`/feature-to-api` 一格涵蓋站 3–5（API 合約／Mock/Server／Client API），`/feature-to-ui` ＋ `/test e2e green` 兩格合為站 7（UI/Green）。刻意不同粒度，不是漏畫
@@ -104,6 +104,9 @@ spec/
 ├── ui-config/                  # UI 設定
 └── report/                     # route-map.yaml 等
 test/e2e/specs/                 # 主 spec（凍結）
+doc/
+├── README.template.md          # 衍生專案的 README 模板（repo 根目錄的 README.md 是公開落地頁，用途不同）
+└── images/                     # 全景圖與示範截圖
 .claude/
 ├── ops/                        # AI 作業制度
 ├── rules/                      # 路徑觸發規範
