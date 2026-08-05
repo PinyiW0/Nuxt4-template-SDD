@@ -257,9 +257,9 @@ export interface paths {
                                 /** @description 使用者姓名 */
                                 name: string;
                                 /**
-                                 * @description 角色清單，現行值為 super_admin / coach
+                                 * @description 角色清單，現行值為 super_admin / observer
                                  * @example [
-                                 *       "coach"
+                                 *       "observer"
                                  *     ]
                                  */
                                 roles: string[];
@@ -297,7 +297,7 @@ export interface paths {
         put?: never;
         /**
          * 修改或重設帳號密碼
-         * @description coach 僅可修改自己的密碼，且必須提供現行密碼 oldPassword；super_admin 可重設他人密碼（免帶 oldPassword），但不得以此 API 變更自己的密碼。oldPassword 在規格上為 optional，「self 改密必填」屬 runtime 規則:coach 改自己時若未帶或帶錯 oldPassword 一律回 400 INVALID_OLD_PASSWORD。
+         * @description observer 僅可修改自己的密碼，且必須提供現行密碼 oldPassword；super_admin 可重設他人密碼（免帶 oldPassword），但不得以此 API 變更自己的密碼。oldPassword 在規格上為 optional，「self 改密必填」屬 runtime 規則:observer 改自己時若未帶或帶錯 oldPassword 一律回 400 INVALID_OLD_PASSWORD。
          */
         post: {
             parameters: {
@@ -313,7 +313,7 @@ export interface paths {
                     "application/json": {
                         /**
                          * Format: password
-                         * @description 現行密碼。coach 改自己時必填;super_admin 重設他人密碼時免填。
+                         * @description 現行密碼。observer 改自己時必填;super_admin 重設他人密碼時免填。
                          */
                         oldPassword?: string;
                         /** Format: password */
@@ -428,7 +428,7 @@ export interface paths {
                         name: string;
                         /**
                          * @example [
-                         *       "coach"
+                         *       "observer"
                          *     ]
                          */
                         roles: string[];
@@ -563,7 +563,7 @@ export interface paths {
                         name?: string;
                         /**
                          * @example [
-                         *       "coach"
+                         *       "observer"
                          *     ]
                          */
                         roles?: string[];
@@ -595,14 +595,14 @@ export interface paths {
         };
         trace?: never;
     };
-    "/api/v1/teams": {
+    "/api/v1/sites": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 查詢球隊列表 */
+        /** 查詢觀測點列表 */
         get: {
             parameters: {
                 query?: {
@@ -625,12 +625,12 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["PaginatedSuccessEnvelope"] & {
                             data?: {
-                                items: (components["schemas"]["TeamResponse"] & {
+                                items: (components["schemas"]["SiteResponse"] & {
                                     /**
-                                     * @description 該隊未軟刪除球員數(僅列表回應提供)
+                                     * @description 該隊未軟刪除觀測站數(僅列表回應提供)
                                      * @example 12
                                      */
-                                    playerCount: number;
+                                    stationCount: number;
                                 })[];
                             };
                         };
@@ -639,7 +639,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** 建立球隊 */
+        /** 建立觀測點 */
         post: {
             parameters: {
                 query?: never;
@@ -650,7 +650,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        teamName: string;
+                        siteName: string;
                     };
                 };
             };
@@ -662,7 +662,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["TeamResponse"];
+                            data?: components["schemas"]["SiteResponse"];
                         };
                     };
                 };
@@ -674,20 +674,20 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/teams/{teamId}": {
+    "/api/v1/sites/{siteId}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 查詢指定球隊詳情 */
+        /** 查詢指定觀測點詳情 */
         get: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    teamId: string;
+                    siteId: string;
                 };
                 cookie?: never;
             };
@@ -700,11 +700,11 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["TeamResponse"];
+                            data?: components["schemas"]["SiteResponse"];
                         };
                     };
                 };
-                /** @description 找不到該球隊或已被刪除 */
+                /** @description 找不到該觀測點或已被刪除 */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -715,20 +715,20 @@ export interface paths {
                 };
             };
         };
-        /** 更新球隊 */
+        /** 更新觀測點 */
         put: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    teamId: string;
+                    siteId: string;
                 };
                 cookie?: never;
             };
             requestBody: {
                 content: {
                     "application/json": {
-                        teamName: string;
+                        siteName: string;
                     };
                 };
             };
@@ -740,7 +740,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["TeamResponse"];
+                            data?: components["schemas"]["SiteResponse"];
                         };
                     };
                 };
@@ -748,15 +748,15 @@ export interface paths {
         };
         post?: never;
         /**
-         * 刪除球隊 (Cascade Soft Delete)
-         * @description 軟刪除球隊，並連帶軟刪除旗下的 Player、Practice 與 Pitch。
+         * 刪除觀測點 (Cascade Soft Delete)
+         * @description 軟刪除觀測點，並連帶軟刪除旗下的 Station、Watch 與 Sighting。
          */
         delete: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    teamId: string;
+                    siteId: string;
                 };
                 cookie?: never;
             };
@@ -778,7 +778,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/players": {
+    "/api/v1/stations": {
         parameters: {
             query?: never;
             header?: never;
@@ -786,8 +786,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查詢球員列表
-         * @description 取得球員列表，包含其所屬隊伍名稱。
+         * 查詢觀測站列表
+         * @description 取得觀測站列表，包含其所屬觀測點名稱。
          */
         get: {
             parameters: {
@@ -796,8 +796,8 @@ export interface paths {
                     page?: components["parameters"]["pageParam"];
                     /** @description 每頁筆數，預設 20，最大限制 100 */
                     pageSize?: components["parameters"]["pageSizeParam"];
-                    /** @description 篩選指定球隊 */
-                    teamId?: string;
+                    /** @description 篩選指定觀測點 */
+                    siteId?: string;
                 };
                 header?: never;
                 path?: never;
@@ -813,7 +813,7 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["PaginatedSuccessEnvelope"] & {
                             data?: {
-                                items: components["schemas"]["PlayerResponse"][];
+                                items: components["schemas"]["StationResponse"][];
                             };
                         };
                     };
@@ -821,7 +821,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** 建立球員 */
+        /** 建立觀測站 */
         post: {
             parameters: {
                 query?: never;
@@ -832,19 +832,19 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        playerName: string;
+                        stationName: string;
                         /** Format: uuid */
-                        teamId: string;
-                        jerseyNumber: number;
+                        siteId: string;
+                        stationCode: number;
                         /** @description 投打慣用手描述，任意字串，長度限制 100 個繁體中文字 */
-                        handedness: string;
+                        mountType: string;
                         /**
-                         * @description 球員身高 (cm)，為九宮格分析提供 hitter_height 參數
+                         * @description 觀測站緯度 (度)，為天球分區圖提供 observer_lat 參數
                          * @example 175.5
                          */
                         height: number;
                         /**
-                         * @description 球員體重 (kg)
+                         * @description 觀測站經度 (度)
                          * @example 70.2
                          */
                         weight: number;
@@ -859,7 +859,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["PlayerResponse"];
+                            data?: components["schemas"]["StationResponse"];
                         };
                     };
                 };
@@ -871,20 +871,20 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/players/{playerId}": {
+    "/api/v1/stations/{stationId}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 查詢指定球員詳情 */
+        /** 查詢指定觀測站詳情 */
         get: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    playerId: string;
+                    stationId: string;
                 };
                 cookie?: never;
             };
@@ -897,34 +897,34 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["PlayerResponse"];
+                            data?: components["schemas"]["StationResponse"];
                         };
                     };
                 };
             };
         };
-        /** 更新球員資訊 */
+        /** 更新觀測站資訊 */
         put: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    playerId: string;
+                    stationId: string;
                 };
                 cookie?: never;
             };
             requestBody: {
                 content: {
                     "application/json": {
-                        playerName?: string;
+                        stationName?: string;
                         /** Format: uuid */
-                        teamId?: string;
-                        jerseyNumber?: number;
+                        siteId?: string;
+                        stationCode?: number;
                         /** @description 投打慣用手描述，任意字串，長度限制 100 個繁體中文字 */
-                        handedness?: string;
-                        /** @description cm */
+                        mountType?: string;
+                        /** @description 緯度 (度) */
                         height?: number;
-                        /** @description kg */
+                        /** @description 經度 (度) */
                         weight?: number;
                     };
                 };
@@ -937,7 +937,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["PlayerResponse"];
+                            data?: components["schemas"]["StationResponse"];
                         };
                     };
                 };
@@ -945,15 +945,15 @@ export interface paths {
         };
         post?: never;
         /**
-         * 刪除球員 (Cascade Soft Delete)
-         * @description 軟刪除球員，並連帶軟刪除該球員旗下的 Practice 與 Pitch。
+         * 刪除觀測站 (Cascade Soft Delete)
+         * @description 軟刪除觀測站，並連帶軟刪除該觀測站旗下的 Watch 與 Sighting。
          */
         delete: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    playerId: string;
+                    stationId: string;
                 };
                 cookie?: never;
             };
@@ -975,7 +975,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/practices": {
+    "/api/v1/watches": {
         parameters: {
             query?: never;
             header?: never;
@@ -983,8 +983,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查詢練習列表
-         * @description Page-based 分頁查詢練習列表，依建立時間新到舊排序，排除已軟刪除的練習。
+         * 查詢觀測時段列表
+         * @description Page-based 分頁查詢觀測時段列表，依建立時間新到舊排序，排除已軟刪除的觀測時段。
          */
         get: {
             parameters: {
@@ -1008,7 +1008,7 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["PaginatedSuccessEnvelope"] & {
                             data?: {
-                                items: components["schemas"]["PracticeResponse"][];
+                                items: components["schemas"]["WatchResponse"][];
                             };
                         };
                     };
@@ -1017,8 +1017,8 @@ export interface paths {
         };
         put?: never;
         /**
-         * 新增練習
-         * @description 僅能輸入練習名稱、球隊ID與球員ID。系統預設狀態為 `created`。
+         * 新增觀測時段
+         * @description 僅能輸入觀測時段名稱、觀測點ID與觀測站ID。系統預設狀態為 `created`。
          */
         post: {
             parameters: {
@@ -1030,12 +1030,12 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** @example 20260529 投球練習 */
-                        practiceName: string;
+                        /** @example 20260529 英仙座雙站觀測 */
+                        watchName: string;
                         /** Format: uuid */
-                        teamId: string;
+                        siteId: string;
                         /** Format: uuid */
-                        playerId: string;
+                        stationId: string;
                     };
                 };
             };
@@ -1047,7 +1047,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["PracticeResponse"];
+                            data?: components["schemas"]["WatchResponse"];
                         };
                     };
                 };
@@ -1059,7 +1059,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/practices/{practiceId}": {
+    "/api/v1/watches/{watchId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1070,15 +1070,15 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * 刪除練習 (Cascade Soft Delete)
-         * @description 軟刪除練習，並連帶軟刪除該練習產生的所有 Pitch 資料（影片與 Raw 暫存不刪除，但不再提供觀看）。 允許刪除 `inProgress` 的練習；刪除屬資料層語意，不會呼叫外部 bt3d/bsa 服務停止擷取—— 若需停止擷取請先呼叫 `/stop` 再刪除（MVP 決定）。
+         * 刪除觀測時段 (Cascade Soft Delete)
+         * @description 軟刪除觀測時段，並連帶軟刪除該時段產生的所有 Sighting 資料（影片與 Raw 暫存不刪除，但不再提供觀看）。 允許刪除 `inProgress` 的觀測時段；刪除屬資料層語意，不會呼叫外部 traj/photo 服務停止擷取—— 若需停止擷取請先呼叫 `/stop` 再刪除（MVP 決定）。
          */
         delete: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    practiceId: string;
+                    watchId: string;
                 };
                 cookie?: never;
             };
@@ -1093,7 +1093,7 @@ export interface paths {
                         "application/json": components["schemas"]["SuccessEnvelope"];
                     };
                 };
-                /** @description 找不到該練習或已被刪除（errorCode：PRACTICE_NOT_FOUND） */
+                /** @description 找不到該觀測時段或已被刪除（errorCode：WATCH_NOT_FOUND） */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -1109,7 +1109,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/practices/{practiceId}/start": {
+    "/api/v1/watches/{watchId}/start": {
         parameters: {
             query?: never;
             header?: never;
@@ -1119,36 +1119,36 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 開始練習
-         * @description 將練習狀態改為 `inProgress`。
-         *     後端會呼叫外部 bt3d 與 bsa 的 `/start` 端點。
+         * 開始觀測時段
+         * @description 將觀測時段狀態改為 `inProgress`。
+         *     後端會呼叫外部 traj 與 photo 的 `/start` 端點。
          *     - 呼叫外部服務時，設有 5 秒 timeout，最多 retry 3 次。
          *     - 若任一外部服務失敗，則此 API 宣告失敗，狀態維持 `created`。
-         *     - 同時間只允許有一場練習處於 `inProgress` 狀態。
+         *     - 同時間只允許有一場觀測時段處於 `inProgress` 狀態。
          */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    practiceId: string;
+                    watchId: string;
                 };
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description 練習已成功啟動，狀態改為 inProgress */
+                /** @description 觀測時段已成功啟動，狀態改為 inProgress */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["PracticeResponse"];
+                            data?: components["schemas"]["WatchResponse"];
                         };
                     };
                 };
-                /** @description 當前已有其他 inProgress 的練習（errorCode：PRACTICE_ALREADY_IN_PROGRESS）， 或練習狀態不符合啟動條件、非 created（errorCode：PRACTICE_NOT_IN_CREATED_STATE） */
+                /** @description 當前已有其他 inProgress 的觀測時段（errorCode：WATCH_ALREADY_IN_PROGRESS）， 或觀測時段狀態不符合啟動條件、非 created（errorCode：WATCH_NOT_IN_CREATED_STATE） */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1157,7 +1157,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorEnvelope"];
                     };
                 };
-                /** @description 外部 bt3d 或 bsa 服務啟動失敗 (Timeout 或呼叫失敗) */
+                /** @description 外部 traj 或 photo 服務啟動失敗 (Timeout 或呼叫失敗) */
                 502: {
                     headers: {
                         [name: string]: unknown;
@@ -1174,7 +1174,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/practices/{practiceId}/stop": {
+    "/api/v1/watches/{watchId}/stop": {
         parameters: {
             query?: never;
             header?: never;
@@ -1184,8 +1184,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 結束練習
-         * @description 將練習狀態改為 `ended`。
+         * 結束觀測時段
+         * @description 將觀測時段狀態改為 `ended`。
          *     後端會呼叫外部服務的 `/stop` 以停止接收感測器數據。
          */
         post: {
@@ -1193,24 +1193,24 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    practiceId: string;
+                    watchId: string;
                 };
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description 練習已結束，狀態改為 ended */
+                /** @description 觀測時段已結束，狀態改為 ended */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["PracticeResponse"];
+                            data?: components["schemas"]["WatchResponse"];
                         };
                     };
                 };
-                /** @description 練習非處於 inProgress 狀態（errorCode：PRACTICE_NOT_IN_PROGRESS） */
+                /** @description 觀測時段非處於 inProgress 狀態（errorCode：WATCH_NOT_IN_PROGRESS） */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1227,7 +1227,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/practices/{practiceId}/pitches": {
+    "/api/v1/watches/{watchId}/sightings": {
         parameters: {
             query?: never;
             header?: never;
@@ -1235,8 +1235,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查詢指定練習的投球列表
-         * @description 回傳該練習的所有 Pitch 列表，依時間由新到舊排序。
+         * 查詢指定觀測時段的目擊事件列表
+         * @description 回傳該觀測時段的所有 Sighting 列表，依時間由新到舊排序。
          */
         get: {
             parameters: {
@@ -1248,7 +1248,7 @@ export interface paths {
                 };
                 header?: never;
                 path: {
-                    practiceId: string;
+                    watchId: string;
                 };
                 cookie?: never;
             };
@@ -1262,7 +1262,7 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["PaginatedSuccessEnvelope"] & {
                             data?: {
-                                items: components["schemas"]["PitchSummaryResponse"][];
+                                items: components["schemas"]["SightingSummaryResponse"][];
                             };
                         };
                     };
@@ -1277,7 +1277,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/pitches/{pitchId}": {
+    "/api/v1/sightings/{sightingId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1285,8 +1285,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查詢單球詳情
-         * @description 取得指定投球的詳細 analysis 數據與影片 URL。
+         * 查詢單筆詳情
+         * @description 取得指定目擊事件的詳細 analysis 數據與影片 URL。
          *     - 影片檔(MP4) 直接由後端提供相對/絕對 URL，交由 Nginx 處理，不經由 API stream 二進位傳輸。
          */
         get: {
@@ -1294,7 +1294,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    pitchId: string;
+                    sightingId: string;
                 };
                 cookie?: never;
             };
@@ -1307,7 +1307,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["PitchDetailResponse"];
+                            data?: components["schemas"]["SightingDetailResponse"];
                         };
                     };
                 };
@@ -1316,15 +1316,15 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * 軟刪除指定單球投球資料
-         * @description 單球 soft delete。被刪投球不再出現於列表、詳情、歷史查詢與 CSV 匯出。
+         * 軟刪除指定單筆目擊事件資料
+         * @description 單筆 soft delete。被刪目擊事件不再出現於列表、詳情、歷史查詢與 CSV 匯出。
          */
         delete: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    pitchId: string;
+                    sightingId: string;
                 };
                 cookie?: never;
             };
@@ -1339,7 +1339,7 @@ export interface paths {
                         "application/json": components["schemas"]["SuccessEnvelope"];
                     };
                 };
-                /** @description 找不到該投球或已被刪除（errorCode：PITCH_NOT_FOUND） */
+                /** @description 找不到該目擊事件或已被刪除（errorCode：SIGHTING_NOT_FOUND） */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -1355,7 +1355,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/pitches/{pitchId}/favorite": {
+    "/api/v1/sightings/{sightingId}/favorite": {
         parameters: {
             query?: never;
             header?: never;
@@ -1365,15 +1365,15 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 收藏投球
-         * @description 標註該投球為收藏。不需夾帶 practiceId。
+         * 收藏目擊事件
+         * @description 標註該目擊事件為收藏。不需夾帶 watchId。
          */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    pitchId: string;
+                    sightingId: string;
                 };
                 cookie?: never;
             };
@@ -1396,7 +1396,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/pitches/{pitchId}/unfavorite": {
+    "/api/v1/sightings/{sightingId}/unfavorite": {
         parameters: {
             query?: never;
             header?: never;
@@ -1406,15 +1406,15 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 取消收藏投球
-         * @description 取消該投球的收藏。不需夾帶 practiceId。
+         * 取消收藏目擊事件
+         * @description 取消該目擊事件的收藏。不需夾帶 watchId。
          */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    pitchId: string;
+                    sightingId: string;
                 };
                 cookie?: never;
             };
@@ -1445,8 +1445,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查詢有練習的日期 (依年月)
-         * @description 輸入年與月，回傳當月哪些日期有練習記錄。
+         * 查詢有觀測時段的日期 (依年月)
+         * @description 輸入年與月，回傳當月哪些日期有觀測時段記錄。
          */
         get: {
             parameters: {
@@ -1489,8 +1489,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查詢當日練習與總投球數
-         * @description 輸入日期，回傳該日期所發生的練習列表、各練習的投手/球員，以及各練習的總投球數。
+         * 查詢當日觀測時段與總目擊數
+         * @description 輸入日期，回傳該日期所發生的觀測時段列表、各時段的觀測站，以及各時段的總目擊數。
          */
         get: {
             parameters: {
@@ -1512,18 +1512,18 @@ export interface paths {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
                             data?: {
                                 /** Format: uuid */
-                                practiceId: string;
-                                practiceName: string;
+                                watchId: string;
+                                watchName: string;
                                 /** Format: uuid */
-                                teamId: string;
-                                teamName: string;
+                                siteId: string;
+                                siteName: string;
                                 /** Format: uuid */
-                                playerId: string;
-                                playerName: string;
+                                stationId: string;
+                                stationName: string;
                                 /** @enum {string} */
                                 status: "created" | "inProgress" | "ended";
-                                /** @description 該場練習的總投球數 */
-                                totalPitches: number;
+                                /** @description 該場觀測時段的總目擊數 */
+                                totalSightings: number;
                                 /** Format: date-time */
                                 createdAt: string;
                             }[];
@@ -1549,7 +1549,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/history/daily-players": {
+    "/api/v1/history/daily-stations": {
         parameters: {
             query?: never;
             header?: never;
@@ -1557,8 +1557,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查詢當日有訓練的投手
-         * @description 輸入日期，回傳當天有進行練習的投手(球員)清單。
+         * 查詢當日有觀測的站點
+         * @description 輸入日期，回傳當天有進行觀測的觀測站清單。
          */
         get: {
             parameters: {
@@ -1580,12 +1580,12 @@ export interface paths {
                         "application/json": components["schemas"]["SuccessEnvelope"] & {
                             data?: {
                                 /** Format: uuid */
-                                playerId: string;
-                                playerName: string;
-                                jerseyNumber: number;
+                                stationId: string;
+                                stationName: string;
+                                stationCode: number;
                                 /** Format: uuid */
-                                teamId: string;
-                                teamName: string;
+                                siteId: string;
+                                siteName: string;
                             }[];
                         };
                     };
@@ -1600,7 +1600,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/history/pitches": {
+    "/api/v1/history/sightings": {
         parameters: {
             query?: never;
             header?: never;
@@ -1608,14 +1608,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 歷史投球資料搜尋
-         * @description 支援多條件複合篩選，取得歷史投球的列表資料（分頁）。
+         * 歷史目擊事件資料搜尋
+         * @description 支援多條件複合篩選，取得歷史目擊事件的列表資料（分頁）。
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description 球員 ID 陣列 (可選) */
-                    playerIds?: string[];
+                    /** @description 觀測站 ID 陣列 (可選) */
+                    stationIds?: string[];
                     /** @description 查詢開始日期 (可選) */
                     startDate?: string;
                     /** @description 查詢結束日期 (可選) */
@@ -1639,7 +1639,7 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["PaginatedSuccessEnvelope"] & {
                             data?: {
-                                items: components["schemas"]["PitchHistorySummary"][];
+                                items: components["schemas"]["SightingHistorySummary"][];
                             };
                         };
                     };
@@ -1654,7 +1654,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/exports/pitches/search": {
+    "/api/v1/exports/sightings/search": {
         parameters: {
             query?: never;
             header?: never;
@@ -1663,12 +1663,12 @@ export interface paths {
         };
         /**
          * 依搜尋條件匯出 CSV
-         * @description 同步匯出符合搜尋條件的投球數據 CSV 檔。匯出列數上限為 50000;若符合條件的列數超過上限, 回 422(errorCode:EXPORT_TOO_LARGE),要求縮小日期或 playerIds 範圍,而非靜默截斷。 上限檢查在串流開始前以 count 預檢完成,故超限為 JSON 422 而非「截斷的 200」。
+         * @description 同步匯出符合搜尋條件的目擊事件數據 CSV 檔。匯出列數上限為 50000;若符合條件的列數超過上限, 回 422(errorCode:EXPORT_TOO_LARGE),要求縮小日期或 stationIds 範圍,而非靜默截斷。 上限檢查在串流開始前以 count 預檢完成,故超限為 JSON 422 而非「截斷的 200」。
          */
         get: {
             parameters: {
                 query?: {
-                    playerIds?: string[];
+                    stationIds?: string[];
                     startDate?: string;
                     endDate?: string;
                 };
@@ -1688,7 +1688,7 @@ export interface paths {
                         "text/csv; charset=utf-8": string;
                     };
                 };
-                /** @description 輸入不合法(playerIds 非 uuid),或符合條件的列數超過匯出上限 50000 (errorCode:EXPORT_TOO_LARGE)。為 JSON 錯誤,非截斷的 CSV。 */
+                /** @description 輸入不合法(stationIds 非 uuid),或符合條件的列數超過匯出上限 50000 (errorCode:EXPORT_TOO_LARGE)。為 JSON 錯誤,非截斷的 CSV。 */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -1707,7 +1707,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/exports/pitches/selection": {
+    "/api/v1/exports/sightings/selection": {
         parameters: {
             query?: never;
             header?: never;
@@ -1717,8 +1717,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 依選定投球 ID 匯出 CSV
-         * @description 同步匯出選定 pitchId 清單的投球數據 CSV 檔。pitchIds 數量上限為 50000(與 search 匯出共用同一上限);超過上限回 422(errorCode:EXPORT_TOO_LARGE),非截斷的 CSV。
+         * 依選定目擊事件 ID 匯出 CSV
+         * @description 同步匯出選定 sightingId 清單的目擊事件數據 CSV 檔。sightingIds 數量上限為 50000(與 search 匯出共用同一上限);超過上限回 422(errorCode:EXPORT_TOO_LARGE),非截斷的 CSV。
          */
         post: {
             parameters: {
@@ -1730,7 +1730,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        pitchIds: string[];
+                        sightingIds: string[];
                     };
                 };
             };
@@ -1745,7 +1745,7 @@ export interface paths {
                         "text/csv; charset=utf-8": string;
                     };
                 };
-                /** @description pitchIds 含非 uuid 值,或數量超過上限 50000(errorCode:EXPORT_TOO_LARGE)。 為 JSON 錯誤,非截斷的 CSV。 */
+                /** @description sightingIds 含非 uuid 值,或數量超過上限 50000(errorCode:EXPORT_TOO_LARGE)。 為 JSON 錯誤,非截斷的 CSV。 */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -1826,14 +1826,14 @@ export interface paths {
          * @description 回傳環境中所有設定的 Camera 狀態。
          *     - 去除 legacy deviceId 欄位。
          *     - camera id 與位置由後端從 `.env` JSON 格式(CAMERAS v2:`cameraId`/`position`/`source`)解析。
-         *     - `connectionStatus` 為即時狀態:後端背景輪詢上游(bt3d/bsa `/status`+`/cameras`、
+         *     - `connectionStatus` 為即時狀態:後端背景輪詢上游(traj/photo `/status`+`/cameras`、
          *       recorder `/cameras`)寫入記憶體快取,本端點永遠讀快取秒回;
          *       首輪輪詢完成前一律回 `disconnected`。
-         *     - 工業相機組(source 為 bt3d/bsa)額外透傳 `captureStatus`(上游原始服務狀態,
+         *     - 工業相機組(source 為 traj/photo)額外透傳 `captureStatus`(上游原始服務狀態,
          *       debug 線索);recorder 相機與上游不可達時「省略」該欄位(不以 null 佔位)。
          *     - recorder 相機額外帶 `streamId`(該相機直播 stream 的參照 id):前端以
          *       `/cameras` 取 `streamId` → `GET /streams/{streamId}` 取 `hlsUrl` 播放,
-         *       毋須(也不應)client-side 推導。bt3d/bsa 相機無直播,「省略」該欄位。
+         *       毋須(也不應)client-side 推導。traj/photo 相機無直播,「省略」該欄位。
          *       `hlsUrl` 維持僅由 streams 端點提供(單一真相來源)。
          */
         get: {
@@ -1866,7 +1866,7 @@ export interface paths {
                                  */
                                 connectionStatus: "connected" | "disconnected" | "error";
                                 /**
-                                 * @description 工業相機組(bt3d/bsa)上游原始服務狀態透傳,僅該組出現;
+                                 * @description 工業相機組(traj/photo)上游原始服務狀態透傳,僅該組出現;
                                  *     recorder 相機與上游不可達時省略此欄位。
                                  * @example running
                                  * @enum {string}
@@ -1875,7 +1875,7 @@ export interface paths {
                                 /**
                                  * Format: uuid
                                  * @description recorder 相機的直播 stream 參照 id;僅 source=recorder
-                                 *     相機出現(bt3d/bsa 省略,同 captureStatus 的 optional 慣例)。
+                                 *     相機出現(traj/photo 省略,同 captureStatus 的 optional 慣例)。
                                  *     以此打 `GET /api/v1/streams/{streamId}` 取 `hlsUrl`。
                                  * @example 550e8400-e29b-41d4-a716-446655440000
                                  */
@@ -1911,10 +1911,10 @@ export interface paths {
          *     注意：token 會出現在反向代理 access log 與瀏覽器歷史，僅限短效 access token 使用。
          *
          *     ### 頻道訂閱與授權
-         *     - 頻道命名：`account:{accountId}`（帳號個人頻道）、`practice:{practiceId}`（練習頻道）。
+         *     - 頻道命名：`account:{accountId}`（帳號個人頻道）、`watch:{watchId}`（觀測時段頻道）。
          *     - 連線**必訂自己的 `account:{accountId}` 頻道**（預設頻道，毋須指定）。
          *     - 可用 `?channels=` 以逗號分隔額外請求頻道，逐一過 RBAC 訂閱授權：
-         *       `account:*` 僅允許訂自己；`practice:*` 需具 practices 讀取權限。
+         *       `account:*` 僅允許訂自己；`watch:*` 需具 watches 讀取權限。
          *     - **無權限的頻道靜默剔除**（不擋整條連線）；實際訂閱結果以 `connected` 歡迎訊息的
          *       `data.channels` 為準。
          *
@@ -1922,8 +1922,8 @@ export interface paths {
          *     每筆事件為一個 SSE `data:` 區塊，內容為 JSON 信封（見 `SseEventEnvelope`）：
          *     `{ id, type, channel, timestamp, data }`。事件類型（`type`）：
          *     - `connected`：連線歡迎訊息，`data: { "channels": [實際訂閱頻道] }`
-         *     - `pitchCreated`：新投球建立，`data: { "pitchId", "practiceId" }`
-         *     - `practiceAiStarted` / `practiceAiStopped`：練習 AI 採集啟動/停止，`data: { "practiceId" }`
+         *     - `sightingCreated`：新目擊事件建立，`data: { "sightingId", "watchId" }`
+         *     - `watchCaptureStarted` / `watchCaptureStopped`：觀測時段 AI 採集啟動/停止，`data: { "watchId" }`
          *
          *     ### 保活
          *     無訊息時每 **30 秒**送一行 SSE 註解 `: heartbeat` 維持連線（非 JSON 訊息，客戶端應忽略）。
@@ -1934,7 +1934,7 @@ export interface paths {
                 query: {
                     /** @description JWT access token（取代 Authorization header） */
                     token: string;
-                    /** @description 逗號分隔的額外訂閱頻道清單，例如 `practice:9a1f...,account:自己的accountId` */
+                    /** @description 逗號分隔的額外訂閱頻道清單，例如 `watch:9a1f...,account:自己的accountId` */
                     channels?: string;
                 };
                 header?: never;
@@ -1973,7 +1973,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/bt3d-data": {
+    "/traj-data": {
         parameters: {
             query?: never;
             header?: never;
@@ -1983,14 +1983,14 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 接收 bt3d 原始數據 (內網信任)
-         * @description 由內網 bt3d 採集服務呼叫（v2 契約，#86，breaking：舊版毫秒整數 timestamp 格式回 422）。
+         * 接收 traj 原始數據 (內網信任)
+         * @description 由內網 traj 採集服務呼叫（v2 契約，#86，breaking：舊版毫秒整數 timestamp 格式回 422）。
          *     - 接收後端即時產生 UUID 作為 ID。
          *     - `timestamp` 為 naive 字串（UTC+8 牆鐘時間），轉為 UTC 儲存並進行 Redis 2秒配對。
-         *     - 冪等重送：相同 `timestamp`（capture 時刻）視為同一顆球，回傳既有 `bt3dDataId`，
-         *       不重複建立 raw 紀錄、不重複建立 pitch。
-         *     - 完整原始 payload 以 JSONB 照存；裝置端附帶的舊版計算欄位（`pitch_trajectory`、
-         *       `strike_zone_point`、`pitch_velocity`、`raw_traj_2d` 等）寬鬆接收、照存不拆欄。
+         *     - 冪等重送：相同 `timestamp`（capture 時刻）視為同一筆目擊事件，回傳既有 `trajDataId`，
+         *       不重複建立 raw 紀錄、不重複建立 sighting。
+         *     - 完整原始 payload 以 JSONB 照存；裝置端附帶的舊版計算欄位（`path_trajectory`、
+         *       `terminal_point`、`path_velocity`、`raw_traj_2d` 等）寬鬆接收、照存不拆欄。
          *     - 內網信任，不掛 JWT。
          *     - Payload 為外部 snake_case，在此處做防腐層轉換。
          */
@@ -2003,7 +2003,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["Bt3dRawPayload"];
+                    "application/json": components["schemas"]["TrajRawPayload"];
                 };
             };
             responses: {
@@ -2020,7 +2020,7 @@ export interface paths {
                              * Format: uuid
                              * @description 後端產生的 UUID
                              */
-                            bt3dDataId: string;
+                            trajDataId: string;
                         };
                     };
                 };
@@ -2032,7 +2032,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/bsa-data": {
+    "/photo-data": {
         parameters: {
             query?: never;
             header?: never;
@@ -2042,14 +2042,14 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 接收 bsa 原始數據 (內網信任)
-         * @description 由內網 bsa 採集服務呼叫（v2 契約，#86，breaking：舊版毫秒整數 timestamp 格式回 422）。
+         * 接收 photo 原始數據 (內網信任)
+         * @description 由內網 photo 採集服務呼叫（v2 契約，#86，breaking：舊版毫秒整數 timestamp 格式回 422）。
          *     - 接收後端即時產生 UUID 作為 ID。
          *     - `timestamp` 為 naive 字串（UTC+8 牆鐘時間），轉為 UTC 儲存。
-         *     - 冪等重送：相同 `timestamp`（capture 時刻）視為同一顆球，回傳既有 `bsaDataId`，
+         *     - 冪等重送：相同 `timestamp`（capture 時刻）視為同一筆目擊事件，回傳既有 `photoDataId`，
          *       不重複建立 raw 紀錄。
-         *     - 將原始的 `axis` 陣列拆為 `axisX`, `axisY`, `axisZ` 存入資料庫；完整原始 payload
-         *       以 JSONB 照存，額外欄位寬鬆接收。
+         *     - 將原始的 `radiant` 陣列拆為 `radiantX`, `radiantY`, `radiantZ` 存入資料庫；完整原始
+         *       payload 以 JSONB 照存，額外欄位寬鬆接收。
          *     - 內網信任，不掛 JWT。
          *     - Payload 為外部 snake_case，在此處做防腐層轉換。
          */
@@ -2062,7 +2062,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["BsaRawPayload"];
+                    "application/json": components["schemas"]["PhotoRawPayload"];
                 };
             };
             responses: {
@@ -2079,7 +2079,7 @@ export interface paths {
                              * Format: uuid
                              * @description 後端產生的 UUID
                              */
-                            bsaDataId: string;
+                            photoDataId: string;
                         };
                     };
                 };
@@ -2139,7 +2139,7 @@ export interface components {
             message: string;
             /** @description 欄位層級的驗證錯誤細節 (選填) */
             errors?: {
-                /** @example jerseyNumber */
+                /** @example stationCode */
                 field: string;
                 /** @example 必須為大於 0 的整數 */
                 message: string;
@@ -2177,7 +2177,7 @@ export interface components {
             name: string;
             /**
              * @example [
-             *       "coach"
+             *       "observer"
              *     ]
              */
             roles: string[];
@@ -2186,10 +2186,10 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        TeamResponse: {
+        SiteResponse: {
             /** Format: uuid */
-            teamId: string;
-            teamName: string;
+            siteId: string;
+            siteName: string;
             /** @example false */
             isDeleted: boolean;
             /** Format: date-time */
@@ -2207,20 +2207,20 @@ export interface components {
              */
             deletedByAccountId: string | null;
         };
-        PlayerResponse: {
+        StationResponse: {
             /** Format: uuid */
-            playerId: string;
-            playerName: string;
+            stationId: string;
+            stationName: string;
             /** Format: uuid */
-            teamId: string;
-            /** @description 所屬球隊名稱 */
-            teamName: string;
-            jerseyNumber: number;
+            siteId: string;
+            /** @description 所屬觀測點名稱 */
+            siteName: string;
+            stationCode: number;
             /** @description 投打慣用手描述，任意字串，長度限制 100 個繁體中文字 */
-            handedness: string;
-            /** @description cm */
+            mountType: string;
+            /** @description 緯度 (度) */
             height: number;
-            /** @description kg */
+            /** @description 經度 (度) */
             weight: number;
             /** @example false */
             isDeleted: boolean;
@@ -2239,28 +2239,28 @@ export interface components {
              */
             deletedByAccountId: string | null;
         };
-        PracticeResponse: {
+        WatchResponse: {
             /** Format: uuid */
-            practiceId: string;
-            practiceName: string;
+            watchId: string;
+            watchName: string;
             /** Format: uuid */
-            teamId: string;
-            /** @description 所屬球隊名稱。已軟刪除的球隊仍解析名稱（比照歷史查詢 join 語意）。 */
-            teamName: string;
+            siteId: string;
+            /** @description 所屬觀測點名稱。已軟刪除的觀測點仍解析名稱（比照歷史查詢 join 語意）。 */
+            siteName: string;
             /** Format: uuid */
-            playerId: string;
-            /** @description 球員姓名。已軟刪除的球員仍解析名稱（比照歷史查詢 join 語意）。 */
-            playerName: string;
+            stationId: string;
+            /** @description 觀測站姓名。已軟刪除的觀測站仍解析名稱（比照歷史查詢 join 語意）。 */
+            stationName: string;
             /** @enum {string} */
             status: "created" | "inProgress" | "ended";
             /**
              * Format: date-time
-             * @description 練習開始時間（/start 成功後寫入），未開始為 null
+             * @description 觀測時段開始時間（/start 成功後寫入），未開始為 null
              */
             startedAt: string | null;
             /**
              * Format: date-time
-             * @description 練習結束時間（/stop 成功後寫入），未結束為 null
+             * @description 觀測時段結束時間（/stop 成功後寫入），未結束為 null
              */
             endedAt: string | null;
             /** @example false */
@@ -2280,134 +2280,134 @@ export interface components {
              */
             deletedByAccountId: string | null;
         };
-        PitchSummaryResponse: {
+        SightingSummaryResponse: {
             /** Format: uuid */
-            pitchId: string;
+            sightingId: string;
             /** Format: uuid */
-            practiceId: string;
+            watchId: string;
             /**
-             * @description 釋放球速 (km/h)
+             * @description 入射速度 (km/s)
              * @example 135.8
              */
-            pitchSpeed: number | null;
+            entrySpeed: number | null;
             /** @example false */
             isFavorite: boolean;
             /**
              * Format: date-time
-             * @description 投球時間戳記 (UTC)
+             * @description 目擊事件時間戳記 (UTC)
              */
             timestamp: string;
         };
-        PitchHistorySummary: {
+        SightingHistorySummary: {
             /** Format: uuid */
-            pitchId: string;
+            sightingId: string;
             /** Format: uuid */
-            practiceId: string;
-            practiceName: string;
+            watchId: string;
+            watchName: string;
             /** Format: uuid */
-            playerId: string;
-            playerName: string;
+            stationId: string;
+            stationName: string;
             /** @description km/h */
-            pitchSpeed: number | null;
+            entrySpeed: number | null;
             isFavorite: boolean;
             /** Format: date-time */
             timestamp: string;
         };
-        PitchDetailResponse: {
+        SightingDetailResponse: {
             /** Format: uuid */
-            pitchId: string;
+            sightingId: string;
             /** Format: uuid */
-            practiceId: string;
+            watchId: string;
             /**
-             * @description 由分析產出的球種，例如 Fastball, Slider, Curveball, Changeup 等。isBt3dOnly=true（未配對）時無分析結果，為 null。
-             * @example Fastball
+             * @description 由分析產出的流星雨代碼，例如 PER, GEM, ORI, SPO（偶發）等。isTrajOnly=true（未配對）時無分析結果，為 null。
+             * @example PER
              */
-            pitchType: string | null;
+            showerCode: string | null;
             /**
-             * @description 是否為未配對成功、僅有 bt3d 資料的投球
+             * @description 是否為未配對成功、僅有 traj 資料的目擊事件
              * @example false
              */
-            isBt3dOnly: boolean;
+            isTrajOnly: boolean;
             isFavorite: boolean;
             /** Format: date-time */
             timestamp: string;
-            /** @description 投球分析數據。各欄位於 isBt3dOnly=true（未配對、僅 bt3d）時無分析結果，值為 null。 */
+            /** @description 目擊事件分析數據。各欄位於 isTrajOnly=true（未配對、僅 traj）時無分析結果，值為 null。 */
             metrics: {
                 /**
-                 * @description 球速 (km/h)
-                 * @example 135.8
+                 * @description 入射速度 (km/s)
+                 * @example 42.7
                  */
-                pitchSpeed: number | null;
+                entrySpeed: number | null;
                 /**
-                 * @description 轉速 (rpm)
-                 * @example 2200
+                 * @description 峰值視星等 (mag)，數值越小越亮
+                 * @example -3.2
                  */
-                spinRate: number | null;
+                peakMagnitude: number | null;
                 /**
-                 * @description 旋轉軸 (degree)
+                 * @description 輻射點方位角 (degree)
                  * @example 215.5
                  */
-                spinAxis: number | null;
+                radiantAzimuth: number | null;
                 /**
-                 * @description 垂直位移量 (cm)
-                 * @example 45.2
+                 * @description 發光起點高度 (km)
+                 * @example 98.4
                  */
-                verticalBreak: number | null;
+                beginHeight: number | null;
                 /**
-                 * @description 水平位移量 (cm)
-                 * @example -25.4
+                 * @description 發光終點高度 (km)
+                 * @example 82.1
                  */
-                horizontalBreak: number | null;
+                endHeight: number | null;
                 /**
-                 * @description 進壘點 X 座標 (cm)，水平方向（3D 向量 [0]）
+                 * @description 終點地心座標 X (km)，東向（3D 向量 [0]）
                  * @example 12.5
                  */
-                strikeZonePointX: number | null;
+                terminalPointX: number | null;
                 /**
-                 * @description 進壘點 Y 座標 (cm)，縱深方向（3D 向量 [1]；analyze 於本壘板平面取值時可為 null）
+                 * @description 終點地心座標 Y (km)，北向（3D 向量 [1]；單站解算時可為 null）
                  * @example 0
                  */
-                strikeZonePointY: number | null;
+                terminalPointY: number | null;
                 /**
-                 * @description 進壘點 Z 座標 (cm)，高度方向（3D 向量 [2]）(#86 新增)
+                 * @description 終點地心座標 Z (km)，高度方向（3D 向量 [2]）(#86 新增)
                  * @example 75.3
                  */
-                strikeZonePointZ: number | null;
+                terminalPointZ: number | null;
                 /**
-                 * @description 垂直進壘角度 (degree)，負值代表向下 (#86 新增)
+                 * @description 入射傾角 (degree)，負值代表向下 (#86 新增)
                  * @example -5.8
                  */
-                vaa: number | null;
+                entryAngle: number | null;
                 /**
-                 * @description 水平進壘角度 (degree) (#86 新增)
+                 * @description 水平方位角 (degree) (#86 新增)
                  * @example 1.2
                  */
-                haa: number | null;
+                azimuthAngle: number | null;
                 /**
-                 * @description Seam-Shifted Wake 垂直分量 (cm) (#86 新增)
+                 * @description 減速度垂直分量 (km/s²) (#86 新增)
                  * @example 3.1
                  */
-                sswVb: number | null;
+                decelVertical: number | null;
                 /**
-                 * @description Seam-Shifted Wake 水平分量 (cm) (#86 新增)
+                 * @description 減速度水平分量 (km/s²) (#86 新增)
                  * @example -1.4
                  */
-                sswHb: number | null;
+                decelHorizontal: number | null;
                 /**
-                 * @description 旋轉效率 (0.0–1.0) (#86 新增)
+                 * @description 光度曲線偏度 (0.0–1.0) (#86 新增)
                  * @example 0.92
                  */
-                spinEff: number | null;
+                lightCurveSkew: number | null;
                 /**
-                 * @description 有效轉速 (rpm) (#86 新增)
+                 * @description 測光質量 (mg) (#86 新增)
                  * @example 2050
                  */
-                trueSpin: number | null;
+                photometricMass: number | null;
                 /**
-                 * @description Gyro 角 (degree) (#86 新增)
+                 * @description 天頂角 (degree) (#86 新增)
                  * @example 18.5
                  */
-                gyro: number | null;
+                zenithAngle: number | null;
             };
             media: {
                 /**
@@ -2418,36 +2418,36 @@ export interface components {
                 videoStatus: "processing" | "ready" | "failed";
                 /**
                  * Format: uri
-                 * @description 前視角 MP4 影片路徑（處理中為 null，就緒後由 Nginx 服務）
-                 * @example https://media.jsjh-baseball.edu/videos/practices/uuid123/front.mp4
+                 * @description 主站視角 MP4 影片路徑（處理中為 null，就緒後由 Nginx 服務）
+                 * @example https://media.example.org/videos/watches/uuid123/primary.mp4
                  */
-                frontVideoUrl: string | null;
+                primaryVideoUrl: string | null;
                 /**
                  * Format: uri
-                 * @description 側視角 MP4 影片路徑（處理中為 null，就緒後由 Nginx 服務）
-                 * @example https://media.jsjh-baseball.edu/videos/practices/uuid123/side.mp4
+                 * @description 副站視角 MP4 影片路徑（處理中為 null，就緒後由 Nginx 服務）
+                 * @example https://media.example.org/videos/watches/uuid123/secondary.mp4
                  */
-                sideVideoUrl: string | null;
+                secondaryVideoUrl: string | null;
             };
             /**
-             * @description 即時九宮格 (strike zone) 圖片，base64 PNG 的 data URI
-             *     （`data:image/png;base64,...`，可直接放入 `<img src>`）。後端依球員身高
-             *     (hitter_height) 與進壘點即時呼叫外部九宮格服務取得 (#86)。外部服務逾時/失敗、
-             *     或該球尚無進壘點（無 analyze 結果）時降級為 null，不影響單球詳情其餘欄位回傳。
+             * @description 即時天球分區圖 (sky grid) 圖片，base64 PNG 的 data URI
+             *     （`data:image/png;base64,...`，可直接放入 `<img src>`）。後端依觀測站緯度
+             *     (observer_lat) 與終點座標即時呼叫外部星圖服務取得 (#86)。外部服務逾時/失敗、
+             *     或該事件尚無終點座標（無 analyze 結果）時降級為 null，不影響單筆詳情其餘欄位回傳。
              * @example data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...
              */
-            zoneImage: string | null;
+            skyChart: string | null;
             /**
-             * @description 九宮格服務的好壞球判定 (#86)。與 zoneImage 同源：外部服務逾時/失敗、或該球
-             *     尚無進壘點時降級為 null。
+             * @description 星圖服務的雙站確認判定 (#86)。與 skyChart 同源：外部服務逾時/失敗、或該事件
+             *     尚無終點座標時降級為 null。
              * @example true
              */
-            isStrike: boolean | null;
+            isConfirmed: boolean | null;
         };
         StreamResponse: {
             /** Format: uuid */
             streamId: string;
-            /** @example 一壘側相機直播 */
+            /** @example 主站全天相機直播 */
             name: string;
             /**
              * @example active
@@ -2456,7 +2456,7 @@ export interface components {
             status: "active" | "inactive" | "error";
             /**
              * Format: uri
-             * @example https://stream.jsjh-baseball.edu/live/cam1/index.m3u8
+             * @example https://stream.example.org/live/cam1/index.m3u8
              */
             hlsUrl: string;
             /** Format: date-time */
@@ -2472,10 +2472,10 @@ export interface components {
              * @description 事件類型，前端依此分流
              * @enum {string}
              */
-            type: "connected" | "pitchCreated" | "practiceAiStarted" | "practiceAiStopped";
+            type: "connected" | "sightingCreated" | "watchCaptureStarted" | "watchCaptureStopped";
             /**
-             * @description 來源頻道，`account:{accountId}` 或 `practice:{practiceId}`
-             * @example practice:6f1d2c34-0000-0000-0000-000000000000
+             * @description 來源頻道，`account:{accountId}` 或 `watch:{watchId}`
+             * @example watch:6f1d2c34-0000-0000-0000-000000000000
              */
             channel: string;
             /**
@@ -2483,13 +2483,13 @@ export interface components {
              * @description 事件時間（UTC，秒級精度，`...Z` 結尾）
              */
             timestamp: string;
-            /** @description 事件酬載（camelCase）。connected：{ channels: [...] }；pitchCreated：{ pitchId, practiceId }； practiceAiStarted / practiceAiStopped：{ practiceId }。 */
+            /** @description 事件酬載（camelCase）。connected：{ channels: [...] }；sightingCreated：{ sightingId, watchId }； watchCaptureStarted / watchCaptureStopped：{ watchId }。 */
             data: Record<string, never>;
         };
         /** @description v2 契約（#86）。額外欄位（裝置端舊版計算欄位等）寬鬆接收，僅存入完整原始 payload JSONB，不拆欄。 */
-        Bt3dRawPayload: {
+        TrajRawPayload: {
             /**
-             * @description naive datetime 字串，一律視為 UTC+8 牆鐘時間（不得帶時區 offset）， 後端轉為 UTC 儲存。支援 `T` 與空格兩種分隔、最高微秒精度。 為冪等鍵：相同 timestamp 重送視為同一顆球。bt3d 與 bsa 須使用 同一時間基準以確保 2 秒配對窗正確。
+             * @description naive datetime 字串，一律視為 UTC+8 牆鐘時間（不得帶時區 offset）， 後端轉為 UTC 儲存。支援 `T` 與空格兩種分隔、最高微秒精度。 為冪等鍵：相同 timestamp 重送視為同一筆目擊事件。traj 與 photo 須使用 同一時間基準以確保 2 秒配對窗正確。
              * @example 2026-06-05T14:30:00.123456
              */
             timestamp: string;
@@ -2522,46 +2522,46 @@ export interface components {
              */
             traj_end_ts: number;
             /** @description X 軸二次擬合係數 c0（f(t) = c0 + c1*t + c2*t²；Y、Z 軸同形） */
-            pitch_traj_Xc0: number;
-            pitch_traj_Xc1: number;
-            pitch_traj_Xc2: number;
-            pitch_traj_Yc0: number;
-            pitch_traj_Yc1: number;
-            pitch_traj_Yc2: number;
-            pitch_traj_Zc0: number;
-            pitch_traj_Zc1: number;
-            pitch_traj_Zc2: number;
+            path_traj_Xc0: number;
+            path_traj_Xc1: number;
+            path_traj_Xc2: number;
+            path_traj_Yc0: number;
+            path_traj_Yc1: number;
+            path_traj_Yc2: number;
+            path_traj_Zc0: number;
+            path_traj_Zc1: number;
+            path_traj_Zc2: number;
         };
         /** @description v2 契約（#86）。額外欄位寬鬆接收，僅存入完整原始 payload JSONB，不拆欄。 */
-        BsaRawPayload: {
+        PhotoRawPayload: {
             /**
-             * @description naive datetime 字串，一律視為 UTC+8 牆鐘時間（不得帶時區 offset）， 後端轉為 UTC 儲存。支援 `T` 與空格兩種分隔、最高微秒精度。 為冪等鍵：相同 timestamp 重送視為同一顆球。須與 bt3d 使用同一時間 基準以確保 2 秒配對窗正確。
+             * @description naive datetime 字串，一律視為 UTC+8 牆鐘時間（不得帶時區 offset）， 後端轉為 UTC 儲存。支援 `T` 與空格兩種分隔、最高微秒精度。 為冪等鍵：相同 timestamp 重送視為同一筆目擊事件。須與 traj 使用同一 時間基準以確保 2 秒配對窗正確。
              * @example 2026-06-05 14:30:00.223456
              */
             timestamp: string;
             /**
-             * @description 旋轉軸單位向量 `[x, y, z]`，後端拆解為 axisX/axisY/axisZ 儲存
+             * @description 輻射點單位向量 `[x, y, z]`，後端拆解為 radiantX/radiantY/radiantZ 儲存
              * @example [
              *       1,
              *       0,
              *       0
              *     ]
              */
-            axis: number[];
+            radiant: number[];
             /**
-             * @description 總轉速 (rpm)
-             * @example 2200
+             * @description 峰值視星等 (mag)
+             * @example -3.2
              */
-            rpm: number;
-            /** @description 旋轉方向（時鐘表示法 + 角度） */
-            spin_dir: {
+            peak_mag: number;
+            /** @description 輻射點赤經（時分表示法 + 角度） */
+            radiant_ra: {
                 /** @example 12:00 */
                 hhmm: string;
                 /** @example 0 */
                 degrees: number;
             };
-            /** @description 旋轉傾角（時鐘表示法 + 角度） */
-            spin_tilt: {
+            /** @description 中天時刻（時分表示法 + 角度） */
+            culmination: {
                 /** @example 12:00 */
                 hhmm: string;
                 /** @example 0 */

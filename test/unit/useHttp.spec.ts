@@ -24,10 +24,10 @@ describe('useHttp 共用 domain（runtime 煙霧測試）', () => {
   })
 
   it('get：reactive 讀取（useFetch）回 AsyncData 且資料正確', async () => {
-    registerEndpoint('/api/teams', () => [{ id: 't1' }])
+    registerEndpoint('/api/sites', () => [{ id: 't1' }])
     const Comp = defineComponent({
       async setup() {
-        const { data } = await useHttp().get<{ id: string }[]>('/teams')
+        const { data } = await useHttp().get<{ id: string }[]>('/sites')
         return () => h('div', JSON.stringify(data.value))
       },
     })
@@ -36,11 +36,11 @@ describe('useHttp 共用 domain（runtime 煙霧測試）', () => {
   })
 
   it('get：getter url（reactive 形式）可解析', async () => {
-    registerEndpoint('/api/teams/t9', () => ({ id: 't9' }))
+    registerEndpoint('/api/sites/t9', () => ({ id: 't9' }))
     const Comp = defineComponent({
       async setup() {
         const id = ref('t9')
-        const { data } = await useHttp().get<{ id: string }>(() => `/teams/${id.value}`)
+        const { data } = await useHttp().get<{ id: string }>(() => `/sites/${id.value}`)
         return () => h('div', JSON.stringify(data.value))
       },
     })

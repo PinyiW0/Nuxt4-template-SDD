@@ -16,7 +16,7 @@ project:
 # =============================================================================
 meta:
   keywords: "" # SEO 關鍵字（逗號分隔）
-  author: "Osense" # 網站作者或團隊名稱
+  author: "" # 網站作者或團隊名稱
   og:
     image: "/og-image.png" # 社群分享預覽圖（建議 1200x630 px）
     type: "website" # 網站類型：website | article
