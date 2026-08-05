@@ -255,6 +255,12 @@ docker compose up -d                                   # http://localhost:${HOST
 - [ ] 三個基礎安全標頭在 `nuxt.config.ts` 的 `routeRules`（§4b③）
 - [ ] 嚴格 CSP 已評估並記錄結論——採用或不採用＋理由（模板預設不帶：需 nonce 基建、逐專案評估，見 auth-scaffold §4b③）
 
+**CI 憑證面**（repo 有設 Actions secrets 就要看）：
+
+- [ ] `.github/workflows/` 下所有 `uses:` 釘 commit SHA，非可變 tag——tag 可被上游移動，惡意版本會在持有 secrets 的 job 內執行。升 action 版本時連同行末註解的版本號一起更新
+- [ ] workflow 觸發用 `pull_request` 而非 `pull_request_target`——後者會把 secrets 交給 fork PR 的程式碼，是公開 repo 最典型的 token 竊取破口
+- [ ] **新增外部協作者前**重新評估 `sdd-review.yml`：對同 repo 分支的 PR，該 job 持有 `CLAUDE_CODE_OAUTH_TOKEN` 且 Claude 會讀 PR diff。其 `--allowed-tools` 含 `Read` 與留言工具，惡意 diff 理論上可透過 prompt injection 誘導把環境變數寫進公開留言。個人 repo（無外部 push 權限）此風險不成立，開放協作即成立
+
 ### 設定檔職責
 
 | 檔案 | 進版控 | 內容 |
@@ -265,6 +271,7 @@ docker compose up -d                                   # http://localhost:${HOST
 
 > **鐵則**：committed 的 `.env` **零機敏**。機敏值只走 runtime 注入，絕不進版控；`.env` 不進 image（已被 `.dockerignore` 排除），只在 host 端被 docker-compose 讀取。
 > `.env` 是刻意加入 git 追蹤的（`.gitignore` 的忽略不影響已追蹤檔），勿 `git rm --cached` 移出——worktree「checkout 自帶 `.env`」靠的就是它。
+> 這條鐵則由 `.husky/pre-commit` 機械強制：staged 的 `.env*` 中，變數名帶 `NUXT_PRIVATE_` 前綴或含 `KEY`／`SECRET`／`TOKEN`／`PASSWORD`／`CREDENTIAL` 字段者，**值非空即擋下 commit**（值為空的 passthrough 宣告合法）。誤判可 `git commit --no-verify`。
 > 後端回 envelope（`{ success, data, message, meta }`）維持預設即可；裸 schema 後端設 `NUXT_PUBLIC_API_ENVELOPE=false`（`useHttp` 依此決定拆不拆外層）。
 
 ### 機敏值注入（可選）
