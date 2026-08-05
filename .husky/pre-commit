@@ -1,0 +1,82 @@
+#!/usr/bin/env sh
+# Pre-commit gate: 守 README「committed 的 .env 零機敏」鐵則。
+#
+# 為什麼需要這道 hook：本 repo 的 .env 是「刻意」加入 git 追蹤的（支撐 worktree
+# checkout 自帶 .env，見 README §環境變數）。代價是 .gitignore 對已追蹤檔完全失效——
+# 一旦有人在 .env 填入真 key，`git add -A` 會毫無阻力地把它帶進 commit；
+# 而本 repo 是 public，push 出去即全球可見，GitHub 上有專門掃 public repo 憑證的爬蟲。
+#
+# 原本這條鐵則只寫在 README（靠人工紀律），與本 repo 其他紅線的作法不一致——
+# 凍結區有 frozen-paths-guard、server 安全有 server-security-guard，都是 hook 技術強制。
+# 本檔補上這個落差：機敏「變數名」的值非空即擋，不擋值為空的 passthrough 宣告。
+#
+# 註：檢查的是 index（staged）內容而非工作目錄——commit 送出的是 index。
+# 誤判（變數名含 KEY 但值確實可公開）可用 git commit --no-verify 跳過。
+
+# 機敏變數名樣式：NUXT_PRIVATE_* 前綴，或名稱含 KEY/SECRET/TOKEN/PASSWORD/CREDENTIAL 字段。
+# 用「字段」而非「子字串」比對，避免 MONKEY、TOKENIZER 這類誤傷。
+SECRET_KEY_PATTERN='(^|_)(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|CREDENTIALS)(_|$)|^NUXT_PRIVATE_'
+
+# 本次 commit 中 staged 的 .env 系列檔（.env、.env.example、.env.production…）
+# 注意：husky 以 `sh -e` 執行本檔，grep 無命中時回傳 1 會觸發 errexit，故加 || true
+staged_envs=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)\.env($|\.)' || true)
+
+if [ -z "$staged_envs" ]; then
+  exit 0
+fi
+
+violations=''
+
+for f in $staged_envs; do
+  content=$(git show ":${f}" 2>/dev/null || true)
+  [ -z "$content" ] && continue
+
+  # heredoc 餵給 while（非 pipeline）→ 迴圈內對 violations 的賦值能保留到迴圈外
+  while IFS= read -r line; do
+    # 略過空行與註解
+    case "$line" in
+      '' | \#*) continue ;;
+    esac
+    # 只看 KEY=VALUE 形式
+    case "$line" in
+      *=*) ;;
+      *) continue ;;
+    esac
+
+    key=${line%%=*}
+    value=${line#*=}
+
+    # 值：去頭尾空白，再剝一層引號；空值＝僅宣告 passthrough，合法
+    value=$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e "s/^['\"]//" -e "s/['\"]\$//")
+    [ -z "$value" ] && continue
+
+    # 變數名：去空白與 export 前綴
+    key=$(printf '%s' "$key" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^export[[:space:]]*//')
+
+    if printf '%s' "$key" | grep -qE "$SECRET_KEY_PATTERN"; then
+      violations="${violations}  ${f} → ${key}\n"
+    fi
+  done <<EOF
+$content
+EOF
+done
+
+if [ -n "$violations" ]; then
+  echo "❌ Commit 已擋下：staged 的 .env 中有機敏變數帶了非空值。"
+  echo ""
+  printf '%b' "$violations"
+  echo ""
+  echo "   本 repo 為 public，且 .env 進版控（worktree checkout 自帶）→"
+  echo "   鐵則是「committed 的 .env 零機敏」，機敏值一律走 runtime 注入："
+  echo ""
+  echo "     export NUXT_PRIVATE_GOOGLE_SHEET_KEY='真正的 key'"
+  echo "     docker compose up -d"
+  echo ""
+  echo "   （docker-compose.yml 已做同名 passthrough，不進版控也不進 image。"
+  echo "     完整說明見 README §機敏值注入。）"
+  echo ""
+  echo "   確認是誤判（變數名含 KEY 但值可公開）→ git commit --no-verify"
+  exit 1
+fi
+
+exit 0

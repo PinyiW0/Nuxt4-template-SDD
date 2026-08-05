@@ -10,9 +10,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # action 一律釘 commit SHA（非可變 tag）：tag 可被上游移動，
+      # 惡意版本會在持有 AZURE_CREDENTIALS_BETA 的 job 內執行。升版時連同註解的版本號一起更新。
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -20,19 +22,19 @@ jobs:
         run: npm ci
       - name: Build project
         run: npm run generate
-      - uses: azure/login@v1
+      - uses: azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.6.1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS_BETA }}
 
       # Delete existing content in $web container
       - name: Delete existing content in $web container
-        uses: azure/CLI@v1
+        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
         with:
           inlineScript: |
             az storage blob delete-batch --account-name ${{ vars.ACCOUNT_NAME_BETA }} --auth-mode key -s '$web'
 
       - name: Upload to blob storage
-        uses: azure/CLI@v1
+        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
         with:
           inlineScript: |
             az storage blob upload-batch --account-name ${{ vars.ACCOUNT_NAME_BETA }} --auth-mode key -d '$web' -s ./dist
