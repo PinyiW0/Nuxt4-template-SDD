@@ -119,7 +119,7 @@ Diff 範圍：app/pages/, app/components/, app/layouts/
 
 ## 互動行為（需 e2e）
 
-1. app/pages/practice/live.vue:120-135
+1. app/pages/watch/live.vue:120-135
    diff: 新增 sidebar 折疊 ref + UButton @click toggle
    pattern: toggle
    建議測試：點折疊按鈕後 sidebar 應 hidden；再點應 visible
@@ -127,7 +127,7 @@ Diff 範圍：app/pages/, app/components/, app/layouts/
      - 觸發：role=button name=/折疊|展開|collapse|expand/
      - 目標：role=complementary name=/sidebar/ 或 testid=vibe-sidebar
    
-2. app/pages/players/[id].vue:50-72
+2. app/pages/stations/[id].vue:50-72
    diff: 新增 UTabs（基本資料 / 統計）
    pattern: tab
    建議測試：點 statistic tab 後對應 panel 出現
@@ -139,12 +139,12 @@ Diff 範圍：app/pages/, app/components/, app/layouts/
 
 ## 結構新增（需 e2e）
 
-1. app/pages/players/index.vue:80-95
-   diff: 新增 v-if="!players.length" 空狀態區塊（含「尚無球員」文字 + 引導建立 CTA）
+1. app/pages/stations/index.vue:80-95
+   diff: 新增 v-if="!stations.length" 空狀態區塊（含「尚無觀測站」文字 + 引導建立 CTA）
    pattern: empty-state
-   建議測試：清空 players 後顯示「尚無球員」文字；CTA 連到建立頁
+   建議測試：清空 stations 後顯示「尚無觀測站」文字；CTA 連到建立頁
    locator hint:
-     - 目標：text=/尚無球員/
+     - 目標：text=/尚無觀測站/
      - CTA：role=link name=/建立/
 
 2. ...
@@ -161,7 +161,7 @@ Diff 範圍：app/pages/, app/components/, app/layouts/
   （無）
 
 ⚠️ 合約外（2 個）— 本次 vibe 引入的新孤兒：
-  - vibe-statistics-panel (app/pages/players/[id].vue:55 +line)
+  - vibe-statistics-panel (app/pages/stations/[id].vue:55 +line)
     建議：若要納入合約 → 改 .flow.md → 重跑 /test e2e spec
   - sidebar-collapse-button (app/components/Sidebar.vue:30 +line)
     建議：用 getByRole('button', { name: /折疊/ }) 取代

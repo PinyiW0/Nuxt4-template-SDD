@@ -130,8 +130,8 @@ E2E 紅燈報告：{NN}-{name}
   2. ❌ ...
 
   修復範圍摘要：
-  - app/pages/teams/index.vue（3 處語意 anchor 缺失）
-  - server/mock/data/teams.ts（1 處數值不匹配）
+  - app/pages/sites/index.vue（3 處語意 anchor 缺失）
+  - server/mock/data/sites.ts（1 處數值不匹配）
 ```
 
 ---

@@ -186,17 +186,17 @@ export async function resetMockData(page: Page) {
 // test/e2e/helpers/fixtures.ts
 export const TestUsers = {
   admin: { account: 'admin', password: 'admin888', role: '管理者' },
-  coach: { account: 'coach1', password: 'pass123', role: '教練' },
-  coach2: { account: 'coach2', password: 'pass123', role: '教練' },
-  locked: { account: 'locked1', password: 'pass123', role: '教練' },
+  observer: { account: 'observer1', password: 'pass123', role: '觀測員' },
+  observer2: { account: 'observer2', password: 'pass123', role: '觀測員' },
+  locked: { account: 'locked1', password: 'pass123', role: '觀測員' },
 } as const
 
 export const Routes = {
   analysis: '/analysis',
   home: '/',
   login: '/login',
-  players: '/players',
-  teams: '/teams',
+  stations: '/stations',
+  sites: '/sites',
   trainingHistory: '/trainings/history',
 } as const
 ```

@@ -67,13 +67,13 @@ git diff --cached -- app/pages app/components app/layouts
     新增 @keydown.esc="closeModal" 於 account-create-modal
     建議測試：accounts | esc 關閉建立帳號 modal
 
-[2] app/components/PracticeCard.vue:45
+[2] app/components/WatchCard.vue:45
     新增 :data-state="loading ? 'loading' : 'idle'"
-    建議測試：practice-card | loading 狀態屬性
+    建議測試：watch-card | loading 狀態屬性
 
-[3] app/pages/practice/[practiceId].vue:528
-    pitch-favorite-button 新增 :data-favorited
-    跳過：04-practice.spec.ts:56 已涵蓋
+[3] app/pages/watch/[watchId].vue:528
+    sighting-favorite-button 新增 :data-favorited
+    跳過：04-watch.spec.ts:56 已涵蓋
 
 要產出 [1][2] 嗎？(y / n / 1,2 / 選擇)
 ```
@@ -88,8 +88,8 @@ git diff --cached -- app/pages app/components app/layouts
 
 - `page-slug` 從變動檔路徑推：
   - `app/pages/accounts/index.vue` → `accounts`
-  - `app/pages/practice/[practiceId].vue` → `practice-detail`
-  - `app/components/PracticeCard.vue` → `practice-card`
+  - `app/pages/watch/[watchId].vue` → `watch-detail`
+  - `app/components/WatchCard.vue` → `watch-card`
   - `app/layouts/default.vue` → `default-layout`
 
 若檔已存在：**新增 describe，不覆寫**現有的。
@@ -144,10 +144,10 @@ test.describe('accounts | <下一個主題>', () => {
 ```
 E2E Handwritten 已建立 / 更新：
 - test/e2e/handwritten/accounts.spec.ts（新增 2 個 describe）
-- test/e2e/handwritten/practice-card.spec.ts（新檔，1 個 describe）
+- test/e2e/handwritten/watch-card.spec.ts（新檔，1 個 describe）
 
 跳過（spec 已涵蓋）：
-- pitch-favorite-button data-favorited → 04-practice.spec.ts:56
+- sighting-favorite-button data-favorited → 04-watch.spec.ts:56
 
 純展示變動（不鎖）：
 - accounts 列表 hover 顏色從 neutral-50 → primary-50

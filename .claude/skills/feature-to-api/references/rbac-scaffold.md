@@ -40,7 +40,7 @@ ui    P5  入口 / 按鈕 v-if 角色隱藏（§3b）
 
 偵測到 → 寫入 `route-map.yaml > rbac`（§2）並套用 §3。**沒偵測到 → 完全略過本檔。** 訊號模糊、角色命名超出範例、或來源互相矛盾（散文說「僅工作區擁有者」但 feature 卻讓一般成員操作）時 → **不默默猜、也不硬比字面，列出研判與操作者確認再定**（與 `phase-0-prep.md`「偵測總則」一致）。
 
-> ⚠️ **`security: []` 落差是 auth 訊號、不是 rbac 訊號**：端點間「免認證（`security: []`）vs 全域 bearer」的差別只代表「要不要登入」，與「登入後不同角色能做的事不同」無關。一份有公開端點（health / login / 內網 webhook / token-query SSE）卻無角色分層的 spec，rbac 仍應略過。認證的偵測與 scaffold 歸 `auth-scaffold.md`——別把登入與否的落差當角色訊號（這是 dogfood baseball spec 校出的破口：該 spec 多個 `security: []` 端點全是免認證，無一是角色分層）。
+> ⚠️ **`security: []` 落差是 auth 訊號、不是 rbac 訊號**：端點間「免認證（`security: []`）vs 全域 bearer」的差別只代表「要不要登入」，與「登入後不同角色能做的事不同」無關。一份有公開端點（health / login / 內網 webhook / token-query SSE）卻無角色分層的 spec，rbac 仍應略過。認證的偵測與 scaffold 歸 `auth-scaffold.md`——別把登入與否的落差當角色訊號（這是 dogfood 流星觀測 spec 校出的破口：該 spec 多個 `security: []` 端點全是免認證，無一是角色分層）。
 
 > ⚠️ **授權分四層，「自己 / own」語意尤其要分辨型別**——對照 [OWASP API 授權兩類漏洞 BFLA / BOLA](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/)：
 > - **① 端點存取**（→ `endpoints`，擋 OWASP **BFLA**）：「僅 X 角色可進這個功能」——看**角色**，`requireRole` 擋。
@@ -56,7 +56,7 @@ ui    P5  入口 / 按鈕 v-if 角色隱藏（§3b）
 >
 > 本檔所有範例一律用**假想的 `workspace_owner`（全權）/ `member`（受限）**兩角色、與**假想的 members / notes 領域**（沿用 [phase-1-5-client-api.md](phase-1-5-client-api.md) 的 notes 領域宣告），**皆非本專案的實際端點與角色**。
 >
-> **為什麼刻意避開本 repo dogfood spec（baseball）的實際值**：範例若與「在本 repo 跑 `/feature-to-api` 應得的正確產出」同形，讀者就無從分辨哪句是示意、哪句是答案——照抄即產出**憑空的假權限**。故本檔範例與真實 spec **零撞名**；真實 spec 的值只在標明為「對照組 / baseball spec 的實際萃取值」時被指涉（見 §2 的 `ownership` / `object_ownership` 註解），那些地方是在論證「實際萃取結果就是空」，不是可照抄的範例。
+> **為什麼刻意避開本 repo dogfood spec（流星觀測）的實際值**：範例若與「在本 repo 跑 `/feature-to-api` 應得的正確產出」同形，讀者就無從分辨哪句是示意、哪句是答案——照抄即產出**憑空的假權限**。故本檔範例與真實 spec **零撞名**；真實 spec 的值只在標明為「對照組 / 流星觀測 spec 的實際萃取值」時被指涉（見 §2 的 `ownership` / `object_ownership` 註解），那些地方是在論證「實際萃取結果就是空」，不是可照抄的範例。
 >
 > **例外——刻意保留真名，因為是「契約本身」而非領域範例**：
 > - `/auth/me`（roles 的來源，見開頭守門落點與 §3 前提）屬 auth 契約，由 [auth-scaffold.md](auth-scaffold.md) 定義、本檔只消費；與真實 spec 同名是刻意的。（`openapi-codegen.md` 檔頭有同款的 envelope／auth 例外聲明。）
@@ -88,12 +88,12 @@ rbac:
   #    來源：spec / feature 明說「X 只能看自己建立的 / 名下的」這類語意
   #    owner_field = mock data 需含的擁有者欄位；restricted_roles = 被限縮的角色（其餘角色全量）
   #    ⚠️ 這是最少見的一型——多數 spec（凡「純 gating」「只有改密 self-scope」者）此區塊就是空陣列。
-  #       【對照組】本 repo dogfood 的 baseball spec，實際萃取值就是 ownership: []
-  #       （其 teams / players 皆全量查詢、無「只看自己建立的」散文）——此處是在論證「實際結果就是空」，不是可照抄的範例。
+  #       【對照組】本 repo dogfood 的流星觀測 spec，實際萃取值就是 ownership: []
+  #       （其 sites / stations 皆全量查詢、無「只看自己建立的」散文）——此處是在論證「實際結果就是空」，不是可照抄的範例。
   #       ❗別把真實端點名安上 ownership：下方假想例的 notes 純為示意 schema 形狀；
   #       把一個沒有 ownership 散文的真實端點硬安成 ownership = 憑空造假權限，正是 dogfood 校出的破口。
   #       只有 spec 真的寫「只看自己建立的列表」才填。
-  ownership: [] # 多數專案的實際值（含上述 baseball 對照組）；下行假想例僅示意 schema、勿照抄
+  ownership: [] # 多數專案的實際值（含上述流星觀測對照組）；下行假想例僅示意 schema、勿照抄
   #   假想例（若某 spec 寫「一般成員只看自己建立的 notes」才會長這樣）：
   #   - { method: GET, path: /api/v1/notes, owner_field: createdBy, restricted_roles: [member] }
 
@@ -102,10 +102,10 @@ rbac:
   #    與 ② 的差別：② 是 GET 列表主動只回自己的；③ 是 GET/PATCH/DELETE /{id} 單筆，角色對、端點對，但帶他人 id → 拒
   #    owner_field = 被操作資源的擁有者欄位；restricted_roles = 受此限的角色（全權角色不檢查）
   #    notfound: true 時改回 404（不洩漏「該筆存在但你無權」，OWASP 建議之一；預設 403）
-  #    ⚠️ 【對照組】baseball spec 的實際值也是空——它只有「全權角色 gating（→endpoints）+ 改密 self-scope（→business_guards）」，
+  #    ⚠️ 【對照組】流星觀測 spec 的實際值也是空——它只有「全權角色 gating（→endpoints）+ 改密 self-scope（→business_guards）」，
   #       無 per-object ownership。同上，這是論證「實際結果就是空」，不是可照抄的範例。
   #       照「偵測到才生」：spec 真的寫「只能動自己的單筆」才填，別憑空加（憑空加 = 假權限）。
-  object_ownership: [] # 多數專案的實際值（含上述 baseball 對照組）；下行假想例僅示意 schema
+  object_ownership: [] # 多數專案的實際值（含上述流星觀測對照組）；下行假想例僅示意 schema
   #   假想例（若某 spec 寫「一般成員只能編輯 / 刪除自己建立的 note」才會長這樣）：
   #   - { method: PATCH, path: /api/v1/notes/{noteId}, owner_field: createdBy, restricted_roles: [member] }
   #   - { method: DELETE, path: /api/v1/notes/{noteId}, owner_field: createdBy, restricted_roles: [member] }
@@ -209,7 +209,7 @@ export const mockUsers = [
 
 > ⚠️ **此種子與 [phase-1-mock-api.md](phase-1-mock-api.md)「Mock 資料範例」是同一個檔（`server/mock/data/users.ts`）的兩處示意**——那裡示範「登入要什麼欄位」、這裡示範「rbac 要多角色」。
 >
-> **目前兩處的角色值不一致**：本檔已中性化為 `workspace_owner` / `member`，`phase-1-mock-api.md` 仍是 baseball spec 的實際角色（尚未中性化，收斂追蹤見 issue #103 §7）。
+> **目前兩處的角色值不一致**：本檔已中性化為 `workspace_owner` / `member`，`phase-1-mock-api.md` 仍是 流星觀測 spec 的實際角色（尚未中性化，收斂追蹤見 issue #103 §7）。
 >
 > **優先序無歧義：多角色種子以本檔 §3a 為準**——`phase-1-mock-api.md` 的「角色守門範例」段已明訂「完整範本（含多角色種子）見 rbac-scaffold.md §3a，**以該檔為唯一權威版本，勿在此複製**」。那邊「Mock 資料範例」的角色字面值屬已知待修的殘留複製品，**不要照抄**。
 
@@ -233,7 +233,7 @@ export default defineEventHandler((event: H3Event): MemberListItem[] => {
 
 ```ts
 // server/api/v1/notes/index.get.ts —— ownership 過濾：受限角色只看自己建立的
-// ⚠️ notes 為「假想資源」、member 為「假想角色」（對照組：baseball spec 並無 ownership 端點，其 ownership: []）。
+// ⚠️ notes 為「假想資源」、member 為「假想角色」（對照組：流星觀測 spec 並無 ownership 端點，其 ownership: []）。
 //    此檔僅示意「rbac.ownership 命中時」的寫法；真實專案請用 route-map.rbac.ownership 實際列出的端點，勿把無 ownership 散文的真實端點硬套。
 // 對應 route-map.rbac.ownership: { GET /api/v1/notes, owner_field: createdBy, restricted_roles: [member] }
 import type { H3Event } from 'h3'
@@ -257,7 +257,7 @@ export default defineEventHandler((event: H3Event): NoteListItem[] => {
 ```ts
 // server/api/v1/notes/[noteId].patch.ts —— 單筆 object 歸屬（OWASP BOLA）：受限角色帶他人 id → 403/404
 // 對應 route-map.rbac.object_ownership: { PATCH /api/v1/notes/{noteId}, owner_field: createdBy, restricted_roles: [member] }
-// ⚠️ notes 為假想資源、member 為假想角色（對照組：baseball spec 的 object_ownership 為空）；真實專案用 route-map 實列端點與角色。
+// ⚠️ notes 為假想資源、member 為假想角色（對照組：流星觀測 spec 的 object_ownership 為空）；真實專案用 route-map 實列端點與角色。
 import type { H3Event } from 'h3'
 import { getRouterParam, readBody } from 'h3'
 import { requireOwnership } from '../../../mock/auth-context'

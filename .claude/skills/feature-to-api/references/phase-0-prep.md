@@ -90,7 +90,7 @@ Phase 0 再檢查 `spec/report/route-map.yaml`：
             或與 paths 不一致）。取兩份證據再和解，不要只信 servers.url：
               a. servers.url 的 path 段（去掉 protocol+host+port）
               b. 所有 paths keys 的最長共同前綴
-                 （如 /api/v1/auth/login + /api/v1/teams → /api/v1）
+                 （如 /api/v1/auth/login + /api/v1/sites → /api/v1）
             和解規則：
               - (a) 與 (b) 一致 → 用該值
               - servers.url 無 path 段、或 (a) 與 (b) 衝突 → 以 (b) paths 共同前綴為準
@@ -103,8 +103,8 @@ Phase 0 再檢查 `spec/report/route-map.yaml`：
 
 3. server/api/ 目錄存在且非空？
      → 是 → 掃描所有 endpoint 檔，取最長共同前綴
-            例：server/api/v1/teams/, server/api/v1/cameras/ → path_prefix = "/api/v1"
-            例：server/api/teams/, server/api/auth/         → path_prefix = "/api"
+            例：server/api/v1/sites/, server/api/v1/cameras/ → path_prefix = "/api/v1"
+            例：server/api/sites/, server/api/auth/         → path_prefix = "/api"
             寫入 route-map.yaml，停止
      → 否 → 繼續
 
@@ -162,11 +162,11 @@ grep 來源訊號（命中任一即「有即時需求」）：
 
 > SDD workflow 對影音串流中立——**偵測到才提示**，無訊號的專案完全不碰。影音播放的實作知識（播放器掛載、錯誤自救、看門狗、延遲調校、多路對齊、teardown、傳輸選型）由 `streaming` skill 提供。
 
-grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI 是主訊號**——串流合約住在 spec 與 UI，flow 通常只以路由暗示（如 `/practice/live`），故 flow 側訊號弱、僅供參考：
+grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI 是主訊號**——串流合約住在 spec 與 UI，flow 通常只以路由暗示（如 `/watch/live`），故 flow 側訊號弱、僅供參考：
 
 - HLS：OpenAPI 有 `hlsUrl` 欄位、`/streams` 端點、描述含「HLS」、或 `.m3u8`；mock / 原始碼有 `application/vnd.apple.mpegurl`、`application/x-mpegurl`
 - WebRTC media：`RTCPeerConnection` + `ontrack` / `addTrack` / `addTransceiver`
-- （flow 側弱訊號）`.flow.md` 出現名為 `live` 的路由 / 頁面（如 `/practice/live`）——僅暗示可能有直播頁，**不據此要求 flow 寫串流不變式**（畫面呈現屬 vibe）
+- （flow 側弱訊號）`.flow.md` 出現名為 `live` 的路由 / 頁面（如 `/watch/live`）——僅暗示可能有直播頁，**不據此要求 flow 寫串流不變式**（畫面呈現屬 vibe）
 
 **偵測到 → 寫入 `route-map.yaml > streaming` 區塊**（`transport: hls | webrtc-media`、`url_source`（提供播放 URL 的端點，如 `/streams/{streamId}` 取 `hlsUrl`）、`url_field`（URL 欄位名，如 `hlsUrl`））**並在報告提示「建議套用 `streaming` skill」**。播放 URL 多由獨立端點提供（單一真相來源），型別走 codegen alias（如 `StreamResponse`），實作見 streaming/references/hls.md。
 
@@ -181,12 +181,12 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 
 判準是**語意**——「不同角色看到 / 能做的事不一樣嗎」，不是逐字比對。下列訊號為**常見範例非白名單**，命中任一即「有角色分層」：
 
-- OpenAPI：端點 description 含「僅 X 可操作 / X 不得 / X 才能」這類**操作者角色限制**散文（→ `endpoints`，OWASP BFLA）；含「只能讀 / 改 / 刪**自己的** X」「不得存取**他人** Y」這類**單筆歸屬**散文，尤其在 `/{id}` 端點（→ `object_ownership`，OWASP BOLA / API #1）；schema 有 `roles` 列舉欄位（值如 `super_admin`/`coach`/`owner`/`member`，皆範例）；`403` 回應帶權限語意 `errorCode`
-- `.feature` / `.flow.md`：不同身分操作同一資源結果不同（「以管理員登入」vs「以教練登入」看到的清單 / 可按的鈕不同）、「無權限 / 僅…可 / 被拒 / 只能操作自己的」語意 scenario
+- OpenAPI：端點 description 含「僅 X 可操作 / X 不得 / X 才能」這類**操作者角色限制**散文（→ `endpoints`，OWASP BFLA）；含「只能讀 / 改 / 刪**自己的** X」「不得存取**他人** Y」這類**單筆歸屬**散文，尤其在 `/{id}` 端點（→ `object_ownership`，OWASP BOLA / API #1）；schema 有 `roles` 列舉欄位（值如 `super_admin`/`observer`/`owner`/`member`，皆範例）；`403` 回應帶權限語意 `errorCode`
+- `.feature` / `.flow.md`：不同身分操作同一資源結果不同（「以管理員登入」vs「以觀測員登入」看到的清單 / 可按的鈕不同）、「無權限 / 僅…可 / 被拒 / 只能操作自己的」語意 scenario
 
 **偵測到 → 寫入 `route-map.yaml > rbac` 區塊**（`required: true` + `roles` + `endpoints`（端點存取控制 / BFLA）+ `ownership`（列表級 ACL）+ `object_ownership`（單筆 object 級 ACL / BOLA，最常漏卻是 OWASP #1）+ `protected_routes`（前端守門）+ `business_guards`（僅登錄不自動生），格式見 rbac-scaffold.md §2）**並在報告提示「建議套用 rbac-scaffold」**。角色名一律從 spec 萃取、不寫死；判準是語意角色（受限 vs 全權）。
 
-**沒偵測到 → route-map 不寫 rbac 區塊、不套守門。** Sync 模式下後來才出現角色限制端點一樣補上（見 rbac-scaffold.md §5）。命名超出範例、或來源互相矛盾（散文說「僅 super_admin」但 feature 卻讓 coach 操作）時 → **不默默猜、也不硬比字面，列出研判與操作者確認再定**。
+**沒偵測到 → route-map 不寫 rbac 區塊、不套守門。** Sync 模式下後來才出現角色限制端點一樣補上（見 rbac-scaffold.md §5）。命名超出範例、或來源互相矛盾（散文說「僅 super_admin」但 feature 卻讓 observer 操作）時 → **不默默猜、也不硬比字面，列出研判與操作者確認再定**。
 
 ---
 
@@ -204,7 +204,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 4. **派生端點規格**：每個 `paths/*/{method}` → `endpoints` 條目
    - 路徑、method、request/response schema 引用全照抄
    - 不要自加分頁（除非 spec 有 `parameters`）
-   - 不要改 method（如 spec 寫 `PATCH /practices/{id}/pitcher` 就照 spec）
+   - 不要改 method（如 spec 寫 `PATCH /watches/{id}/station` 就照 spec）
 5. **產生 route-map.yaml**：
    - 寫入 `api_contract.path_prefix`（來自上方「Path 前綴偵測」結果，**所有 endpoint 路徑都以此前綴開頭**）
    - 寫入 `api_contract.response_conventions`（回應信封依 openapi-conventions §3 判定：模式 A envelope／模式 B 裸回，判定規則勿在此複製）：
@@ -258,7 +258,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 
 5. **建立 API 合約型別**（直接寫入 `app/types/api/*.ts`）
    - 根據 feature 分析結果，直接建立 TypeScript 型別定義檔
-   - 每個資源一個檔案（如 `teams.ts`、`auth.ts`）
+   - 每個資源一個檔案（如 `sites.ts`、`auth.ts`）
    - 建立 `index.ts` 統一 re-export
    - ⚠️ **欄位命名使用 `camelCase`**（對齊 OpenAPI 慣例，未來與 `api-spec.yml` 無痛對接；不再用 snake_case）
    - ⚠️ **型別命名分 Event / ListItem / Body / Detail**，見 `openapi-conventions.md` § 1
@@ -321,15 +321,15 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 - [ ] 登入頁面 (01-使用者登入.dsl.feature)
 - [ ] 登出功能 (02-使用者登出.dsl.feature)
 
-### 球隊管理
-- [ ] 球隊列表 (03-查詢球隊列表.dsl.feature)
-- [ ] 建立球隊 (04-建立球隊.dsl.feature)
+### 觀測點管理
+- [ ] 觀測點列表 (03-查詢觀測點列表.dsl.feature)
+- [ ] 建立觀測點 (04-建立觀測點.dsl.feature)
 
 ### 資料模型
 | 實體 | 欄位 | 來源 |
 |------|------|------|
 | User | account, role, status | 01-使用者登入 |
-| Team | id, name, playerCount | 03-查詢球隊列表 |
+| Site | id, name, stationCount | 03-查詢觀測點列表 |
 
 ### API 端點規劃
 > ⚠️ 路徑以本專案偵測到的 `path_prefix` 為前綴；下例假設 `/api/v1`
@@ -337,7 +337,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 | 端點 | 方法 | 用途 | 來源 |
 |------|------|------|------|
 | /api/v1/auth/login | POST | 登入 | 01 |
-| /api/v1/teams | GET | 球隊列表 | 03 |
+| /api/v1/sites | GET | 觀測點列表 | 03 |
 ```
 
 **讀回完整性（規劃完端點必查）**：`.feature` 是命令驅動的，照著寫只會產出寫入端點。列完端點表後，逐一檢查每個 command（POST/PUT/PATCH）：「它寫入的每個欄位，重新整理後前端從哪個 GET 拿回來？」
@@ -360,7 +360,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 |------|------|--------|----------|
 | /login | login.vue | auth | 01-使用者登入 |
 | / | index.vue | default | 首頁/Dashboard |
-| /teams | teams/index.vue | default | 03-查詢球隊列表 |
+| /sites | sites/index.vue | default | 03-查詢觀測點列表 |
 ```
 
 ---
@@ -375,34 +375,34 @@ Phase 0 直接建立 `app/types/api/*.ts`，消除 YAML → TypeScript 翻譯誤
 app/types/api/
 ├── index.ts     # 統一 re-export
 ├── auth.ts      # LoginData
-├── teams.ts     # TeamItem, CreateTeamBody
-└── players.ts   # PlayerItem, CreatePlayerBody
+├── sites.ts     # SiteItem, CreateSiteBody
+└── stations.ts   # StationItem, CreateStationBody
 ```
 
 ### 型別檔範例
 
 ```typescript
-// app/types/api/teams.ts
-export interface TeamListItem {
-  teamId: string // uuid
-  teamName: string
-  playerCount: number
+// app/types/api/sites.ts
+export interface SiteListItem {
+  siteId: string // uuid
+  siteName: string
+  stationCount: number
 }
 
-export interface TeamCreatedEvent {
-  teamId: string
-  teamName: string
+export interface SiteCreatedEvent {
+  siteId: string
+  siteName: string
 }
 
-export interface CreateTeamBody {
-  teamName: string
+export interface CreateSiteBody {
+  siteName: string
 }
 ```
 
 ```typescript
 // app/types/api/index.ts — 統一 re-export
-export type { CoachLoggedInEvent, LoginBody } from './auth'
-export type { CreateTeamBody, TeamCreatedEvent, TeamListItem } from './teams'
+export type { ObserverLoggedInEvent, LoginBody } from './auth'
+export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```
 
 > ⚠️ **命名慣例**：欄位 `camelCase`、型別 `PascalCase`、UUID 用 `string`、日期用 `string`
@@ -456,40 +456,40 @@ api_contract:
   # 程式碼層面的 SSoT 仍是 app/types/api/*.ts
   # 手動修改只改 *.ts，此區塊由 Phase 0 自動同步覆蓋
   types:
-    TeamListItem:
-      file: teams.ts
+    SiteListItem:
+      file: sites.ts
       fields:
-        teamId: string
-        teamName: string
-        playerCount: number
-    TeamCreatedEvent:
-      file: teams.ts
+        siteId: string
+        siteName: string
+        stationCount: number
+    SiteCreatedEvent:
+      file: sites.ts
       fields:
-        teamId: string
-        teamName: string
-    CreateTeamBody:
-      file: teams.ts
+        siteId: string
+        siteName: string
+    CreateSiteBody:
+      file: sites.ts
       fields:
-        teamName: string
+        siteName: string
 
   # 端點規格（方法 + 路徑 + Request/Response 型別名引用）
   # ⚠️ 以下 path 假設 path_prefix = "/api/v1"，實際以本檔上方 path_prefix 為準
   # 所有 path 必以 path_prefix 開頭；不得寫絕對 URL
-  # ⚠️ Phase 1.5 會依 method + path 推導 client function name（如 GET /teams → listTeams，
-  #    POST /practices/{id}/end → endPractice），命名規則見 phase-1-5-client-api.md
+  # ⚠️ Phase 1.5 會依 method + path 推導 client function name（如 GET /sites → listSites，
+  #    POST /watches/{id}/end → endWatch），命名規則見 phase-1-5-client-api.md
   endpoints:
     - method: POST
       path: /api/v1/auth/login
       request: LoginBody
-      response: CoachLoggedInEvent
+      response: ObserverLoggedInEvent
     - method: GET
-      path: /api/v1/teams
+      path: /api/v1/sites
       request: '{}'
-      response: 'TeamListItem[]'
+      response: 'SiteListItem[]'
     - method: POST
-      path: /api/v1/teams
-      request: CreateTeamBody
-      response: TeamCreatedEvent
+      path: /api/v1/sites
+      request: CreateSiteBody
+      response: SiteCreatedEvent
 
 routes:
   - path: /login
@@ -503,17 +503,17 @@ routes:
     components: []
     store: auth
 
-  - path: /teams
-    page: app/pages/teams/index.vue
+  - path: /sites
+    page: app/pages/sites/index.vue
     layout: default
     features:
-      - file: 03-查詢球隊列表.dsl.feature
+      - file: 03-查詢觀測點列表.dsl.feature
         content_hash: e5f6g7h8
-      - file: 04-建立球隊.dsl.feature
+      - file: 04-建立觀測點.dsl.feature
         content_hash: i9j0k1l2
     api_endpoints:
-      - GET /api/v1/teams
-      - POST /api/v1/teams
+      - GET /api/v1/sites
+      - POST /api/v1/sites
     components:
       - PageHeader
       - ListContainer
@@ -558,7 +558,7 @@ routes:
 
 > ⚠️ **根路由必建**：即使沒有 feature 對應 `/`，route-map.yaml 也必須包含 `/` 路由。Phase 2 建空殼，Phase 5 填入 client-side redirect。**禁止使用 `redirectCode`（HTTP redirect 會被瀏覽器快取，影響同 port 的其他專案）**，改用 `if (import.meta.client) { await navigateTo('/xxx', { replace: true }) }`。
 
-> ⚠️ **一個頁面可對應多個 feature**：例如球隊列表頁同時處理「查詢」「建立」「編輯」「刪除」四個 feature。
+> ⚠️ **一個頁面可對應多個 feature**：例如觀測點列表頁同時處理「查詢」「建立」「編輯」「刪除」四個 feature。
 >
 > ⚠️ **Phase 2 必須讀取此檔案**：建立頁面骨架時，以 route-map.yaml 為準。
 >
@@ -570,7 +570,7 @@ features 欄位使用物件陣列，每個物件包含 `file`（檔名）和 `co
 
 ```yaml
 features:
-  - file: 03-查詢球隊列表.dsl.feature
+  - file: 03-查詢觀測點列表.dsl.feature
     content_hash: a1b2c3d4
 ```
 
@@ -580,7 +580,7 @@ features:
 
 計算方式（shell，統一使用 `shasum -a 256`，macOS/Linux 皆內建）：
 ```bash
-shasum -a 256 spec/gherkin-feature/03-查詢球隊列表.dsl.feature | awk '{print $1}'
+shasum -a 256 spec/gherkin-feature/03-查詢觀測點列表.dsl.feature | awk '{print $1}'
 ```
 
 ---

@@ -112,8 +112,8 @@ flow 不存在？
 
 ```bash
 # 取得檔案修改時間（秒級 Unix timestamp）
-stat -f %m spec/e2e-flows/04-建立球隊.flow.md
-stat -f %m test/e2e/specs/04-建立球隊.spec.ts
+stat -f %m spec/e2e-flows/04-建立觀測點.flow.md
+stat -f %m test/e2e/specs/04-建立觀測點.spec.ts
 ```
 
 > flow 的 mtime **嚴格大於** spec 的 mtime 才標記為「更新」。相等視為同步。
@@ -161,25 +161,25 @@ git diff --cached --name-only -- 'server/api/**/*.ts'
 對每個修改的 .vue 檔案：
   1. 在 route-map.yaml 的 routes 中找到 page 匹配的路由
   2. 取得該路由的 features 陣列
-  3. 從 feature 檔名提取編號（如 07-查詢球員列表 → 07）
-  4. 對應到 spec 檔案（07-查詢球員列表.spec.ts）
+  3. 從 feature 檔名提取編號（如 07-查詢觀測站列表 → 07）
+  4. 對應到 spec 檔案（07-查詢觀測站列表.spec.ts）
   5. 標記為「驗證」— 建議跑 red
 ```
 
 範例：
 
 ```
-git diff 偵測到：app/pages/players/index.vue 有修改
+git diff 偵測到：app/pages/stations/index.vue 有修改
   ↓
-route-map.yaml：/players → features: [07, 08, 09, 10]
+route-map.yaml：/stations → features: [07, 08, 09, 10]
   ↓
-建議跑 red：07-查詢球員列表、08-新增球員、09-編輯球員、10-刪除球員
+建議跑 red：07-查詢觀測站列表、08-新增觀測站、09-編輯觀測站、10-刪除觀測站
 ```
 
 #### mock data 變更反查
 
 ```
-git diff 偵測到：server/mock/data/players.ts 有修改
+git diff 偵測到：server/mock/data/stations.ts 有修改
   ↓
 mock 資料是所有 spec 共用的，無法精確判斷影響範圍
   ↓
@@ -192,7 +192,7 @@ mock 資料是所有 spec 共用的，無法精確判斷影響範圍
 
 ```
 對每個修改的 API 檔案：
-  1. 從檔案路徑推斷 API 路由（如 server/api/players/index.get.ts → /api/players）
+  1. 從檔案路徑推斷 API 路由（如 server/api/stations/index.get.ts → /api/stations）
   2. 在 route-map.yaml 的 api_contract.endpoints 中找到匹配的端點
   3. 取得關聯的 features
   4. 標記為「驗證」— 建議跑 red
@@ -225,15 +225,15 @@ E2E 偵測完成
 
 | # | Feature | 偵測結果 | E2E 動作 | 來源 |
 |---|---------|---------|----------|------|
-| 1 | 11-調整球員排序 | 孤兒 spec | 刪除 spec | flow 不存在 |
-| 2 | 04-建立球隊 | flow 較新 | spec → green | flow vs spec |
-| 3 | 07-查詢球員列表 | flow 較新 | spec → green | flow vs spec |
+| 1 | 11-調整觀測站排序 | 孤兒 spec | 刪除 spec | flow 不存在 |
+| 2 | 04-建立觀測點 | flow 較新 | spec → green | flow vs spec |
+| 3 | 07-查詢觀測站列表 | flow 較新 | spec → green | flow vs spec |
 | 4 | 27-匯出訓練報告 | spec 不存在 | spec → green | 新 flow |
-| 5 | 03-查詢球隊列表 | .vue 有變更 | red → green | git diff |
+| 5 | 03-查詢觀測點列表 | .vue 有變更 | red → green | git diff |
 | — | 其餘 21 個 | 同步 | 跳過 | — |
 
 建議執行順序：
-1. 清理孤兒：刪除 test/e2e/specs/11-調整球員排序.spec.ts
+1. 清理孤兒：刪除 test/e2e/specs/11-調整觀測站排序.spec.ts
 2. 生成/更新 spec：04, 07, 27
 3. 跑測試並修復：04, 07, 27（spec → green）
 4. 驗證 .vue 變更：03（red → green）
@@ -318,11 +318,11 @@ E2E 執行完成
 
 | Feature | 動作 | 結果 |
 |---------|------|------|
-| 11-調整球員排序 | 刪除 spec | ✅ 已刪除 |
-| 04-建立球隊 | spec → green | ✅ 通過（迭代 1 次） |
-| 07-查詢球員列表 | spec → green | ✅ 通過（迭代 3 次） |
+| 11-調整觀測站排序 | 刪除 spec | ✅ 已刪除 |
+| 04-建立觀測點 | spec → green | ✅ 通過（迭代 1 次） |
+| 07-查詢觀測站列表 | spec → green | ✅ 通過（迭代 3 次） |
 | 27-匯出訓練報告 | spec → green | ✅ 通過（迭代 2 次） |
-| 03-查詢球隊列表 | red → green | ✅ 通過 |
+| 03-查詢觀測點列表 | red → green | ✅ 通過 |
 
 全量煙霧測試：✅ 全部通過（25 specs）
 

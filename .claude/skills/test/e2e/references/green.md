@@ -55,7 +55,7 @@ npx playwright test test/e2e/specs/{NN}-{name}.spec.ts 2>&1
 ├─ 讀取 spec 失敗行 → 確認期望的 role/text 斷言 / URL / testid（僅 flow 授權時）
 │
 ├─ 推斷頁面路徑
-│   ├─ page.goto('/teams') → app/pages/teams/index.vue
+│   ├─ page.goto('/sites') → app/pages/sites/index.vue
 │   ├─ page.goto('/trainings/1/analysis') → app/pages/trainings/[id]/analysis.vue
 │   └─ page.goto('/analysis/1') → app/pages/analysis/[id].vue
 │
@@ -187,11 +187,11 @@ E2E 綠燈報告：{NN}-{name}
   ✅ 全部通過（{pass} pass, {skip} skip）
 
   修復摘要：
-  1. app/pages/teams/index.vue
-     - L15: 補 <h1>球隊列表</h1>（spec 用 getByRole('heading') 定位）
-     - L32: row 補上球隊名稱可見文字（spec 用 getByRole('row', { name }) 收窄）
-  2. server/mock/data/teams.ts
-     - L8: 修正球隊數量為 2
+  1. app/pages/sites/index.vue
+     - L15: 補 <h1>觀測點列表</h1>（spec 用 getByRole('heading') 定位）
+     - L32: row 補上觀測點名稱可見文字（spec 用 getByRole('row', { name }) 收窄）
+  2. server/mock/data/sites.ts
+     - L8: 修正觀測點數量為 2
 
   迭代次數：2（第 1 次 3 fail → 第 2 次 0 fail）
 
@@ -215,8 +215,8 @@ E2E 綠燈報告：{NN}-{name}
      建議：{人工處理建議}
 
   已修復的檔案：
-  - app/pages/teams/index.vue（2 處）
-  - server/mock/data/teams.ts（1 處）
+  - app/pages/sites/index.vue（2 處）
+  - server/mock/data/sites.ts（1 處）
 ```
 
 ---
@@ -236,9 +236,9 @@ E2E 綠燈批次報告：01 → 05
 
   01-使用者登入         ✅ 已是綠燈（無需修復）
   02-使用者登出         ✅ 綠燈（修復 1 處）
-  03-查詢球隊列表       ✅ 綠燈（修復 3 處）
-  04-建立球隊           ⚠️ 部分失敗（1 fail 待人工確認）
-  05-編輯球隊           ✅ 已是綠燈（無需修復）
+  03-查詢觀測點列表       ✅ 綠燈（修復 3 處）
+  04-建立觀測點           ⚠️ 部分失敗（1 fail 待人工確認）
+  05-編輯觀測點           ✅ 已是綠燈（無需修復）
 
   統計：4 綠燈 / 1 部分失敗
   修復檔案：5 個
@@ -254,17 +254,17 @@ spec 找不到元素時，先問「使用者怎麼找到它？」，把那個答
 
 ```vue
 <!-- ❌ 加容器 testid：SSOT 禁止的形式，且不在合約白名單 → 孤兒 -->
-<div data-testid="teams-page">
-  球隊列表
+<div data-testid="sites-page">
+  觀測點列表
 </div>
 
-<!-- ✅ 補語意 anchor：spec 用 getByRole('heading', { name: /球隊列表/ }) 就找得到 -->
+<!-- ✅ 補語意 anchor：spec 用 getByRole('heading', { name: /觀測點列表/ }) 就找得到 -->
 <main>
-  <h1>球隊列表</h1>
+  <h1>觀測點列表</h1>
 </main>
 
 <!-- ✅ 按鈕：可見文字或 aria-label 即 accessible name -->
-<UButton aria-label="刪除球隊">
+<UButton aria-label="刪除觀測點">
   <UIcon name="i-heroicons-trash" />
 </UButton>
 ```
@@ -299,7 +299,7 @@ spec 找不到元素時，先問「使用者怎麼找到它？」，把那個答
 |------|------|
 | **不改既有實體** | `.feature` Background 定義的實體，欄位值與關聯關係不可變更 |
 | **只改補建資料** | 修正對象限於 Phase 1 擴充的補建實體 |
-| **不改關聯關係** | 不可變更實體的父子關聯（如 team_id、player_id） |
+| **不改關聯關係** | 不可變更實體的父子關聯（如 site_id、station_id） |
 
 > ⚠️ 若修 mock 會動到 `.feature` 原始實體，代表問題根因在 spec 或 flow，應優先修正 spec 而非 mock
 
@@ -319,7 +319,7 @@ spec 找不到元素時，先問「使用者怎麼找到它？」，把那個答
 ⚠️ 無法透過修改 UI/mock/API 解決：
 
 失敗測試：{test name}
-根因：{描述}（例：feature 04 變更了 TeamItem 結構，但 flow 07 的預期值未更新）
+根因：{描述}（例：feature 04 變更了 SiteItem 結構，但 flow 07 的預期值未更新）
 相關 flow：spec/e2e-flows/{NN}-{name}.flow.md > {具體段落}
 建議修改：{flow 中需要更新的具體內容}
 
@@ -337,13 +337,13 @@ spec 找不到元素時，先問「使用者怎麼找到它？」，把那個答
 |-----------|----------|
 | `/` | `app/pages/index.vue` |
 | `/login` | `app/pages/login.vue` |
-| `/teams` | `app/pages/teams/index.vue` |
-| `/players` | `app/pages/players/index.vue` |
+| `/sites` | `app/pages/sites/index.vue` |
+| `/stations` | `app/pages/stations/index.vue` |
 | `/trainings` | `app/pages/trainings/index.vue` |
 | `/trainings/history` | `app/pages/trainings/history.vue` |
 | `/trainings/{id}` | `app/pages/trainings/[id]/index.vue` |
 | `/trainings/{id}/analysis` | `app/pages/trainings/[id]/analysis.vue` |
-| `/trainings/{id}/pitches/{pitchId}` | `app/pages/trainings/[id]/pitches/[pitchId].vue` |
+| `/trainings/{id}/sightings/{sightingId}` | `app/pages/trainings/[id]/sightings/[sightingId].vue` |
 | `/analysis` | `app/pages/analysis/index.vue` |
 | `/analysis/{id}` | `app/pages/analysis/[id].vue` |
 

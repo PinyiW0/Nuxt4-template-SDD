@@ -280,7 +280,7 @@ MediaMTX 等 Low-Latency HLS（EXT-X-PART）預設緊貼 live edge、緩衝極�
 | `liveSyncDurationCount: 4` | 播放點落在 live edge 後約 4 段 | 數字越大越穩、延遲越高 |
 | `backBufferLength: 30` | 限制回放緩衝記憶體 | 防長時間直播記憶體膨脹 |
 
-> 沒有萬用值：互動性優先（如教練即時喊話）就往低延遲調；穩定優先（純觀看）就如上關掉 LL。**不要照抄 hls.js 預設**，那是為一般點播調的。
+> 沒有萬用值：互動性優先（如觀測員即時喊話）就往低延遲調；穩定優先（純觀看）就如上關掉 LL。**不要照抄 hls.js 預設**，那是為一般點播調的。
 >
 > 另有一組 **stall 自救** 旋鈕（`highBufferWatchdogPeriod` / `nudgeOffset` / `maxBufferHole`）控制 hls.js 內建 nudge 行為，與上面三個延遲旋鈕是不同目的——**卡頓問題先調這組**（見 §4），不是只調延遲。
 
@@ -409,13 +409,13 @@ async function resolveHls(streamId: string | undefined): Promise<string | null> 
   }
 }
 
-// 事件驅動重試：每收到新事件（如 SSE pitchCreated）且直播源尚未全部接上時，
+// 事件驅動重試：每收到新事件（如 SSE sightingCreated）且直播源尚未全部接上時，
 // 重抓來源直到解析出 hlsUrl。重試中再收到事件 → 記 pending，本輪結束後補跑，
 // 避免事件被丟棄後再無人重試。
 let hlsRetrying = false
 let hlsRetryPending = false
 
-watch(() => notifications.pitchList.length, async (len, prevLen) => {
+watch(() => notifications.sightingList.length, async (len, prevLen) => {
   if (!import.meta.client || len <= (prevLen ?? 0))
     return
   if (hlsRetrying) {
@@ -439,7 +439,7 @@ watch(() => notifications.pitchList.length, async (len, prevLen) => {
 
 > 這是 streaming 版的「重連補抓」（對映 `realtime` skill 共通核心第 6 點），只是補的是「播放源 URL」而非「漏掉的事件」，且由 realtime 事件當觸發器——兩個 skill 在此交會。
 >
-> **這是權宜，不是理想解**：拿「球變多」當「直播源可能好了」的 proxy 是 leaky abstraction（耦合到特定領域事件）。理想做法是後端給一個明確的 **stream-ready 訊號**（如 SSE `streamActive` 事件，或 stream 端點回 `status: active`）當觸發器，而非借用業務事件。沒有時才退回此法。
+> **這是權宜，不是理想解**：拿「事件變多」當「直播源可能好了」的 proxy 是 leaky abstraction（耦合到特定領域事件）。理想做法是後端給一個明確的 **stream-ready 訊號**（如 SSE `streamActive` 事件，或 stream 端點回 `status: active`）當觸發器，而非借用業務事件。沒有時才退回此法。
 
 ---
 
@@ -476,7 +476,7 @@ mock 直接回 `StreamResponse`（裸物件 / 或 envelope，依專案 `apiEnvel
 ```ts
 // server/mock/data/streams.ts
 export const streams = [
-  { streamId: 'cam1', name: '一壘側相機直播', status: 'active', hlsUrl: 'https://stream.example.edu/live/cam1/index.m3u8', createdAt: '2026-01-01T00:00:00Z' },
+  { streamId: 'cam1', name: '主站全天相機直播', status: 'active', hlsUrl: 'https://stream.example.org/live/cam1/index.m3u8', createdAt: '2026-01-01T00:00:00Z' },
 ]
 ```
 

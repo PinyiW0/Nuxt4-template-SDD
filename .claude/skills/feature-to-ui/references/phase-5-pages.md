@@ -59,7 +59,7 @@ glob test/e2e/specs/*.spec.ts
 ```
 
 - 若 `test/e2e/specs/` 下無任何 `.spec.ts` → 提示「請先執行 `/test e2e auto` 生成測試合約」並停止
-- 若指定功能（如「球隊」）對應的 spec 不存在 → 提示「請先執行 `/test e2e spec <feature>` 生成該功能的測試合約」並停止
+- 若指定功能（如「觀測點」）對應的 spec 不存在 → 提示「請先執行 `/test e2e spec <feature>` 生成該功能的測試合約」並停止
 
 > **理由**：Phase 5 以 `.spec.ts` 為唯一 UI 合約。沒有 spec 就無法確保 testid 和互動模式正確。
 
@@ -110,10 +110,10 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 
    | 類型 | 項目 | 說明 |
    |------|------|------|
-   | 頁面 UI | /players 排序功能 | 移除 vuedraggable import、dragList ref、handleDragEnd、<Draggable> 元件 |
-   | 型別 | SortPlayersBody | 僅被 Feature 11 使用 |
-   | API 端點 | PUT /api/players/sort | 僅被 Feature 11 使用 |
-   | 欄位 | PlayerItem.sort_order | 排序功能移除後不需要 |
+   | 頁面 UI | /stations 排序功能 | 移除 vuedraggable import、dragList ref、handleDragEnd、<Draggable> 元件 |
+   | 型別 | SortStationsBody | 僅被 Feature 11 使用 |
+   | API 端點 | PUT /api/stations/sort | 僅被 Feature 11 使用 |
+   | 欄位 | StationItem.sort_order | 排序功能移除後不需要 |
 
    確認要刪除以上項目嗎？（可逐項選擇保留或刪除）
    ```
@@ -163,14 +163,14 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
    - 產出「Spec → UI 對照表」，格式如下：
 
    ```
-   Spec → UI 對照表（/players）：
+   Spec → UI 對照表（/stations）：
    | Spec Scenario | 互動模式 | UI 元件 | 語意 anchor / fallback testid |
    |--------------|---------|---------|------------------------------|
-   | 查詢球員列表 | findEntity(/陳小明/) | UTable + 搜尋框 | row 內含球員姓名可見文字 |
-   | 新增球員 | getByLabel(/姓名/).fill() + getByRole('button', { name: /建立/ }) | Modal + 表單 | 欄位 label、按鈕文字 |
-   | 編輯球員 | getByLabel().clear() + fill() | Modal + 表單（預填） | 欄位 label |
-   | 刪除球員 | getByRole('button', { name: /刪除/ }) + maybeConfirm | 確認 Modal | 按鈕文字、dialog 動詞按鈕 |
-   | 調整球員排序 | dragTo() | vuedraggable | player-sort-handle（fallback testid，無語意 role） |
+   | 查詢觀測站列表 | findEntity(/陳小明/) | UTable + 搜尋框 | row 內含觀測站姓名可見文字 |
+   | 新增觀測站 | getByLabel(/姓名/).fill() + getByRole('button', { name: /建立/ }) | Modal + 表單 | 欄位 label、按鈕文字 |
+   | 編輯觀測站 | getByLabel().clear() + fill() | Modal + 表單（預填） | 欄位 label |
+   | 刪除觀測站 | getByRole('button', { name: /刪除/ }) + maybeConfirm | 確認 Modal | 按鈕文字、dialog 動詞按鈕 |
+   | 調整觀測站排序 | dragTo() | vuedraggable | station-sort-handle（fallback testid，無語意 role） |
    ```
 
    > ⚠️ **此表是 code review 用的 checklist**：實作完成後，逐列打勾確認。若表中任何 Scenario 沒有對應 UI，必須補做。
@@ -213,8 +213,8 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 ## 實作順序建議
 
 1. 認證（登入/登出）
-2. 主要 CRUD（球隊 CRUD）
-3. 關聯資料（球員管理）
+2. 主要 CRUD（觀測點 CRUD）
+3. 關聯資料（觀測站管理）
 4. 進階功能
 
 ## 單一功能完成後的確認格式（必須使用）
@@ -231,10 +231,10 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 Scenario 覆蓋：
 | Scenario | 對應 UI | 狀態 |
 |----------|---------|------|
-| 查詢球員列表 | UTable + 搜尋框 | OK |
-| 建立球員 | Modal + 表單 | OK |
-| 調整球員順序 | vuedraggable | OK |
-| 刪除球員 | 確認 Modal | OK |
+| 查詢觀測站列表 | UTable + 搜尋框 | OK |
+| 建立觀測站 | Modal + 表單 | OK |
+| 調整觀測站順序 | vuedraggable | OK |
+| 刪除觀測站 | 確認 Modal | OK |
 
 資料驗證：
 - Mock 資料：12 筆（≥11 OK）
@@ -282,10 +282,10 @@ Scenario 覆蓋：
 8. **完成後確認**（一次確認即可）
 
    ```
-   Patch 完成：/teams
+   Patch 完成：/sites
 
    受影響的 Features：
-   - 04-建立球隊.dsl.feature（修改：新增 description 欄位）
+   - 04-建立觀測點.dsl.feature（修改：新增 description 欄位）
 
    修改摘要：
    - [template] 建立表單 Modal → 新增 description 輸入欄位（UTextarea）
@@ -294,9 +294,9 @@ Scenario 覆蓋：
    Scenario 覆蓋（含未變更 feature）：
    | Scenario | 狀態 | 備註 |
    |----------|------|------|
-   | 查詢球隊列表 | OK 未動 | 03 無變化 |
-   | 建立球隊 | OK 已更新 | 新增 description |
-   | 刪除球隊 | OK 未動 | 05 無變化 |
+   | 查詢觀測點列表 | OK 未動 | 03 無變化 |
+   | 建立觀測點 | OK 已更新 | 新增 description |
+   | 刪除觀測點 | OK 未動 | 05 無變化 |
 
    品質檢查：
    - ESLint：通過
@@ -335,11 +335,11 @@ Scenario 覆蓋：
    - 自訂邏輯（手動加的額外功能）
 2. **向用戶確認覆蓋範圍**（列出步驟 1 記錄的自訂邏輯摘要）：
    ```
-   Rebuild 將覆蓋：/teams
+   Rebuild 將覆蓋：/sites
 
    偵測到的自訂邏輯（將被覆蓋）：
    - handleExport() 函式（手動新增的匯出功能）
-   - 自訂的 CSS class .team-highlight
+   - 自訂的 CSS class .site-highlight
 
    （若無自訂邏輯則顯示「無自訂邏輯，可直接覆蓋」）
 

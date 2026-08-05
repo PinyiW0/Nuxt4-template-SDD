@@ -84,7 +84,7 @@ API 合約是整個流程的**基礎建設**。型別定義是所有後續步驟
 ```
 app/types/api/
 ├── index.ts              # 統一 re-export
-└── {resource}.ts         # 每個資源一個型別檔（如 auth.ts, teams.ts）
+└── {resource}.ts         # 每個資源一個型別檔（如 auth.ts, sites.ts）
 
 spec/report/
 └── route-map.yaml        # 路由 ↔ feature ↔ API 端點的對照表（後續所有 Phase 的參照來源）

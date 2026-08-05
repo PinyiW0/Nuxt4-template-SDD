@@ -29,7 +29,7 @@ spec/gherkin-feature/*.feature（Given event / When command / Then event）
 >
 > `.flow.md` 不是 UI 步驟腳本，是 business invariant 的可執行描述：
 >
-> 1. **Steps 用使用者意圖** — 「觸發匯出此次練習」，不是「點擊 `[data-testid="export-single-practice-button"]`」
+> 1. **Steps 用使用者意圖** — 「觸發匯出此次觀測時段」，不是「點擊 `[data-testid="export-single-watch-button"]`」
 > 2. **Verification 用業務可觀察結果** — API spy / role+text / 狀態變化，不是逐欄 testid 斷言
 > 3. **每個 Scenario 留「不再凍結」段** — 列出 vibe 可自由迭代的 UX 細節
 > 4. **testid 為 fallback** — 僅在 role + accessible name 無法消歧時用
@@ -55,9 +55,9 @@ spec/gherkin-feature/*.feature（Given event / When command / Then event）
 ```
 00-auth.flow.md        # 認證（登入、修改密碼、登出 …）
 01-accounts.flow.md    # 帳號管理（帳號 CRUD、備註）
-02-teams.flow.md       # 隊伍（球員的前置）
-03-players.flow.md     # 球員
-04-practice.flow.md    # 練習主流程
+02-sites.flow.md       # 觀測點（觀測站的前置）
+03-stations.flow.md     # 觀測站
+04-watch.flow.md    # 觀測時段主流程
 05-cameras.flow.md     # 相機（背景同步）
 06-export.flow.md      # 匯出（衍生功能）
 ```

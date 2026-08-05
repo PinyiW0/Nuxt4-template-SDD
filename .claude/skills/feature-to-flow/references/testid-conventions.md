@@ -20,7 +20,7 @@
    `page.getByText(/已收藏/)`、`page.getByRole('alert')`
 
 3. **API spy**（destructive / outcome 驗證）
-   `page.waitForRequest(req => /\/pitches\/[^/]+$/.test(req.url()) && req.method() === 'DELETE')`
+   `page.waitForRequest(req => /\/sightings\/[^/]+$/.test(req.url()) && req.method() === 'DELETE')`
 
 4. **testid**（fallback only）—— 僅在以下情況用：
    - role + name 無法消歧（同頁多個相同 role 與名稱）
@@ -39,25 +39,25 @@
 
 | 用途 | 寫進 flow.md？ | 範例 |
 |------|---------------|------|
-| **實體 locator**：識別「哪一個」業務實體 | ✅ 進合約 | `camera-row-{deviceId}`、`pitch-row-{pitchId}` |
-| **欄位 cell**：定位 row 內哪個欄位 | ❌ 不進合約 | ~~`pitch-row-pitch-001-speed`~~（v1 殘留，禁止） |
+| **實體 locator**：識別「哪一個」業務實體 | ✅ 進合約 | `camera-row-{deviceId}`、`sighting-row-{sightingId}` |
+| **欄位 cell**：定位 row 內哪個欄位 | ❌ 不進合約 | ~~`sighting-row-sighting-001-speed`~~（v1 殘留，禁止） |
 
-**為什麼欄位 testid 不進合約**：欄位呈現方式是 vibe 可動空間（表格欄、卡片區塊、tooltip、modal、圖表點）。凍結欄位 testid = 凍結 UX。spec 該驗的是「該 row 顯示了 130」，不是「某個 testid 元素的 textContent 是 130」。用 `findRow(/pitch-001/).getByText(/130/)` 就夠。
+**為什麼欄位 testid 不進合約**：欄位呈現方式是 vibe 可動空間（表格欄、卡片區塊、tooltip、modal、圖表點）。凍結欄位 testid = 凍結 UX。spec 該驗的是「該 row 顯示了 130」，不是「某個 testid 元素的 textContent 是 130」。用 `findRow(/sighting-001/).getByText(/130/)` 就夠。
 
 ### 什麼時候 row locator 需要 testid（vs 純 role+name）
 
-**預設不用**——`getByRole('row', { name: /pitch-001/ })` 在 businessId 可見時夠用。**只有以下三種情況**才在 flow.md 寫 `{entity}-row-{businessId}`：
+**預設不用**——`getByRole('row', { name: /sighting-001/ })` 在 businessId 可見時夠用。**只有以下三種情況**才在 flow.md 寫 `{entity}-row-{businessId}`：
 
 1. **businessId 不顯示給使用者**（如 deviceUUID，UI 只顯示「攝影機 A」）
 2. **同名碰撞**（兩台 camera 都叫「攝影機 A」，靠 businessId 區分）
-3. **同一實體多處呈現**（同一 pitch 同時出現在表格列與圖表點，需要關聯）
+3. **同一實體多處呈現**（同一 sighting 同時出現在表格列與圖表點，需要關聯）
 
 ### 「漏實作欄位」改用 spec 紅燈反映
 
-v1 強制「view 14 欄→14 個 testid」是為了防止 Claude 漏實作欄位（04-practice 14 欄只做 1 欄的歷史教訓）。v2 改由：
+v1 強制「view 14 欄→14 個 testid」是為了防止 Claude 漏實作欄位（04-watch 14 欄只做 1 欄的歷史教訓）。v2 改由：
 
-- `.flow.md` 的 Scenario 寫業務 assertion（「使用者必須能在 pitch row 看到 speed 與 spinRate」）
-- spec 用語意 locator 驗（`findRow(/pitch-001/).getByText(/130/)`、`findRow(/pitch-001/).getByText(/2200/)`）
+- `.flow.md` 的 Scenario 寫業務 assertion（「使用者必須能在 sighting row 看到 speed 與 lightPeak」）
+- spec 用語意 locator 驗（`findRow(/sighting-001/).getByText(/130/)`、`findRow(/sighting-001/).getByText(/2200/)`）
 - 漏實作 → spec 紅 → 修 UI
 
 而**不是**用 testid 數量綁定欄位數量。
@@ -76,9 +76,9 @@ v1 強制「view 14 欄→14 個 testid」是為了防止 Claude 漏實作欄位
 ### 禁止出現在 flow.md 的 pattern
 
 - `{entity}-row-{id}-{column}`（v1 強制 14 欄殘留）
-- 任何 column-level testid（`*-speed`、`*-spin-rate`、`*-spin-axis`...）
-- `{entity}-{field}-input` / `-select` / `-checkbox` 等表單欄位形式（form input 用 `getByLabel(/球速/)` 找）
-- `{page}-page` 容器 testid（用 `page.locator('h1', { hasText: /球速分析/ })` 等語意 anchor）
+- 任何 column-level testid（`*-speed`、`*-light-peak`、`*-radiant-axis`...）
+- `{entity}-{field}-input` / `-select` / `-checkbox` 等表單欄位形式（form input 用 `getByLabel(/入射速度/)` 找）
+- `{page}-page` 容器 testid（用 `page.locator('h1', { hasText: /入射速度分析/ })` 等語意 anchor）
 - 從 `.feature` payload 逐欄推導 testid（v1 做法；payload 欄位對應的是表單 label，不是 testid）
 
 ---
@@ -93,10 +93,10 @@ v1 強制「view 14 欄→14 個 testid」是為了防止 Claude 漏實作欄位
 
 | 段 | 必填 | 說明 | 範例 |
 |----|------|------|------|
-| `entity` | ✅ | 業務實體（kebab-case 單數） | `account`、`player`、`team`、`practice`、`pitch`、`camera`、`export` |
+| `entity` | ✅ | 業務實體（kebab-case 單數） | `account`、`station`、`site`、`watch`、`sighting`、`camera`、`export` |
 | `role` | ✅ | 元素角色 | `list`、`row`、`create`、`delete` |
 | `element` | 視情況 | HTML/UI 元素類型 | `button`、`modal`、`empty` |
-| `id` | 動態列表項才加 | 該筆資料的 businessId | `acc-001`、`player-001` |
+| `id` | 動態列表項才加 | 該筆資料的 businessId | `acc-001`、`station-001` |
 
 字母全小寫、單字以 `-` 分隔。**禁止**駝峰、底線、空格、大寫。
 

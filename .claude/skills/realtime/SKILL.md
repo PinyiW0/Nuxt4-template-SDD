@@ -33,7 +33,7 @@ metadata:
 4. **auth 放哪由後端 api-spec 決定，別寫死** — 瀏覽器硬限制：原生 `EventSource` / `WebSocket` **無法帶自訂 header**，所以原生方案只剩 **query token** 或 **cookie**（EventSource 會自動帶 cookie）；要用 header 認證得改 `@microsoft/fetch-event-source`（非原生 lib）。在這幾個選項裡選哪個是**後端合約**——以 api-spec 的連線端點為準（由 feature-to-api 偵測寫入 `route-map.realtime.auth`），skill 不該假設「一律 query」。用 query token 時注意：會進反向代理 access log / 瀏覽器歷史，**僅用短效 token**。連帶坑：token 變了要重連、token endpoint 本身別觸發 auth 攔截；**連線前先驗 token exp（留 margin），（近）過期先 refresh 再組 URL**——把死 token 塞進 query 會 401，而重試同一組 URL 永遠 401。
 5. **重連要分「OPEN 過」與「從未 OPEN」** — 內建 `autoReconnect` 只會拿**同一組 URL**重試：對「從未 OPEN 就 CLOSED」的失敗（stale token 401、首載期被中斷、後端拒絕）重試同 URL **永遠失敗**——這類要**手動 backoff 重連並重走 preflight**（清 URL、必要時 refresh 出新 token 組新 URL）。「OPEN 過後的暫時斷線」才適合內建 `autoReconnect`，且注意 `true` 是固定間隔無限重試（非指數退避）→ 設 `retries` 上限或 `onFailed` 退避。
 6. **重連必補抓（backfill on reconnect）** — 斷線期間漏掉的事件不會自動補。**區分首次連線 vs 重連**：首次由頁面進場 backfill 負責；第二次（含）以後的 `connected` 才主動重抓斷線期間的資料。後端支援 `Last-Event-ID` replay 後才可移除此補抓。
-7. **事件只帶輕量索引，資料用 REST 補** — 推播 payload 只帶 id（如 `{ pitchId, practiceId }`），前端收到後**再打 REST 取整包**渲染。好處：推播輕量、與進場 backfill 共用同一條去重路徑、後端不必把完整 model 塞進事件。
+7. **事件只帶輕量索引，資料用 REST 補** — 推播 payload 只帶 id（如 `{ sightingId, watchId }`），前端收到後**再打 REST 取整包**渲染。好處：推播輕量、與進場 backfill 共用同一條去重路徑、後端不必把完整 model 塞進事件。
 8. **去重（upsert by id）** — 重連補抓會與即時事件、進場 backfill 重疊。一律 `upsert by id`（找到就更新、沒有才新增），不可盲目 push。
 9. **訂閱 = 連線參數；變更訂閱 = 重連；同 tick 開連線要合併** — 訂閱透過連線 URL 的參數（如 `?channels=`）達成，不走額外 REST。**參數不變則不重連**（避免無謂斷線）；參數變了才以新 URL 重連。**同一 tick 內的多次開連線呼叫要合併成一次**（microtask 收斂、用最終 channels）——connect+subscribe、unsubscribe+subscribe 連開多條會把還在 CONNECTING 的前一條 close 掉，跨來源被瀏覽器標成「CORS did not succeed」的假錯誤。
 10. **離場完整 cleanup，連線的 watcher 也要回收** — 元件 unmount / 離開頁面時 `close()` 連線 + 清資料 + 清訂閱 + 重置狀態旗標（含 `hasConnectedOnce`）。**每條連線的 `watch`（data / error / status）要綁在 `effectScope` 裡，重連 / 離場時 `scope.stop()`**——否則在 store action 內建立的 watcher 沒有 active scope、不會自動回收，每次重連就洩漏一批。連線未關 = 記憶體與連線洩漏。
@@ -41,7 +41,7 @@ metadata:
 
 > 第 11 點接續 feature-to-api codegen 的發現：OpenAPI 對 SSE 的 `data` 多半給鬆散 `Record<string, never>`，**前端需手寫 discriminated union** 補語意（codegen 補不了）。詳見 `openapi-codegen.md` § 8 與本 skill `references/sse.md`。
 >
-> **傳輸層 vs 領域層要分開（第 1 點的延伸）**：連線 store 只負責「連線生命週期 + 狀態 + raw event 流」（領域無關）；業務清單與「收到事件 → REST 重抓 → upsert」的領域邏輯，理想上放**另一個領域 store** 消費事件。別把 `pitchList`、`fetchPracticePitches` 這類業務概念塞進連線 store——那會讓「跨專案可重用的連線層」綁死在單一業務上。`references/sse.md` 的範例為求完整把兩者放同一 store（對齊實戰），跨專案重用時應拆開。
+> **傳輸層 vs 領域層要分開（第 1 點的延伸）**：連線 store 只負責「連線生命週期 + 狀態 + raw event 流」（領域無關）；業務清單與「收到事件 → REST 重抓 → upsert」的領域邏輯，理想上放**另一個領域 store** 消費事件。別把 `sightingList`、`fetchWatchSightinges` 這類業務概念塞進連線 store——那會讓「跨專案可重用的連線層」綁死在單一業務上。`references/sse.md` 的範例為求完整把兩者放同一 store（對齊實戰），跨專案重用時應拆開。
 
 ## References
 
