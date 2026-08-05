@@ -30,8 +30,13 @@ jobs:
       - name: Build
         run: npm run generate
 
-      - name: Test
+      - name: Lint
         run: npm run eslint
 
       - name: Typecheck
         run: npm run typelint
+
+      # unit test 必須留在 CI：pre-push gate 只跑 E2E，
+      # 本機 hook 又能被 --no-verify 繞過，這是唯一擋得住 composable/utils 迴歸的關卡。
+      - name: Unit test
+        run: npm run test:unit
