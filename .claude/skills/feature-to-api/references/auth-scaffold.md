@@ -190,15 +190,32 @@ export const useAuthStore = defineStore(
       }
     }
 
+    // 跨分頁鎖包裝：Web Locks 僅存在於 client。SSR／不支援／取鎖失敗（sandbox iframe 的 SecurityError、
+    // 頁面非 fully active 的 InvalidStateError——分頁甦醒場景特別容易踩到）都退回直接執行；
+    // 取鎖失敗時尚未打過 refresh API，直跑不會重複換發
+    async function withRefreshLock(): Promise<boolean> {
+      if (!import.meta.client || !('locks' in navigator))
+        return doRefresh()
+      try {
+        // request 型別為 Promise<T>（T 即 doRefresh 的回傳 Promise），await 攤平後才是 boolean
+        return await navigator.locks.request('auth-refresh', () => doRefresh()) as boolean
+      }
+      catch {
+        return doRefresh()
+      }
+    }
+
     function refresh(): Promise<boolean> {
       if (refreshing)
         return refreshing
       refreshing = (async (): Promise<boolean> => {
         try {
-          // Web Locks 僅存在於 client；SSR / 不支援的環境退回單 context single-flight
-          if (import.meta.client && 'locks' in navigator)
-            return await navigator.locks.request('auth-refresh', () => doRefresh()) as boolean
-          return await doRefresh()
+          return await withRefreshLock()
+        }
+        catch {
+          // 非預期例外一律收斂成 false，維持 Promise<boolean> 契約：useHttp 的呼叫端是裸 await
+          // 不接 rejection，這裡拋錯會蓋掉原始 401 並跳過 forceLogout → 使用者卡在壞 token 又不被導去登入頁
+          return false
         }
         finally {
           refreshing = null
