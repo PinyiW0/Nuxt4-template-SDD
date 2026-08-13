@@ -49,7 +49,7 @@ auth:
 |---|---|---|---|
 | `app/types/api/auth.ts` | §3a | feature-to-api | TokenPairData / LoginBody / MeResponse… |
 | `app/composables/useHttpAuth.ts` | §3a | feature-to-api | **覆蓋**中立 stub（回 null）→ 從 store + force-logout 組 handler。**useHttp.ts 不動**（已內建 Authorization / 401→refresh→retry 注入點） |
-| `app/stores/auth.ts` | §3a | feature-to-api | single-flight refresh、cookie persist、login/logout/clearAuth |
+| `app/stores/auth.ts` | §3a | feature-to-api | 三層併發防護 refresh（single-flight＋跨分頁鎖＋cookie 重讀）、cookie persist（含 maxAge）、login/logout/clearAuth |
 | `app/utils/force-logout.ts` | §3a | feature-to-api | **冪等單飛**登出出口（防並發導頁，§4） |
 | `app/api/auth.api.ts` | §3a | feature-to-api | 登入/refresh/logout/me，全 `handleUnauthorized:false` |
 | `app/api/index.ts` | §3a | feature-to-api | re-export（已存在則合併） |
@@ -118,7 +118,7 @@ export function useHttpAuth(): HttpAuthHandler | null {
 ```
 
 ```ts
-// app/stores/auth.ts —— single-flight refresh、cookie persist、clearAuth 含 server deleteCookie
+// app/stores/auth.ts —— 三層併發防護 refresh、cookie persist（含 maxAge）、clearAuth 含 server deleteCookie＋epoch 防殭屍
 import type { LoginBody } from '~/types/api/auth'
 import { deleteCookie } from 'h3'
 import { fetchMe, loginUser, logoutUser, refreshAuthToken } from '~/api/auth.api'
@@ -153,25 +153,52 @@ export const useAuthStore = defineStore(
       await fetchProfile()
     }
 
-    // single-flight：同時多個 401 共用同一次換發，避免互相作廢新 token 或誤觸後端 reuse detection
+    // 三層併發防護：
+    // 1) 本分頁 single-flight（refreshing promise）：同時多個 401 共用同一次換發
+    // 2) 跨分頁 navigator.locks：整個 origin 同一時刻只有一個分頁換發（分頁同時甦醒的併發風暴）
+    // 3) 搶到鎖先重讀 cookie：別的分頁已 rotate → 直接沿用不打 API
+    //    ——關鍵在防後端 reuse detection：拿舊 refresh token 過寬限期再換會撤銷整個 token family
     let refreshing: Promise<boolean> | null = null
+    // 登出防殭屍：clearAuth 遞增 epoch，飛行中的 refresh 回來 epoch 對不上就丟棄結果，
+    // 否則「登出瞬間背景 refresh 慢半拍成功」會把新 token 寫回已登出的 state
+    let sessionEpoch = 0
+
+    async function doRefresh(): Promise<boolean> {
+      // 等鎖期間其他分頁可能已完成換發：先重讀 persist cookie，refresh token 變了就直接沿用
+      const prevRefreshToken = refreshToken.value
+      if (import.meta.client)
+        useAuthStore().$hydrate({ runHooks: false })
+      if (refreshToken.value && refreshToken.value !== prevRefreshToken)
+        return true
+      if (!refreshToken.value)
+        return false
+      const epoch = sessionEpoch
+      try {
+        const data = await refreshAuthToken({ refreshToken: refreshToken.value })
+        if (epoch !== sessionEpoch)
+          return false // 換發期間已登出：丟棄結果，不寫回 state
+        token.value = data.accessToken
+        refreshToken.value = data.refreshToken
+        refreshExpiresAt.value = data.refreshExpiresAt
+        accountId.value = data.accountId
+        return true
+      }
+      catch {
+        if (epoch === sessionEpoch)
+          clearAuth()
+        return false
+      }
+    }
+
     function refresh(): Promise<boolean> {
       if (refreshing)
         return refreshing
       refreshing = (async (): Promise<boolean> => {
-        if (!refreshToken.value)
-          return false
         try {
-          const data = await refreshAuthToken({ refreshToken: refreshToken.value })
-          token.value = data.accessToken
-          refreshToken.value = data.refreshToken
-          refreshExpiresAt.value = data.refreshExpiresAt
-          accountId.value = data.accountId
-          return true
-        }
-        catch {
-          clearAuth()
-          return false
+          // Web Locks 僅存在於 client；SSR / 不支援的環境退回單 context single-flight
+          if (import.meta.client && 'locks' in navigator)
+            return await navigator.locks.request('auth-refresh', () => doRefresh()) as boolean
+          return await doRefresh()
         }
         finally {
           refreshing = null
@@ -181,6 +208,7 @@ export const useAuthStore = defineStore(
     }
 
     function clearAuth(): void {
+      sessionEpoch++ // 使飛行中的 refresh 結果作廢（登出殭屍防護）
       accountId.value = null
       token.value = null
       refreshToken.value = null
@@ -225,8 +253,10 @@ export const useAuthStore = defineStore(
   },
   {
     persist: {
-      // cookie 而非 localStorage：SSR 讀得到 token，避免 hydration 不一致
-      storage: piniaPluginPersistedstate.cookies({ sameSite: 'lax' }),
+      // cookie 而非 localStorage：SSR 讀得到 token，避免 hydration 不一致。
+      // maxAge 必須設且 ≥ 後端 refresh token 存活期：不設＝session cookie，瀏覽器行程被回收
+      // （手機切背景、關瀏覽器）cookie 即蒸發 → 「閒置一陣子回來就被登出」（wedding-host 實戰）
+      storage: piniaPluginPersistedstate.cookies({ sameSite: 'lax', maxAge: 60 * 60 * 24 * 30 }),
       pick: ['accountId', 'token', 'refreshToken', 'refreshExpiresAt', 'account', 'name', 'roles'],
     },
   },
@@ -448,6 +478,10 @@ routeRules: {
 - [ ] login handler 首段有 `assertNotRateLimited`（§4b②；fileUpload 專案的 upload／presign 端點同套）
 - [ ] 公開端點已分級：匿名只回已發布資料的公開層欄位、公開寫入不信 body 身分欄位（§4a）
 - [ ] 無任何 server handler 從 cookie 讀憑證（grep `getCookie(event, 'auth')` 無命中）；憑證僅走 Authorization header（§4c 前提）
+- [ ] persist cookie 已設 `maxAge` 且 ≥ 後端 refresh token 存活期（不設＝session cookie → 閒置被登出）
+- [ ] `refresh()` 有跨分頁鎖（`navigator.locks`）且搶到鎖後先重讀 cookie 再決定是否打 API（§3a 三層併發防護）
+- [ ] 登出後飛行中 refresh 的結果會被丟棄（`sessionEpoch` guard，§3a）
+- [ ] 專案有 SSE/WebSocket 時：refresh 成功後長連線以新 token 重建、連線前驗 exp（近）過期先 refresh——見 realtime skill 鐵律 4、5
 
 ---
 
