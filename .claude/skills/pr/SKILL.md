@@ -74,7 +74,7 @@ git diff origin/<default>...HEAD --stat     # 變更檔案總覽
 
 步驟 1 那五項是硬關卡；**本項不是**——只提醒，不擋 PR。
 
-解析到編號後，看該 issue 有沒有 `## 驗收標準` 段（`gh issue view <編號> --json body`）。有 → 在步驟 5 草案的 `reviewer：` 欄下方附一行：
+解析到編號後，看該 issue 有沒有 `## 驗收標準` 段（`gh issue view <編號> --json body -q .body`）。有 → 在步驟 5 草案的 `reviewer：` 欄下方附一行：
 
 ```
 ⚠️ issue #<編號> 有 <k> 條驗收標準尚未驗收，建議先跑 /verify-ac

@@ -32,7 +32,7 @@ disable-model-invocation: true
 | gh CLI 可用且已認證 | `gh auth status` | 提示 `gh auth login` |
 | 在 git repo 且有 GitHub remote | `gh repo view --json nameWithOwner` | **停**，這不是 GitHub repo |
 | 解析得到 issue 編號 | 見下 | **停**（與 `/pr` 的差異見下方說明） |
-| issue 有 `## 驗收標準` 段 | `gh issue view <N> --json body` | **停**，告知該 issue 沒有 AC，建議先補；不代擬、不硬驗 |
+| issue 有 `## 驗收標準` 段 | `gh issue view <N> --json body -q .body` | **停**，告知該 issue 沒有 AC，建議先補；不代擬、不硬驗 |
 
 #### 解析 issue 編號
 
@@ -57,7 +57,7 @@ gh issue view <N> --json body -q .body
 動手驗之前先確認：
 
 - issue 的 linked branch 是否就是當前分支（步驟 1 第一層解析已經查到）
-- 不是 → 用 `git show <branch>:<path>` 跨分支讀，**不要切分支**（工作區可能有未 commit 改動）
+- 不是 → 用 `git show '<branch>:<path>'` 跨分支讀（整個 rev:path 用單引號包住——分支名含 `#` 的 repo 慣例，見 `/new-issue` 注意段），**不要切分支**（工作區可能有未 commit 改動）
 - 判不出實作在哪 → **停下來問使用者**，不要假設就是當前分支
 
 **跨分支時整趟唯讀**：實作不在當前分支就**只驗不修**——步驟 4 自動修僅在實作位於當前工作區時進入；跨分支驗出的 Fail 直接列入報告交還使用者（在錯誤的工作樹上修，等於把別條分支的實作寫進不相關的地方）。
@@ -89,7 +89,7 @@ gh issue view <N> --json body -q .body
 
 1. 挑本輪要修的 Fail 條目，說明打算怎麼修
 2. 改檔（授權邊界見下）
-3. 跑驗證：`npm run eslint` + `npm run typelint`；動到 `app/`／`server/` 另跑 gate config
+3. 跑驗證：`npm run eslint` + `npm run typelint`；動到 `app/`／`server/` 另跑 gate config（`npm run test:gate`）
 4. 重驗該條，更新判定
 
 **授權邊界**（超出就停下來問，不自行擴權）：
@@ -132,7 +132,7 @@ issue #<N>：<標題>
 
 驗完**直接把結果同步回 GitHub**，讓「做完沒」有客觀依據，不必靠對話記憶：
 
-1. **重建勾選狀態（雙向）**：重讀一次 issue body（`gh issue view <N> --json body`，避免覆蓋期間他人的編輯），依**本輪判定**重寫每條 checkbox：Pass → `- [x]`；Fail／無法判定 → `- [ ]`。**上輪勾了、這輪 Fail 的要取消勾**——迴歸不可以被舊勾選遮住，否則 `/pr` 讀到假的全勾就放行了。寫入暫存檔後 `gh issue edit <N> --body-file <暫存檔>`。
+1. **重建勾選狀態（雙向）**：重讀一次 issue body（`gh issue view <N> --json body -q .body`，避免覆蓋期間他人的編輯），依**本輪判定**重寫每條 checkbox：Pass → `- [x]`；Fail／無法判定 → `- [ ]`。**上輪勾了、這輪 Fail 的要取消勾**——迴歸不可以被舊勾選遮住，否則 `/pr` 讀到假的全勾就放行了。寫入暫存檔後 `gh issue edit <N> --body-file <暫存檔>`。
    **只動 checkbox 那一個字元**——不改條目文字、不動其他三段。
 2. **留驗收記錄**：`gh issue comment <N> --body-file <報告暫存檔>`，內容即上方逐條結果表。這是勾選的證據來源——只勾不留記錄，等於回到「不知道憑什麼勾」的原點。
 
