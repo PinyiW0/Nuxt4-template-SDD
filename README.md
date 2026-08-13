@@ -294,6 +294,7 @@ UI 可以自由微調——顏色、間距、layout、按鈕形式、table/card 
 | `/vibe-e2e` | 生成 `test/e2e/vibe/*.spec.ts` 並執行 | `/vibe-check` 綠燈 |
 | `/sdd-review` | 審查 diff 的框架語意與邏輯安全 | 有 `.vue`／store／server 改動 |
 | `/nuxt-ui` | 載入 NuxtUI 官方文檔再動手，不憑記憶猜 API | 無 |
+| `/verify-ac` | 對照 issue 驗收標準逐條驗收，未過自動修（上限 2 輪），結果勾回 issue | issue 有 `## 驗收標準`、編號可解析 |
 | `/commit` | 依 SDD 階段分群產生 commit | 有改動 |
 | `/pr` | push → PR 草案 → 建 PR | 已 commit、不在 main |
 

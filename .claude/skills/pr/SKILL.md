@@ -70,6 +70,28 @@ git diff origin/<default>...HEAD --stat     # 變更檔案總覽
 - 跨 repo 的 issue 用 `owner/repo#<編號>`。
 - 三層都解析不到編號 → 略過這行，不硬湊。
 
+#### AC 驗收提醒（非阻塞）
+
+步驟 1 那五項是硬關卡；**本項不是**——只提醒，不擋 PR。
+
+解析到編號後，看該 issue 有沒有 `## 驗收標準` 段（`gh issue view <編號> --json body -q .body`）。有 → 在步驟 5 草案的 `reviewer：` 欄下方附一行：
+
+```
+⚠️ issue #<編號> 有 <k> 條驗收標準尚未驗收，建議先跑 /verify-ac
+```
+
+判斷依據是 **issue 上的 checkbox 狀態**——`/verify-ac` 驗完會把 Pass 條目勾起來並留一則驗收記錄 comment：
+
+- 條目**全部已勾** → 省略這行，不提醒
+- 有未勾 → 附上提醒，`<k>` 取未勾條數
+
+checkbox 跨 session、跨 worktree、換人執行都查得到，不必靠對話記憶。兩個已知邊界：
+
+- **快照語意**：checkbox 反映**上次驗收當下**的狀態，勾完後 code 再動這裡不會知道——全勾即省略是接受的取捨，要新鮮結果就重跑 `/verify-ac`。
+- **未勾 ≠ 都能靠重跑解**：未勾條目可能是 Fail（重跑 `/verify-ac` 可修），也可能是「無法判定」（需**人工驗證後自行勾選**，重跑無效）；分不清時看 issue 上最近一則驗收記錄 comment。
+
+使用者要直接發就照發，**不追問、不阻擋**。`/pr` 仍不 commit、不代勞修改——要驗要修都是 `/verify-ac` 的事。解析不到編號、或 issue 無 AC 段 → 整段跳過，不提。
+
 ### 2.5 決定 label、assignee 與 reviewer（與 `/new-issue` 共用政策）
 
 依共用政策 [../new-issue/references/label-assignee.md](../new-issue/references/label-assignee.md) 選定：
@@ -157,6 +179,7 @@ base：<default>  ←  <當前分支>
 label：<所選 label（可多個）或「略過」>
 assignee：<@me / 所選協作者 / 不指派>
 reviewer：<所選協作者＋Copilot / 僅 Copilot（單人 repo）/ 使用者明說不掛>
+<命中步驟 2「AC 驗收提醒」時，此處附那一行 ⚠️；未命中整行省略>
 
 內文：
 <完整 markdown 內文>

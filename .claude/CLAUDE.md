@@ -52,6 +52,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 | `/vibe-e2e` | 生成 `test/e2e/vibe/*.spec.ts` 並跑 | `/vibe-check` 綠燈 |
 | `/nuxt-ui` | 載入 NuxtUI 官方文檔 | 無 |
 | `/sdd-review` | 審查 diff 的框架語意與邏輯安全 | 有 .vue/store/server 改動 |
+| `/verify-ac` | 對照 issue AC 逐條驗收，未過自動修（上限 2 輪） | issue 有 `## 驗收標準`、編號可解析 |
 | `/commit` | 依 SDD 階段分群產生 commit | 有改動 |
 | `/pr` | push → PR 草案 → 建 PR | 已 commit、不在 main |
 
