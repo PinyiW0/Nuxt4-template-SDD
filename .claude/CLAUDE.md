@@ -40,6 +40,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 | 指令 | 用途 | 前置條件 |
 |------|------|----------|
+| `/sharpen` | 粗略概念 → 盲點診斷 → 精準 prompt ＋ 執行建議 | 無 |
 | `/new-issue` | 建 issue + 綁定 linked 分支 | gh 已認證 |
 | `/sdd-status` | 唯讀盤點 SDD 七站進度＋建議下一步 | 無 |
 | `/feature-to-flow` | Feature → `.flow.md` | `.feature` 已放入 `spec/gherkin-feature/` |
