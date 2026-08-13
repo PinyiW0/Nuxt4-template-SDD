@@ -157,6 +157,7 @@ app/pages · components · layouts · stores   ← 為通過合約而生
 | `/vibe-e2e` | 生成 `test/e2e/vibe/*.spec.ts` 並執行 | `/vibe-check` 綠燈 |
 | `/sdd-review` | 審查 diff 的框架語意與邏輯安全 | 有 `.vue`／store／server 改動 |
 | `/nuxt-ui` | 載入 NuxtUI 官方文檔再動手，不憑記憶猜 API | 無 |
+| `/verify-ac` | 對照 issue 驗收標準逐條驗收，未過自動修（上限 2 輪），結果勾回 issue | issue 有 `## 驗收標準`、編號可解析 |
 | `/commit` | 依 SDD 階段分群產生 commit | 有改動 |
 | `/pr` | push → PR 草案 → 建 PR | 已 commit、不在 main |
 
@@ -400,7 +401,7 @@ IMAGE_TAG=<舊版 tag 或 sha> docker compose up -d                 # image 還�
 
 ## GitHub 流程
 
-> Issue／Commit／PR 三站已封裝成 AI 指令：`/new-issue`（建 issue＋綁 linked 分支）、`/commit`（SDD 階段分群＋訊息草案）、`/pr`（push＋PR 草案＋自動 `Closes #N`）。skill 內建下列慣例且一律先出草案待確認——日常直接用指令，以下規範供手動操作與 review 時對照。
+> Issue／驗收／Commit／PR 四站已封裝成 AI 指令：`/new-issue`（建 issue＋綁 linked 分支，body 固定四段含 `## 驗收標準`）、`/verify-ac`（發 PR 前對照 issue 驗收標準逐條驗收，未過自動修、結果勾回 issue）、`/commit`（SDD 階段分群＋訊息草案）、`/pr`（push＋PR 草案＋自動 `Closes #N`，AC 未全勾會附非阻塞提醒）。skill 內建下列慣例且一律先出草案待確認——日常直接用指令，以下規範供手動操作與 review 時對照。
 
 ### 流程
 
