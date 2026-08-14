@@ -19,7 +19,13 @@ SECRET_KEY_PATTERN='(^|_)(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|CREDENTIAL
 
 # 本次 commit 中 staged 的 .env 系列檔（.env、.env.example、.env.production…）
 # 注意：husky 以 `sh -e` 執行本檔，grep 無命中時回傳 1 會觸發 errexit，故加 || true
-staged_envs=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)\.env($|\.)' || true)
+#
+# diff-filter 必須含 R 與 T，只寫 ACM 會留下繞過路徑（實測復現過）：
+#   R（rename）— `git mv 已版控的檔案 .env.x`，內容一個 byte 沒改故不算 M，
+#                staged 狀態是 R100，ACM 濾出為空 → 機敏值長驅直入
+#   T（typechange）— symlink ↔ 一般檔互換，同樣不在 ACM 內
+# 對 R，--name-only 印的是目的檔名（新的 .env*），正是要檢查的那一個。
+staged_envs=$(git diff --cached --name-only --diff-filter=ACMRT | grep -E '(^|/)\.env($|\.)' || true)
 
 if [ -z "$staged_envs" ]; then
   exit 0
