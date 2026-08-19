@@ -24,7 +24,7 @@ disable-model-invocation: true
 ## 1. 找 PR
 
 ```sh
-gh pr view --json number,state,headRefName,url     # `$ARGUMENTS` 有編號就 gh pr view <N>
+gh pr view --json number,state,headRefName,url     # `$ARGUMENTS` 有編號則 gh pr view <N> --json number,state,headRefName,url
 gh repo view --json nameWithOwner -q .nameWithOwner # 拆成 <owner>/<repo>，步驟 2 全部指令要用
 gh api user --jq .login                             # 之後用來標「這則是你自己留的」
 ```
@@ -98,7 +98,7 @@ PR #121 · 4 則留言（必修 1 / 可選 2 / 不修 1）
 
  # | 位置                     | 作者          | 分類 | 要改什麼
  1 | SKILL.md:108             | Copilot(bot) | 必修 | 巢狀 comments 缺 endCursor，留言破百會漏抓
- 2 | recovery.md:137          | Copilot(bot) | 可選 | 檔名 startedAt 與說明的 meta.json 對不上
+ 2 | app/composables/useAuth.ts:22 | Copilot(bot) | 可選 | token 過期判斷建議改用 exp 而非 iat
  3 | app/pages/index.vue:42   | PinyiW0      | 可選 | 建議抽成 composable
  4 | test/e2e/specs/01.spec.ts| Copilot(bot) | 不修 | 凍結區，hook 會擋
 
