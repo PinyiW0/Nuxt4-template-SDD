@@ -63,6 +63,7 @@
 | 2 行為 | 做的事符合合約 | Playwright specs / gate config | 動到 app/、server/ |
 | 3 語意 | 框架慣例、邏輯安全 | `/sdd-review` | 動到 .vue/store/server 且改動非純格式 |
 | 4 制度 | 規範有消費點、路徑有效 | read-back（fresh subagent） | 動到 .claude/、spec/ui-config/ |
+| 5 通用邏輯 | 正確性、重用／簡化／效能（非框架特定） | `/code-review` | 動到 app/、server/ 且改動非純格式，`/verify-ac` 或發 PR 前 |
 
 **通過的定義是綠燈，不是「應該會過」**。沒跑就是沒驗。
 
