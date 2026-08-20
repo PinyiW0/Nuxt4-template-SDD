@@ -478,6 +478,7 @@ api_contract:
   # ⚠️ Phase 1.5 會依 method + path 推導 client function name（如 GET /sites → listSites，
   #    POST /watches/{id}/end → endWatch），命名規則見 phase-1-5-client-api.md
   endpoints:
+    # ⚠️ LoginResponse 為 XxxEvent 命名規則的既有例外（對齊 auth-scaffold.md 的 TokenPairData）
     - method: POST
       path: /api/v1/auth/login
       request: LoginBody
