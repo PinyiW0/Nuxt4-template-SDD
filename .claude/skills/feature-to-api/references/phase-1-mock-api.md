@@ -158,9 +158,9 @@ app/
 └── types/
     └── api/
         ├── index.ts           # 統一 re-export + 共用型別
-        ├── auth.ts            # LoginData, LoginRequest
-        ├── sites.ts           # SiteItem, CreateSiteBody
-        └── stations.ts         # StationItem, CreateStationBody
+        ├── auth.ts            # LoginBody, LoginResponse
+        ├── sites.ts           # SiteListItem, SiteCreatedEvent, CreateSiteBody
+        └── stations.ts         # StationListItem, CreateStationBody
 
 server/
 ├── mock/
@@ -201,8 +201,8 @@ export interface CreateSiteBody {
 ```
 
 ```typescript
-export type { ObserverLoggedInEvent, LoginBody } from './auth'
 // app/types/api/index.ts — 統一 re-export
+export type { LoginBody, LoginResponse } from './auth'
 export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```
 
@@ -229,18 +229,18 @@ export const mockUsers = [
 ```typescript
 // server/api/auth/login.post.ts
 import type { H3Event } from 'h3'
-import type { ObserverLoggedInEvent, LoginBody } from '../../../app/types/api/auth'
+import type { LoginBody, LoginResponse } from '../../../app/types/api/auth'
 
 import { mockUsers } from '../../mock/data/users'
 
-export default defineEventHandler(async (event: H3Event): Promise<ObserverLoggedInEvent> => {
+export default defineEventHandler(async (event: H3Event): Promise<LoginResponse> => {
   const body = await readBody<LoginBody>(event)
 
-  if (!body?.username || !body?.password) {
+  if (!body?.account || !body?.password) {
     throw createError({ statusCode: 400, statusMessage: '請輸入帳號與密碼' })
   }
 
-  const user = mockUsers.find(u => u.username === body.username && !u.deletedAt)
+  const user = mockUsers.find(u => u.account === body.account && !u.deletedAt)
   if (!user) {
     throw createError({ statusCode: 404, statusMessage: '帳號不存在' })
   }
@@ -249,9 +249,14 @@ export default defineEventHandler(async (event: H3Event): Promise<ObserverLogged
   }
 
   // [O] 模式 B 示意：直接回 schema 物件（模式 A 用 ok() 包裝，見 openapi-conventions §3）
+  // 回傳形狀對齊 auth-scaffold.md §3a 的 TokenPairData（LoginResponse 的唯一權威定義）
   return {
-    accountId: user.accountId,
     accessToken: `mock-token-${user.accountId}-${Date.now()}`,
+    tokenType: 'Bearer',
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    accountId: user.accountId,
+    refreshToken: `mock-refresh-${user.accountId}-${Date.now()}`,
+    refreshExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   }
 })
 ```
@@ -412,7 +417,7 @@ setResponseStatus(event, 204)
 ## Auth Store 範例
 
 auth 命中時的 store（login／isAuthenticated／clearAuth／persist）**完整範本見 [auth-scaffold.md §3a](auth-scaffold.md)（含 single-flight refresh、cookie 細節），以該檔為唯一權威版本，勿在此複製**。
-login 為寫入操作走 `$fetch`，回傳直接是裸 Event 型別（如 `ObserverLoggedInEvent`），無 `.data` 解包。
+login 為寫入操作走 `$fetch`，回傳直接是裸型別（`LoginResponse`，即 auth-scaffold.md 的 `TokenPairData`），無 `.data` 解包。
 
 > ⚠️ **persist 儲存位置**：`pinia-plugin-persistedstate/nuxt` 預設 storage 是 **cookie**（SSR 可讀），不是 localStorage。
 > **禁止**在註解或 middleware 寫「登入狀態存 localStorage、SSR 讀不到」——錯誤心智模型會導致 hydration mismatch

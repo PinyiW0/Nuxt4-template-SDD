@@ -374,9 +374,9 @@ Phase 0 直接建立 `app/types/api/*.ts`，消除 YAML → TypeScript 翻譯誤
 ```
 app/types/api/
 ├── index.ts     # 統一 re-export
-├── auth.ts      # LoginData
-├── sites.ts     # SiteItem, CreateSiteBody
-└── stations.ts   # StationItem, CreateStationBody
+├── auth.ts      # LoginBody, LoginResponse
+├── sites.ts     # SiteListItem, SiteCreatedEvent, CreateSiteBody
+└── stations.ts   # StationListItem, CreateStationBody
 ```
 
 ### 型別檔範例
@@ -401,7 +401,7 @@ export interface CreateSiteBody {
 
 ```typescript
 // app/types/api/index.ts — 統一 re-export
-export type { ObserverLoggedInEvent, LoginBody } from './auth'
+export type { LoginBody, LoginResponse } from './auth'
 export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```
 
@@ -478,10 +478,11 @@ api_contract:
   # ⚠️ Phase 1.5 會依 method + path 推導 client function name（如 GET /sites → listSites，
   #    POST /watches/{id}/end → endWatch），命名規則見 phase-1-5-client-api.md
   endpoints:
+    # ⚠️ LoginResponse 為 XxxEvent 命名規則的既有例外（對齊 auth-scaffold.md 的 TokenPairData）
     - method: POST
       path: /api/v1/auth/login
       request: LoginBody
-      response: ObserverLoggedInEvent
+      response: LoginResponse
     - method: GET
       path: /api/v1/sites
       request: '{}'
