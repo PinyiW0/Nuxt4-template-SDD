@@ -32,3 +32,21 @@ gh label list --json name -q '.[].name'
 - 使用者已在 `$ARGUMENTS` 指定就直接用，不再問。
 - 「不指派」→ 整個 `--assignee` 旗標拿掉。
 - 指定他人須為 repo collaborator，否則 `gh issue create`／`gh pr create` 會整個失敗——失敗時改不帶 assignee 先建立，成功後再 `gh issue edit`／`gh pr edit <N> --add-assignee <人>` 補。
+
+## 編排模式（`/ship`）的預選規則
+
+本檔的「不自動對應、不預選」是對**互動模式**說的——那時預選會讓使用者在選單上按 Enter 就過去。
+`/ship` 的情況不同：它把所有決定收攏到唯一一次確認，選定值會**完整展示在草案上並標 `←預選`**，
+使用者一句話就能改。因此本節是那條原則的**具名例外**，只在 `/ship` 適用。
+
+label 預選：先 `gh label list --json name -q '.[].name'` 取實際清單，再對照——**清單裡沒有就填「略過」，不自創、不硬湊**：
+
+| 訊號 | 對到清單中含這些字的 label |
+|------|---------------------------|
+| 分支前綴 `fix/` | `bug`／`bugfix` |
+| 分支前綴 `feature/`、`feat/` | `enhancement`／`feature` |
+| 分支前綴 `chore/`、`refactor/` | `chore`／`maintenance` |
+| diff 只有 `*.md`、`.claude/` | `documentation`／`docs` |
+| 以上都對不上 | 「略過」（不帶 `--label`） |
+
+assignee 預選 `@me`（本來就是預設值）。reviewer 預選 Copilot；多人 repo 另加最近一次 merged PR 的 reviewer。
