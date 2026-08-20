@@ -23,6 +23,8 @@ disable-model-invocation: true
 
 本 skill **不 commit、不 push、不開 PR**。修完停在工作區，收尾提醒使用者跑 `/commit`——這條界線跟 `/pr` 的「不越界代勞」同源，別破。
 
+> 被 `/ship` 編排時再加兩條：**不修、不寫回**。只驗與回報三態＋證據，修由編排層派獨立的 fixer 做（同一件事兩邊各算 2 輪會變成 4 輪，且驗的人動手改就違反「驗證不自驗」），勾回 issue 延到使用者確認之後。**不修的是本 skill 這個角色，不是整條鏈**——Fail 的條目仍然會被 `/ship` 的自動修迴圈處理，授權邊界照本檔步驟 4 那張表，一字不放寬。合約與理由見 [../ship/references/orchestrated-mode.md](../ship/references/orchestrated-mode.md)。
+
 ## 流程
 
 ### 1. 前置檢查（硬關卡，不通過就停）
