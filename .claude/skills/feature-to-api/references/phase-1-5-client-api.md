@@ -196,7 +196,7 @@ export function moveNote(
 
 ```typescript
 export function loginMember(body: LoginBody) {
-  return useHttp().post<MemberLoggedInEvent>('/api/v1/auth/login', { body })
+  return useHttp().post<LoginResponse>('/api/v1/auth/login', { body })
 }
 ```
 

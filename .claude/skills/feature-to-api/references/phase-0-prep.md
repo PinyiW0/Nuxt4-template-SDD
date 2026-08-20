@@ -374,7 +374,7 @@ Phase 0 直接建立 `app/types/api/*.ts`，消除 YAML → TypeScript 翻譯誤
 ```
 app/types/api/
 ├── index.ts     # 統一 re-export
-├── auth.ts      # LoginBody, ObserverLoggedInEvent
+├── auth.ts      # LoginBody, LoginResponse
 ├── sites.ts     # SiteListItem, SiteCreatedEvent, CreateSiteBody
 └── stations.ts   # StationListItem, CreateStationBody
 ```
@@ -401,7 +401,7 @@ export interface CreateSiteBody {
 
 ```typescript
 // app/types/api/index.ts — 統一 re-export
-export type { LoginBody, ObserverLoggedInEvent } from './auth'
+export type { LoginBody, LoginResponse } from './auth'
 export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```
 
@@ -481,7 +481,7 @@ api_contract:
     - method: POST
       path: /api/v1/auth/login
       request: LoginBody
-      response: ObserverLoggedInEvent
+      response: LoginResponse
     - method: GET
       path: /api/v1/sites
       request: '{}'
