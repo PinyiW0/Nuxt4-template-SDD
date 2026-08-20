@@ -158,9 +158,9 @@ app/
 └── types/
     └── api/
         ├── index.ts           # 統一 re-export + 共用型別
-        ├── auth.ts            # LoginData, LoginRequest
-        ├── sites.ts           # SiteItem, CreateSiteBody
-        └── stations.ts         # StationItem, CreateStationBody
+        ├── auth.ts            # LoginBody, ObserverLoggedInEvent
+        ├── sites.ts           # SiteListItem, SiteCreatedEvent, CreateSiteBody
+        └── stations.ts         # StationListItem, CreateStationBody
 
 server/
 ├── mock/
@@ -201,8 +201,8 @@ export interface CreateSiteBody {
 ```
 
 ```typescript
-export type { ObserverLoggedInEvent, LoginBody } from './auth'
 // app/types/api/index.ts — 統一 re-export
+export type { LoginBody, ObserverLoggedInEvent } from './auth'
 export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```
 
@@ -229,18 +229,18 @@ export const mockUsers = [
 ```typescript
 // server/api/auth/login.post.ts
 import type { H3Event } from 'h3'
-import type { ObserverLoggedInEvent, LoginBody } from '../../../app/types/api/auth'
+import type { LoginBody, ObserverLoggedInEvent } from '../../../app/types/api/auth'
 
 import { mockUsers } from '../../mock/data/users'
 
 export default defineEventHandler(async (event: H3Event): Promise<ObserverLoggedInEvent> => {
   const body = await readBody<LoginBody>(event)
 
-  if (!body?.username || !body?.password) {
+  if (!body?.account || !body?.password) {
     throw createError({ statusCode: 400, statusMessage: '請輸入帳號與密碼' })
   }
 
-  const user = mockUsers.find(u => u.username === body.username && !u.deletedAt)
+  const user = mockUsers.find(u => u.account === body.account && !u.deletedAt)
   if (!user) {
     throw createError({ statusCode: 404, statusMessage: '帳號不存在' })
   }
