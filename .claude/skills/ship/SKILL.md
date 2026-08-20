@@ -345,6 +345,11 @@ gh api --method POST repos/<o>/<r>/pulls/<N>/requested_reviewers -f 'reviewers[]
 gh pr view --web
 ```
 
+**Copilot reviewer 那行可能「成功但沒效果」**：repo 若已在 ruleset 開了自動 Copilot review，
+這個 API 會回 200、`requested_reviewers` 卻仍是空陣列，而 Copilot 照樣會來留言。
+**這不是 bug，不用排查**——查一下同 repo 舊 PR 的 `reviewRequests` 是不是也都空的就知道了。
+指令保留是為了沒開自動 review 的 repo（例如團隊剛建的），在那裡它是必要的。
+
 **暫存檔一律寫在 `.claude/tmp/ship/`**，不要寫在 repo 根目錄——那裡沒被 gitignore，會被算進 AC 指紋，
 也可能被 `git add` 帶進 commit。
 
