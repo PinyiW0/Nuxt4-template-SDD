@@ -297,6 +297,8 @@ UI 可以自由微調——顏色、間距、layout、按鈕形式、table/card 
 | `/verify-ac` | 對照 issue 驗收標準逐條驗收，未過自動修（上限 2 輪），結果勾回 issue | issue 有 `## 驗收標準`、編號可解析 |
 | `/commit` | 依 SDD 階段分群產生 commit | 有改動 |
 | `/pr` | push → PR 草案 → 建 PR | 已 commit、不在 main |
+| `/pr-feedback` | 爬 PR review 留言，分類報告後就地改（不 commit／push／發言） | PR 已開 |
+| `/ship` | 收尾一條龍：六層關卡（紅燈自動修）→ AC 驗收 → commit → PR，只停一次 | 有改動、不在 main |
 
 另有兩類非主線能力：`/requirement-breakdown` 走需求拆解線（rough 需求 → user story + 時間線 + 工種歸屬），與開發線不耦合；`vue`／`nuxt`／`pinia`／`realtime`／`streaming` 是知識型 skill，改到對應檔案時自動載入，負責裁決框架語意。
 

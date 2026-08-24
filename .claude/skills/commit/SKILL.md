@@ -10,6 +10,8 @@ argument-hint: "[範圍提示或 message 補充(選填)]"
 
 **核心規則：永遠先列出「分群 + 訊息草案」給使用者確認，得到同意後才 `git commit`。** 不先斬後奏。
 
+> **預設是停下來等確認**（上一行那條規則），只有被 `/ship` 編排時例外：草案交回編排層，由它在唯一停點一併確認——本 skill 仍不自己 `git commit`。合約見 [../ship/references/orchestrated-mode.md](../ship/references/orchestrated-mode.md)。
+
 ## 為什麼用 SDD 階段分群，而不是用 scope
 
 本專案是 SDD pipeline，commit 的邏輯邊界是**階段**，不是目錄。一個階段的產物常橫跨多個目錄但屬同一目的 —— 例如 `/feature-to-api` 一次吐出 `app/types/api/` + `server/api/` + `server/mock/` + `app/api/*.api.ts` + `spec/report/route-map.yaml`，這是**一個 commit**，不可因為「跨 app/ 和 server/」就硬拆。
@@ -148,7 +150,7 @@ git commit -m "type(scope): 描述"
 
 ### 6. 收尾
 
-commit 完跑 `git log --oneline -n <群數>`，一行帶過給使用者看，並提示下一步：「要發 PR 就跑 `/pr`」。
+commit 完跑 `git log --oneline -n <群數>`，一行帶過給使用者看，並提示下一步：「要發 PR 就跑 `/pr`」（或一路收尾到 PR 就跑 `/ship`）。編排模式下不印這行提示——編排層會接著跑 PR 那一段。
 
 ## 注意
 

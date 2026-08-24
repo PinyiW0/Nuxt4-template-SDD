@@ -21,6 +21,8 @@ argument-hint: "[reviewer / assignee / label / draft / copilot / 補充說明(�
 
 `/pr` **不負責 commit**。偵測到有未 commit 改動時，停下來叫使用者先跑 `/commit`，不越界代勞。
 
+> 被 `/ship` 編排時，commit 與 PR 的先後由編排層統籌，`/pr` 自身仍不 commit。這條界線防的是 skill 互相代勞，不是禁止使用者授權的編排層排順序——判準見 [../ship/references/orchestrated-mode.md](../ship/references/orchestrated-mode.md)。
+
 ## 流程
 
 ### 1. 前置檢查（硬關卡，不通過就停）
@@ -97,6 +99,8 @@ checkbox 跨 session、跨 worktree、換人執行都查得到，不必靠對話
 依共用政策 [../new-issue/references/label-assignee.md](../new-issue/references/label-assignee.md) 選定：
 
 - **label**：從 repo 現有清單讓使用者複選（附「略過」）、不自動對應、不預選；**`/pr` 不自創 label、不 `gh label create`**（與 `/new-issue` 的差異見該檔）。
+
+> **編排模式下這三項不發 AskUserQuestion**，改由編排層預選後標在唯一停點的草案上（標 `←預選`），使用者一句話就能改。猜不到就填「略過」，不硬湊。預選規則見 [../new-issue/references/label-assignee.md](../new-issue/references/label-assignee.md)。
 - **assignee**：預設 `@me`，多人 repo 才用 AskUserQuestion 問、單人 repo 不問。
 - **reviewer**（README 協作規範：至少掛 **Copilot＋一名協作者**）：`$ARGUMENTS` 指定了就用指定者；未指定且為多人 repo → 用 AskUserQuestion 列協作者候選（含 Copilot）請使用者挑，使用者**明說不掛**才略過；單人 repo（無其他協作者）→ 預設只掛 Copilot、不另外問（repo ruleset 已開自動 Copilot review 則連掛都免）。
 
