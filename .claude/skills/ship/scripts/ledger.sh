@@ -182,7 +182,7 @@ cmd_plan() {
       printf '  L2   ● 要跑（fp=%s；diff 未被 pre-push SKIP_PATTERN 全數濾掉）\n' "$l2fp"
     fi
   fi
-  rounds=$([ -f "$ROUNDS" ] && awk -F'\t' -v b="$(current_branch)" '$1==b {c++} END{print c+0}' "$ROUNDS" || echo 0)
+  rounds=$([ -f "$ROUNDS" ] && awk -F'\t' '{c++} END{print c+0}' "$ROUNDS" || echo 0)
   if [ "$rounds" -gt 0 ]; then printf '  修正輪次：全域 %s / 4\n' "$rounds"; fi
 }
 
@@ -206,15 +206,17 @@ cmd_mark() {
 }
 
 # 輪次帳。上限規則靠對話記憶撐不住（session compact 後就沒了），存進 ledger 才算數。
+# 計數刻意不依分支過濾：上限是安全閥，切分支重開一個 key 就能繞過就失去意義。
+# 分支欄位只留著供診斷（見下方寫入行），不參與判定。
 cmd_round() {
   ensure_ledger
   mkdir -p "$DIR"; [ -f "$ROUNDS" ] || : > "$ROUNDS"
   key="$1"; br="$(current_branch)"
-  n=$(awk -F'\t' -v b="$br" -v k="$key" '$1==b && $2==k {c++} END{print c+0}' "$ROUNDS")
+  n=$(awk -F'\t' -v k="$key" '$2==k {c++} END{print c+0}' "$ROUNDS")
   n=$((n + 1))
-  total=$(awk -F'\t' -v b="$br" '$1==b {c++} END{print c+0}' "$ROUNDS")
+  total=$(awk -F'\t' '{c++} END{print c+0}' "$ROUNDS")
   total=$((total + 1))
-  printf '%s 第 %s 輪（本分支全域第 %s 輪）\n' "$key" "$n" "$total"
+  printf '%s 第 %s 輪（全域第 %s 輪）\n' "$key" "$n" "$total"
   # 用 if 而不是 `[ ] && { }`：後者在 set -e 下的行為隨 shell 實作而異（bash vs dash），
   # 這支腳本會在 Docker／CI 裡跑，不要賭。
   if [ "$n" -gt 2 ]; then
