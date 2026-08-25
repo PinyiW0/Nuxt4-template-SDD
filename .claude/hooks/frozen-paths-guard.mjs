@@ -21,6 +21,11 @@ const FROZEN = ['test/e2e/specs', 'spec/gherkin-feature', 'spec/e2e-flows']
 const WRITE_VERBS = new Set(['tee', 'cp', 'mv', 'rm', 'ln', 'truncate', 'dd'])
 // git 會改寫工作區檔案的子指令（git add/diff/log 等唯讀或只動 index 的不算）
 const GIT_WRITE_SUBCMDS = new Set(['checkout', 'restore', 'apply', 'mv', 'rm', 'clean', 'stash'])
+// 支援 -i／--in-place 就地改檔的串流編輯器與直譯器：帶 in-place 旗標時視為寫入。
+// perl 的 -i 常與其他旗標黏在一起（-pi、-pe -i、-i.bak），ruby 同理；
+// 註：2026-08-24 實測 perl -pi 曾繞過本 guard 改到凍結區的 flow/spec 註解，故補上。
+const INPLACE_TOOLS = new Set(['sed', 'perl', 'ruby', 'gsed'])
+const INPLACE_FLAG = /^-(?!-)[a-z]*i|^--in-place/i
 
 const realpath = realpathSync.native ?? realpathSync
 let projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd()
@@ -71,7 +76,8 @@ function bashFrozenWrites(command) {
     if (!frozen.length)
       continue
     const hasWriteVerb = words.some(w => WRITE_VERBS.has(w.slice(w.lastIndexOf('/') + 1)))
-      || (words.includes('sed') && words.some(w => /^-[a-z]*i|^--in-place/i.test(w)))
+      || (words.some(w => INPLACE_TOOLS.has(w.slice(w.lastIndexOf('/') + 1)))
+        && words.some(w => INPLACE_FLAG.test(w)))
       || (words.includes('git') && words.some(w => GIT_WRITE_SUBCMDS.has(w)))
     if (hasWriteVerb) {
       frozen.forEach(t => targets.add(t))
