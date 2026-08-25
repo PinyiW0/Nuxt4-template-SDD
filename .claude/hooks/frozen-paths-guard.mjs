@@ -25,7 +25,9 @@ const GIT_WRITE_SUBCMDS = new Set(['checkout', 'restore', 'apply', 'mv', 'rm', '
 // perl 的 -i 常與其他旗標黏在一起（-pi、-pe -i、-i.bak），ruby 同理；
 // 註：2026-08-24 實測 perl -pi 曾繞過本 guard 改到凍結區的 flow/spec 註解，故補上。
 const INPLACE_TOOLS = new Set(['sed', 'perl', 'ruby', 'gsed'])
-const INPLACE_FLAG = /^-(?!-)[a-z]*i|^--in-place/i
+// 不忽略大小寫：就地改檔旗標一律小寫慣例（-i、-pi、-i.bak、--in-place），
+// 忽略大小寫會讓 perl -Ilib（include path，純讀取）之類的大寫旗標被誤判成寫入。
+const INPLACE_FLAG = /^-(?!-)[a-z]*i|^--in-place/
 
 const realpath = realpathSync.native ?? realpathSync
 let projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd()
