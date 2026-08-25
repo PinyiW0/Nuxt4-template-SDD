@@ -106,10 +106,11 @@ references 只放一層、全部從 SKILL.md 直連——巢狀引用（SKILL.md
 - [ ] 超過 100 行的 reference 檔開頭有目錄
 - [ ] 所有相對連結指向實際存在的檔案
 - [ ] 放對照資料的 reference 檔標了來源與驗證日期
+- [ ] `scripts/` 每個子命令、`references/` 每份檔案都能在 SKILL.md 指出呼叫或載入位置；指不出來就補呼叫點，用不到就刪掉——不能放著當死碼。判準與正反例見 [authoring-guide.md](references/authoring-guide.md#消費點驗證)
 
 ## 參考
 
 | 文件 | 內容 |
 |---|---|
-| [authoring-guide.md](references/authoring-guide.md) | frontmatter 欄位速查、description 正反例與觸發除錯、分層載入細節、過度設計徵狀表 |
+| [authoring-guide.md](references/authoring-guide.md) | frontmatter 欄位速查、description 正反例與觸發除錯、分層載入細節、消費點驗證、過度設計徵狀表 |
 | [templates.md](references/templates.md) | 五種常見 skill 類型的骨架 |
