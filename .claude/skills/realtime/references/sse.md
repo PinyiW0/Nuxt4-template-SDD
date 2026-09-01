@@ -45,7 +45,12 @@ export type NotificationEvent
 > **此範例把「連線層 + 領域層」放同一 store（對齊實戰、求教學完整）。跨專案重用時應拆開**：連線層只管 status / channels / raw event 流；`sightingList`、`fetchWatchSightings` 這類業務概念移到領域 store 消費事件（見 SKILL.md「傳輸層 vs 領域層」註）。
 
 ```ts
-import { effectScope, type EffectScope } from 'vue'
+// Nuxt 專案這三行都可省略（Vue／Pinia API 都在 auto-import 範圍內）；
+// 這裡列出來是為了讓這段能原樣複製到純 Vue + Pinia 環境。
+// 至於 useAuthStore / resolveApiBaseUrl / fetchWatchSightings 與 SightingListItem、
+// NotificationEvent 等型別是專案自有的，換專案時對應到自己的實作。
+import { effectScope, reactive, ref, watch, type EffectScope } from 'vue'
+import { defineStore, storeToRefs } from 'pinia'
 import { useEventSource } from '@vueuse/core'
 
 type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
@@ -390,17 +395,17 @@ onMounted(() => {
 
 ## 驗收協定（部署前必跑，尤其 SSE 路徑無 E2E 覆蓋時）
 
-寫完不算完成。以下每一項都對應過真實發生的 bug，`scripts/` 內附三支可直接改常數執行的腳本。
+寫完不算完成。以下每一項都對應過真實發生的 bug，`../scripts/` 內附三支可直接改常數執行的腳本。
 
 | # | 驗什麼 | 怎麼驗 | 通過標準 |
 |---|--------|--------|----------|
-| 0 | 訂閱真的生效 | 看首筆 `connected` 的 `data.channels`（`scripts/ground-truth-listener.mjs` 直連後端） | 清單含所有預期頻道 |
-| 1 | 無重連迴圈 | Playwright 攔 `/events` 請求數（`scripts/connection-count.mjs`） | 頁面停留 20s，連線數穩定，無同 channels 重複連線 |
+| 0 | 訂閱真的生效 | 看首筆 `connected` 的 `data.channels`（`../scripts/ground-truth-listener.mjs` 直連後端） | 清單含所有預期頻道 |
+| 1 | 無重連迴圈 | Playwright 攔 `/events` 請求數（`../scripts/connection-count.mjs`） | 頁面停留 20s，連線數穩定，無同 channels 重複連線 |
 | 2 | 導航不斷線 | 同上腳本：頁 A → 頁 B | 導航後**恰好一條**活連線，頻道正確 |
 | 3 | 登出收乾淨 | 同上腳本：登入 → 按登出 → 觀察 15s | 新開連線 **0 條**、既有連線已關閉 |
 | 4 | 同批事件不漏 | 同一 tick 併發注入 2 筆事件（測試端點或 mock broadcast） | 兩筆**都**生效，不是只有最後一筆 |
 | 5 | 斷線自癒 | 讓後端斷開連線再恢復 | backoff 遞增重連，恢復後收到 connected 並 backfill |
-| 6 | 壞 token 不轟炸 | 讓 `/events` 固定回 401，記錄每次重試時刻（`scripts/backoff-401.mjs`） | 間隔指數遞增至上限，errorList 長度 ≤ 上限 |
+| 6 | 壞 token 不轟炸 | 讓 `/events` 固定回 401，記錄每次重試時刻（`../scripts/backoff-401.mjs`） | 間隔指數遞增至上限，errorList 長度 ≤ 上限 |
 | 7 | E2E 全綠 | 專案的 gate/測試指令 | 全過，含用 networkidle 的 spec |
 
 驗收心法：**連線數是比畫面表現更誠實的指標**——迴圈與殘留連線只有數請求才看得見，畫面看起來正常不代表沒問題。
