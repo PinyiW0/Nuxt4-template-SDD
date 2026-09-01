@@ -16,10 +16,11 @@ const page = await browser.newPage()
 
 let t0 = null
 let n = 0
-await page.route(SSE_URL_MATCH, (route) => {  // 登入前就攔，避免登入後首個 /events 漏網、量測失準
+await page.route(SSE_URL_MATCH, async (route) => {  // 登入前就攔，避免登入後首個 /events 漏網、量測失準
   t0 ??= Date.now()
   console.log(`  [attempt #${++n} @ +${((Date.now() - t0) / 1000).toFixed(1)}s] -> 401`)
-  void route.fulfill({ status: 401, contentType: 'application/json', body: '{"success":false,"code":"UNAUTHORIZED"}' })
+  // 必須 await：不等 fulfill 完成就結束 handler，攔截會偶發失效、量到的節奏不可信
+  await route.fulfill({ status: 401, contentType: 'application/json', body: '{"success":false,"code":"UNAUTHORIZED"}' })
 })
 
 await page.goto(`${APP}/login`, { waitUntil: 'domcontentloaded' })  // 登入頁若有常駐連線，networkidle 會卡住；locator 會自動等欄位可互動

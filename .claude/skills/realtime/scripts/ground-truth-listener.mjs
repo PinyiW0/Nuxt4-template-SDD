@@ -9,11 +9,18 @@ const EVENTS_PATH = '/api/v1/events'
 const CHANNELS = ['<channel:id1>', '<channel:id2>'] // 要訂的頻道
 const WATCH_SECONDS = 600
 
-const login = await (await fetch(`${API}${LOGIN_PATH}`, {
+// 登入回應先驗 status 再 parse：後端回 4xx/5xx 或非 JSON 時，直接 .json() 只會噴難讀的
+// SyntaxError 堆疊，看不出是帳密錯、路徑錯還是後端掛了——這支是除錯腳本，錯誤訊息要能定位。
+const loginRes = await fetch(`${API}${LOGIN_PATH}`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(LOGIN_BODY),
-})).json()
+})
+const loginText = await loginRes.text()
+if (!loginRes.ok) { console.error(`登入失敗 HTTP ${loginRes.status}`, loginText.slice(0, 300)); process.exit(1) }
+let login
+try { login = JSON.parse(loginText) }
+catch { console.error(`登入回應不是 JSON（HTTP ${loginRes.status}）`, loginText.slice(0, 300)); process.exit(1) }
 const token = TOKEN_PATH.reduce((o, k) => o?.[k], login)
-if (!token) { console.error('登入失敗', JSON.stringify(login).slice(0, 300)); process.exit(1) }
+if (!token) { console.error(`登入回應找不到 token（路徑 ${TOKEN_PATH.join('.')}）`, loginText.slice(0, 300)); process.exit(1) }
 
 const url = `${API}${EVENTS_PATH}?token=${encodeURIComponent(token)}&channels=${encodeURIComponent(CHANNELS.join(','))}`
 const t0 = Date.now()

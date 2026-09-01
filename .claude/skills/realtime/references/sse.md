@@ -42,7 +42,7 @@ export type NotificationEvent
 
 核心 store（萃取自 `app/stores/notifications.ts` 並回填 2026-08 的三個實戰教訓——見本節末「這份範例修過的三個 bug」）：
 
-> **此範例把「連線層 + 領域層」放同一 store（對齊實戰、求教學完整）。跨專案重用時應拆開**：連線層只管 status / channels / raw event 流；`sightingList`、`fetchWatchSightinges` 這類業務概念移到領域 store 消費事件（見 SKILL.md「傳輸層 vs 領域層」註）。
+> **此範例把「連線層 + 領域層」放同一 store（對齊實戰、求教學完整）。跨專案重用時應拆開**：連線層只管 status / channels / raw event 流；`sightingList`、`fetchWatchSightings` 這類業務概念移到領域 store 消費事件（見 SKILL.md「傳輸層 vs 領域層」註）。
 
 ```ts
 import { effectScope, type EffectScope } from 'vue'
@@ -95,7 +95,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   // --- 重連補抓：對所有訂閱中的資源重抓，補齊斷線期間漏掉的 ---
   async function refetchWatch(watchId: string) {
-    try { backfill(await fetchWatchSightinges(watchId)) }
+    try { backfill(await fetchWatchSightings(watchId)) }
     catch { /* 補抓失敗忽略，不影響後續即時事件 */ }
   }
   async function refetchActive() {
@@ -317,7 +317,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
 const store = useNotificationsStore()
 onMounted(async () => {
   store.subscribe(watchId)              // 加 channel 並（重）連
-  store.backfill(await fetchWatchSightinges(watchId))  // 首次進場打底（重連補抓由 store 自理）
+  store.backfill(await fetchWatchSightings(watchId))  // 首次進場打底（重連補抓由 store 自理）
 })
 // 【bug#3】不要呼叫 store.reset()——導航到另一個也用這個 store 的頁面時，
 // 新頁面的 setup 通常先於本頁的 unmount 執行，它可能已經訂閱好了；reset() 是
@@ -331,11 +331,11 @@ onBeforeUnmount(() => store.unsubscribe(watchId))   // 只退自己這份；stor
 ```ts
 let subscribed = new Set<string>()
 function syncSubscriptions(next: Set<string>) {
-  for (const id of subscribed) if (!next.has(id)) void store.unsubscribe(id)
-  for (const id of next) if (!subscribed.has(id)) void store.subscribe(id)
+  for (const id of subscribed) if (!next.has(id)) store.unsubscribe(id)
+  for (const id of next) if (!subscribed.has(id)) store.subscribe(id)
   subscribed = new Set(next)
 }
-onBeforeUnmount(() => { for (const id of subscribed) void store.unsubscribe(id) })
+onBeforeUnmount(() => { for (const id of subscribed) store.unsubscribe(id) })
 ```
 
 元件**只**呼叫 store 方法、讀 `store.status` / `store.sightingList`，不自己碰 EventSource；`store.reset()` 只給「確定沒有任何頁面在用」的場合呼叫（本 store 已經在登出時自己呼叫，見上方 store 範例末段，元件不需要也不應該再呼叫）。

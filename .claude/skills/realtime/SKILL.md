@@ -46,7 +46,7 @@ metadata:
 
 > 第 14 點接續 feature-to-api codegen 的發現：OpenAPI 對 SSE 的 `data` 多半給鬆散 `Record<string, never>`，**前端需手寫 discriminated union** 補語意（codegen 補不了）。詳見 `openapi-codegen.md` § 8 與本 skill `references/sse.md`。
 >
-> **傳輸層 vs 領域層要分開（第 1 點的延伸）**：連線 store 只負責「連線生命週期 + 狀態 + raw event 流」（領域無關）；業務清單與「收到事件 → REST 重抓 → upsert」的領域邏輯，理想上放**另一個領域 store** 消費事件。別把 `sightingList`、`fetchWatchSightinges` 這類業務概念塞進連線 store——那會讓「跨專案可重用的連線層」綁死在單一業務上。`references/sse.md` 的範例為求完整把兩者放同一 store（對齊實戰），跨專案重用時應拆開。
+> **傳輸層 vs 領域層要分開（第 1 點的延伸）**：連線 store 只負責「連線生命週期 + 狀態 + raw event 流」（領域無關）；業務清單與「收到事件 → REST 重抓 → upsert」的領域邏輯，理想上放**另一個領域 store** 消費事件。別把 `sightingList`、`fetchWatchSightings` 這類業務概念塞進連線 store——那會讓「跨專案可重用的連線層」綁死在單一業務上。`references/sse.md` 的範例為求完整把兩者放同一 store（對齊實戰），跨專案重用時應拆開。
 
 ## References
 
