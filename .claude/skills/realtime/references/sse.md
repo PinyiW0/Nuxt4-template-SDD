@@ -428,7 +428,7 @@ onMounted(() => {
 | 推播塞完整 model | payload 肥、與 backfill 兩套渲染路徑 | 事件只帶 id → REST 補整包 → upsert 去重 |
 | 盲目 push | 補抓與即時事件重複 → 畫面重複項 | 一律 `upsert by id` |
 | 每次訂閱都重連 | channels 沒變也斷線重連，畫面閃動 | `url === currentUrl && 在線` 則略過 |
-| 離場沒 cleanup | 連線洩漏、下個訂閱者收不到已變更的 channels | unmount 呼叫 `unsubscribe(channels)`（引用計數歸零才真正 close + 停 scope）；`reset()` 只留給登出等確定無人使用的時機 |
+| 離場沒 cleanup | 連線洩漏、下個訂閱者收不到已變更的 channels | unmount 對自己訂的每個 id 呼叫 `unsubscribe(watchId)`（單一 id，訂多個就逐一退；引用計數歸零才真正 close + 停 scope）；`reset()` 只留給登出等確定無人使用的時機 |
 | SSR 建連 | hydration 錯誤、重複連線 | `if (!import.meta.client) return` |
 
 ## Checklist
