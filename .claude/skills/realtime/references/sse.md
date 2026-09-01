@@ -275,17 +275,21 @@ export const useNotificationsStore = defineStore('notifications', () => {
     currentUrl = null
     if (reopenTimer) { clearTimeout(reopenTimer); reopenTimer = null }
     backoffMs = 500
+    // 與 currentUrl／backoffMs 同屬「這條連線」的狀態，一起歸零：close() 之後再連是
+    // 全新的一次，首個 connected 不該被當成重連而多打一輪 refetchActive()（頁面進場
+    // 自己會 backfill）。安全的前提是**手動 backoff 重連不經過 close()**——它走
+    // doOpenConnection 內的 connectionScope.stop()，所以「重連要補抓」的判斷不受影響。
+    hasConnectedOnce = false
     if (status.value !== 'error') status.value = 'closed'
   }
 
   // 完整重置：關連線 + 清所有資料殘留。只給「確定沒有任何頁面在用」的場合（登出）。
   // 【bug#3 修法】頁面 unmount 絕不呼叫這個——見下方「元件接法」。
   function reset() {
-    close()
+    close()                    // 連線與連線狀態（含 hasConnectedOnce）都由 close() 收
     sightingList.value = []
     errorList.value = []
     activeWatchIds.clear()
-    hasConnectedOnce = false
     status.value = 'idle'
   }
 
