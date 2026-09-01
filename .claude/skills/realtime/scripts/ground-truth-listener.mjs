@@ -29,6 +29,37 @@ const res = await fetch(url, { headers: { Accept: 'text/event-stream' } })
 console.log(`HTTP ${res.status}  content-type=${res.headers.get('content-type')}  x-accel-buffering=${res.headers.get('x-accel-buffering')}`)
 if (!res.ok || !res.body) { console.error('連線失敗：非 2xx 或無回應內容'); process.exit(1) }
 
+// 按 SSE **frame** 解析，不是按行：一個事件以空行（\n\n）結束，且同一事件可以有多行
+// data:，規格要求用 \n 串接後才是完整 payload。逐行 JSON.parse 會把多行 payload 拆碎、
+// 也會讓 event:／id: 與它的 data: 脫節——對一支 ground-truth 腳本來說，把真事件誤報成
+// 壞資料比沒有輸出更糟。
+function printFrame(frame) {
+  const fields = { event: undefined, id: undefined, retry: undefined }
+  const dataLines = []
+  const comments = []
+  for (const line of frame.split(/\r?\n/)) {
+    if (!line) continue
+    if (line.startsWith(':')) { comments.push(line.slice(1).trim()); continue }  // 註解行（常見的心跳寫法）
+    const colon = line.indexOf(':')
+    const name = colon === -1 ? line : line.slice(0, colon)
+    // 規格：欄位值只去掉冒號後的「一個」空白，不是全部 trim
+    const value = colon === -1 ? '' : line.slice(colon + 1).replace(/^ /, '')
+    if (name === 'data') dataLines.push(value)
+    else if (name in fields) fields[name] = value
+  }
+  if (comments.length) { console.log(el(), `: ${comments.join(' ')}`.slice(0, 120)); if (!dataLines.length) return }
+  if (!dataLines.length) return
+  const raw = dataLines.join('\n')   // 多行 data 依規格以 \n 串接
+  const tag = fields.event ? `(event:${fields.event})` : ''
+  try {
+    const e = JSON.parse(raw)
+    console.log(el(), tag, e.type, JSON.stringify(e.data).slice(0, 200))
+  }
+  catch {
+    console.log(el(), tag, '非 JSON payload:', raw.slice(0, 150))  // 具名事件（如 heartbeat）payload 常是純文字
+  }
+}
+
 const reader = res.body.getReader()
 const dec = new TextDecoder()
 let buf = ''
@@ -36,15 +67,8 @@ setTimeout(() => { console.log(el(), `${WATCH_SECONDS}s 觀察結束，連線仍
 while (true) {
   const { value, done } = await reader.read()
   if (done) { console.log(el(), '✗ 串流被關閉'); break }
-  buf += dec.decode(value, { stream: true })  // chunk 邊界不保證對齊換行，需累積後再切分
-  const lines = buf.split(/\r?\n/)  // 相容 CRLF，避免行尾殘留 \r 讓 JSON.parse 誤判
-  buf = lines.pop() ?? ''  // 最後一段可能是不完整的行，留到下個 chunk 補完
-  for (const line of lines) {
-    if (!line.trim()) continue
-    if (line.startsWith('data:')) {
-      try { const e = JSON.parse(line.slice(5).trimStart()); console.log(el(), e.type, JSON.stringify(e.data).slice(0, 200)) }
-      catch { console.log(el(), line.slice(0, 150)) }
-    }
-    else console.log(el(), line.slice(0, 100))   // 心跳註解等
-  }
+  buf += dec.decode(value, { stream: true })  // chunk 邊界不保證對齊 frame，需累積後再切分
+  const frames = buf.split(/\r?\n\r?\n/)   // 空行分隔 frame；相容 CRLF
+  buf = frames.pop() ?? ''                  // 最後一段可能是未收完的 frame，留到下個 chunk 補完
+  for (const frame of frames) if (frame.trim()) printFrame(frame)
 }
