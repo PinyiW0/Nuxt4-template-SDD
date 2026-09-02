@@ -36,7 +36,8 @@ USAGE
 
 # 用 printf 不用 echo：echo 對以 -n 開頭的字串在 dash/bash 會整段吞掉，
 # 而含反斜線的訊息在 dash/sh 會展開跳脫、bash 不會——跨 shell 分歧且靜默。
-# printf '%s\n' 三者一致。同一理由適用本檔所有寫 stderr 的地方。
+# printf '%s\n' 三者一致。**本檔所有輸出一律用 printf**，stdout 也不例外——
+# 政策寫成「只管 stderr」的話，掃描時就會照那個範圍 grep，然後漏掉 stdout（踩過）。
 die() { printf '%s\n' "$2" >&2; exit "$1"; }
 
 # 參數一律驗 numeric：since 會被當成 jq 參數、pr 會進 URL path，
@@ -122,7 +123,7 @@ request_review() {
 
   # mutation 成功但沒掛上 reviewer：不是可重試的錯誤，是要人去看的異常。
   [ -n "$out" ] || die 3 "mutation 成功但 reviewRequests 是空的——請人工到 PR 頁面確認 Copilot 是否可用。"
-  echo "已請 review：$out"
+  printf '%s\n' "已請 review：$out"
 }
 
 list_reviews() {
