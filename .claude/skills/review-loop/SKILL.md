@@ -80,15 +80,28 @@ disable-model-invocation: true
    紅燈修到綠才往下。這幾層不是可選的——`.husky/pre-push` 對 `app/`／`server/` 會跑 Docker production gate，不先跑就會在第 8 步 push 時才炸
 8. commit + push。分群與訊息照 `../commit/SKILL.md` 步驟 2–4（**跳過它的確認停點**，commit skill 已把本 skill 列入例外），**commitlint header ≤ 72 字元**。commit 指令要把分支驗證綁在同一條：`[ "$(git branch --show-current)" = "<branch>" ] && git commit …`。本輪無實際改動就跳過。
    **pre-push 紅燈 → 不進自動修迴圈**：本地 gate 綠、Docker prod gate 紅屬於「假設被證偽」，還原本輪改動、停下報告
-9. 逐則回覆，並把 comment id 寫進狀態檔的「已處理」。inline 用 `gh api repos/<o>/<r>/pulls/<N>/comments/<id>/replies`；suppressed／review 總結沒有 thread 可掛 → `gh pr comment <N>`。內容要能被第三者驗證（附 commit 對照、遠端實際內容或實測數據）
+9. 逐則回覆，並把 comment id 寫進狀態檔的「已處理」。內容要能被第三者驗證（附 commit 對照、遠端實際內容或實測數據）。
+
+   **先把回覆內容寫成檔案，再用 `--body-file` / `-F body=@` 送出**——兩個理由，都踩過：
+   - `gh pr comment <N>` **不帶 body 會進互動模式等你打字**（`gh` 自己的說明就這樣寫），無人值守時直接卡死
+   - 回覆常含反引號、巢狀引號與中文標點，用 inline `-f body='…'` 會被 shell 咬掉
+
+   ```sh
+   # inline 留言（有 comment id，回在原討論串）
+   gh api repos/<o>/<r>/pulls/<N>/comments/<id>/replies -F body=@<檔案>
+   # suppressed／review 總結（沒有 thread 可掛）
+   gh pr comment <N> --body-file <檔案>
+   ```
 10. `sh .claude/skills/review-loop/scripts/copilot.sh request <PR編號> <狀態檔快取的 botId>` 重新請 review
 11. 更新狀態檔（基準線、輪次、問題指紋、已處理 comment id），排下一輪
 
 ## 4. 輪詢驅動
 
-**主要方式**：由 `/loop 10m /review-loop` 驅動——`loop` skill 是本 harness 既有的定時機制。
+每輪最後用 `ScheduleWakeup` 自我排程（`delaySeconds` 取狀態檔的目前間隔），這是不依賴外部條件的路徑。
 
-在 `/loop` 情境下每輪最後用 `ScheduleWakeup`（`delaySeconds` 見狀態檔的目前間隔）排下一次。兩個限制要講明：
+若執行環境提供 `/loop`（Claude Code 內建的定時機制，**不是本 repo 的 skill**，`.claude/skills/` 底下沒有它），也可以用 `/loop 10m /review-loop` 驅動；沒有就純靠 `ScheduleWakeup`。不要把 `/loop` 當成前置條件。
+
+三個限制要講明：
 
 - `ScheduleWakeup` **只在主 session 有**，subagent 內沒有——別把排程動作派出去
 - `CronCreate` 會被 auto mode 權限分類器擋掉（實測），不要繞

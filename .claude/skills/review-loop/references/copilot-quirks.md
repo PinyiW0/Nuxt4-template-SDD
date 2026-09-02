@@ -59,7 +59,12 @@ review body 一定要讀完，不能只當摘要跳過。`copilot.sh reviews` �
 
 | 留言形態 | 回覆方式 |
 |---|---|
-| inline 留言（有 comment id） | `gh api repos/<o>/<r>/pulls/<N>/comments/<id>/replies -f body='…'`，回在原討論串 |
-| suppressed comment、review 總結 | 沒有 thread 可掛 → `gh pr comment <N> --body '…'` |
+| inline 留言（有 comment id） | `gh api repos/<o>/<r>/pulls/<N>/comments/<id>/replies -F body=@<檔案>`，回在原討論串 |
+| suppressed comment、review 總結 | 沒有 thread 可掛 → `gh pr comment <N> --body-file <檔案>` |
+
+**一律先把內容寫成檔案再送**，不要用 inline 的 `-f body='…'` / `--body '…'`：
+
+- `gh pr comment` 不帶 body 會進**互動模式等你打字**（`gh` 自己的說明就這麼寫），無人值守時直接卡死
+- 回覆常含反引號、巢狀引號與中文標點，inline 形式會被 shell 咬掉（實測撞過）
 
 回覆內容要能被第三者驗證：附 `commit_id` 對照、遠端實際檔案內容、或實測數據。判定為誤判時說清楚理由，不要只寫「已處理」。
