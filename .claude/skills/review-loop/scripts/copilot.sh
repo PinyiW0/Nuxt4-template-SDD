@@ -7,7 +7,7 @@
 #   1  執行失敗（環境、API、資料異常）。**可重試**——呼叫端記錄後排下一輪，
 #      絕不可當成「沒有新 review」。
 #   2  參數或用法錯誤。呼叫端寫錯了，重試無用。
-#   3  需人工介入（找不到 reviewer bot、撈到多個無法判斷、mutation 沒掛上 reviewer）。
+#   3  需人工介入（缺 gh／jq、找不到 reviewer bot、撈到多個無法判斷、mutation 沒掛上 reviewer）。
 #
 # 為什麼不用 pipefail：非 POSIX，dash 會在 set 那行就 Illegal option，
 # 而本檔一律以 `sh` 呼叫（對齊 ship/scripts/ledger.sh）。沒有 pipefail 時管線的結束碼
@@ -39,6 +39,13 @@ USAGE
 # printf '%s\n' 三者一致。**本檔所有輸出一律用 printf**，stdout 也不例外——
 # 政策寫成「只管 stderr」的話，掃描時就會照那個範圍 grep，然後漏掉 stdout（踩過）。
 die() { printf '%s\n' "$2" >&2; exit "$1"; }
+
+# 缺工具要歸「需人工介入」，不是「可重試」。實測：沒裝 jq 時 `printf | jq` 的失敗會被
+# list_reviews 的 if ! 捕捉成 die 1「可重試」，訊息還寫「回應不是預期的陣列」——原因誤導，
+# 而且迴圈會照「可重試」無限空轉，但裝 jq 不是重試能解決的事。缺 gh 同理。
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die 3 "找不到 $1。$2"
+}
 
 # 參數一律驗 numeric：since 會被當成 jq 參數、pr 會進 URL path，
 # 而 since 的來源是狀態檔（內容由 GitHub 上的外部文字輾轉寫入），不驗就是注入面。
@@ -128,6 +135,8 @@ request_review() {
 
 list_reviews() {
   pr="$1"; since="${2:-0}"
+  # 只有本子命令需要 jq 二進位；bot-id / request 用的 `gh --jq` 是 gh 內建。
+  require_cmd jq "本子命令要用它合併 --paginate 的分頁輸出。請先安裝（brew install jq／apt install jq）。"
   require_num "PR 編號" "$pr"
   require_num "since-review-id" "$since"
   slug="$(repo_slug)" || exit $?
@@ -151,6 +160,9 @@ list_reviews() {
     die 1 "review 資料解析失敗（回應不是預期的陣列）。可重試。"
   fi
 }
+
+# 三個子命令都要 gh。放在 dispatch 前，缺了就直接 3，不會走到被誤判成「可重試」的路徑。
+require_cmd gh "本腳本全部操作都透過它。請先安裝並 gh auth login。"
 
 case "${1:-}" in
   bot-id)   [ $# -eq 1 ] || die 2 "bot-id 不吃參數。"; bot_id ;;
