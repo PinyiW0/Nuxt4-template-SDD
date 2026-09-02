@@ -98,9 +98,14 @@ disable-model-invocation: true
 
 ## 4. 輪詢驅動
 
-每輪最後用 `ScheduleWakeup` 自我排程（`delaySeconds` 取狀態檔的目前間隔），這是不依賴外部條件的路徑。
+**二選一，不要兩個都用**——兩個都排會變成一輪跑兩次。
 
-若執行環境提供 `/loop`（Claude Code 內建的定時機制，**不是本 repo 的 skill**，`.claude/skills/` 底下沒有它），也可以用 `/loop 10m /review-loop` 驅動；沒有就純靠 `ScheduleWakeup`。不要把 `/loop` 當成前置條件。
+| 環境 | 用哪個 |
+|---|---|
+| 有 `/loop` | `/loop 10m /review-loop` 驅動，**不要再自己排 `ScheduleWakeup`** |
+| 沒有 `/loop` | 每輪最後用 `ScheduleWakeup` 自我排程（`delaySeconds` 取狀態檔的目前間隔） |
+
+`/loop` 是 Claude Code 內建，**不是本 repo 的 skill**（`.claude/skills/` 底下沒有它），所以不能當成前置條件。沒有它時 `ScheduleWakeup` 這條路自己就走得通。
 
 三個限制要講明：
 

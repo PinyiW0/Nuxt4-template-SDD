@@ -71,6 +71,8 @@ repo_slug() {
 # 所以比對 login 而非硬編字串。但只用 contains("copilot") 太寬，會撈到 copilot-swe-agent
 # 這類「另一個 copilot bot」——請錯 bot 一樣回成功，然後 review 永遠不會來。
 # bot_id 與 list_reviews 一律共用下面這條判準：type 是 Bot ＋ login 命中 copilot.*review。
+# 查 review 用 last:50 而非 first:50——要的是「近期有沒有這個 bot」，而 review 數會被本工作流
+# 自己催高（每輪一則 Copilot review 加一則我方回覆），取最舊的 50 筆遲早會漏掉 bot。
 # （comments 端點的短 login "Copilot" 不適用此式，本腳本沒有用到那個端點。）
 bot_id() {
   slug="$(repo_slug)" || exit $?
@@ -80,7 +82,7 @@ bot_id() {
     query($owner:String!,$name:String!){
       repository(owner:$owner,name:$name){
         pullRequests(last:50,states:[OPEN,MERGED,CLOSED]){
-          nodes{ reviews(first:50){ nodes{ author{ login __typename ... on Bot { id } } } } }
+          nodes{ reviews(last:50){ nodes{ author{ login __typename ... on Bot { id } } } } }   # last 不是 first：要最新的
         }
       }
     }' --jq '
