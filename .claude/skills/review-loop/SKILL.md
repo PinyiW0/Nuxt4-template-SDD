@@ -65,8 +65,11 @@ disable-model-invocation: true
    | 2 | 參數錯誤 | 停下報告，重試無用 |
    | 3 | 需人工介入（找不到／多個 reviewer bot） | 停下報告，重試無用 |
 2. 沒有新 review → 更新靜默計數、排下一輪、安靜結束
-3. **逐則**（不是整輪）判斷錨點：某則的 `commit_id` 不等於目前 HEAD 時，先 `git fetch origin <branch>`再用 `git show origin/<branch>:<path>` 讀遠端實際內容確認問題是否已修掉。
-   （`git push` 本身就會更新 `refs/remotes/origin/<branch>`——reflog 會記成 `update by push`——所以同一 session 內不 fetch 也是準的；但換機器、換 clone、或並行 session 推過時 ref 會過期，fetch 一次的成本遠低於誤判。**不要改用 `git show HEAD:<path>`**：這一步問的是「reviewer 現在看到什麼」，那是遠端狀態，HEAD 是本地狀態，兩者只是碰巧相同。）已修掉 → 該則只列進第 8 步的回覆清單，**不重改也不重 commit**，且**不計入煞車計數**；其餘各則照 4–7 步走。一輪常同時收到多則 review，整輪跳過會漏掉新問題
+3. **逐則**（不是整輪）判斷錨點：某則的 `commit_id` 不等於目前 HEAD 時，**一律先 `git fetch origin <branch>`**，再用 `git show origin/<branch>:<path>` 讀遠端實際內容確認問題是否已修掉。已修掉 → 該則只列進第 9 步的回覆清單，**不重改也不重 commit**，且**不計入煞車計數**；其餘各則照 4–7 步走。一輪常同時收到多則 review，整輪跳過會漏掉新問題
+
+   **fetch 不可省。** 自己剛 push 過的 `origin/<branch>` 確實是新的（git 會把該次更新記成 `update by push`，拿空 repo 就能複現），但別人或並行 session 推過、換 clone、換機器時就會過期——而這一步判錯的代價是把「還沒修」當成「已修」然後只回覆不修。fetch 一次的成本遠低於此。
+
+   **也不要改用 `git show HEAD:<path>`。** 這一步問的是「reviewer 現在看到什麼」＝遠端狀態；`HEAD` 是本地狀態，兩者只在自己剛 push 後碰巧相同。用 HEAD 會讓「本地已改但還沒 push」誤判成已修好。
 4. 抓留言：派 subagent 讀 `../pr-feedback/SKILL.md` 步驟 1–2，**另外**解析 review body 的 `Suppressed comments` 區塊（`pr-feedback` 沒涵蓋，只讀 inline 會整輪漏掉）。**跳過狀態檔「已處理 comment id」裡的留言**——`pr-feedback` 明說它不記帳，不自己記就會每輪重新回覆刷版
 5. 濾噪音與分類：照 `../pr-feedback/SKILL.md` 步驟 3–4。再套鐵律 2、3、4 篩一次，被篩掉的進「待使用者決定」
 6. 修「必修」。逐則先讀檔驗證指控是否成立再動手——不成立就歸「誤判」並在回覆說明理由。能實測就實測（起假伺服器、跑腳本），比推理可靠
