@@ -34,7 +34,10 @@ usage() {
 USAGE
 }
 
-die() { echo "$2" >&2; exit "$1"; }
+# 用 printf 不用 echo：echo 對以 -n 開頭的字串在 dash/bash 會整段吞掉，
+# 而含反斜線的訊息在 dash/sh 會展開跳脫、bash 不會——跨 shell 分歧且靜默。
+# printf '%s\n' 三者一致。同一理由適用本檔所有寫 stderr 的地方。
+die() { printf '%s\n' "$2" >&2; exit "$1"; }
 
 # 參數一律驗 numeric：since 會被當成 jq 參數、pr 會進 URL path，
 # 而 since 的來源是狀態檔（內容由 GitHub 上的外部文字輾轉寫入），不驗就是注入面。
@@ -80,12 +83,12 @@ bot_id() {
   fi
 
   if [ -z "$ids" ]; then
-    echo "找不到 Copilot reviewer 的 bot node ID：本 repo 近 50 個 PR 都沒有它的 review。" >&2
-    echo "先讓 Copilot review 過任一個 PR——開 PR 時帶 REST requested_reviewers 可觸發初次 review" >&2
+    printf '%s\n' "找不到 Copilot reviewer 的 bot node ID：本 repo 近 50 個 PR 都沒有它的 review。" >&2
+    printf '%s\n' "先讓 Copilot review 過任一個 PR——開 PR 時帶 REST requested_reviewers 可觸發初次 review" >&2
     die 3 "（見 references/copilot-quirks.md 第 1 節），之後 re-request 才有 id 可用。"
   fi
   if [ "$(printf '%s\n' "$ids" | wc -l | tr -d ' ')" -gt 1 ]; then
-    echo "撈到多個 copilot review bot，無法判斷該請哪一個：" >&2
+    printf '%s\n' "撈到多個 copilot review bot，無法判斷該請哪一個：" >&2
     printf '%s\n' "$ids" | sed 's/^/  /' >&2
     die 3 "請人工指定：copilot.sh request <PR編號> <botId>"
   fi
