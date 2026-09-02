@@ -4,7 +4,12 @@
 
 ## 1. re-request 必須走 GraphQL
 
-REST `POST /repos/{o}/{r}/pulls/{N}/requested_reviewers -f 'reviewers[]=copilot-pull-request-reviewer[bot]'` 對 **re-request 無效**：回 200、回傳完整 PR 物件，但 `requested_reviewers` 始終是空陣列，Copilot 也不會來。實測靜置兩小時零反應；改用 GraphQL 後 10 分鐘內就收到 review。
+REST 的 `POST /repos/{o}/{r}/pulls/{N}/requested_reviewers` 端點對 **re-request 無效**：回 200、回傳完整 PR 物件，但 `requested_reviewers` 始終是空陣列，Copilot 也不會來。實測靜置兩小時零反應；改用 GraphQL 後 10 分鐘內就收到 review。實跑的指令是（`-f` 是 `gh api` 的旗標，不是 endpoint 路徑的一部分）：
+
+```bash
+gh api "repos/{o}/{r}/pulls/{N}/requested_reviewers" \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+```
 
 GitHub 對認不得的 reviewer 是**靜默忽略**，不報錯——所以只看 HTTP 狀態碼會誤判成功。
 
