@@ -211,6 +211,8 @@ gh pr view --web                   # 開瀏覽器
 
   前提：開 PR 者有 Copilot seat 且 org policy 啟用 code review；若 repo ruleset 已開「Automatically request Copilot code review」則自動指派，無需帶此參數。
 
+  **這行只涵蓋初次請求**：第一輪 review 結束後 ruleset 不會再自動觸發，這個 REST 端點也請不動（回 200、`requested_reviewers` 空、Copilot 不會來）。要 re-request 得走 GraphQL 的 `requestReviews(botIds:)`——見 `../review-loop/references/copilot-quirks.md` 第 1 節。
+
 ### 7. 收尾
 
 回報 PR URL。若為本模板衍生專案，另提醒一句：PR 會觸發 CI —— `pull_request.yml` 跑 build + eslint；若改到 `app/`、`server/` 還會跑 `sdd-review.yml` 的 AI 語意審查。非模板 repo（無這些 workflow）就不提。

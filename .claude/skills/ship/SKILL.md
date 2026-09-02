@@ -347,8 +347,16 @@ gh pr view --web
 
 **Copilot reviewer 那行可能「成功但沒效果」**：repo 若已在 ruleset 開了自動 Copilot review，
 這個 API 會回 200、`requested_reviewers` 卻仍是空陣列，而 Copilot 照樣會來留言。
-**這不是 bug，不用排查**——查一下同 repo 舊 PR 的 `reviewRequests` 是不是也都空的就知道了。
+**初次開 PR 時這不是 bug，不用排查**——查一下同 repo 舊 PR 的 `reviewRequests` 是不是也都空的就知道了。
 指令保留是為了沒開自動 review 的 repo（例如團隊剛建的），在那裡它是必要的。
+
+**但這只涵蓋初次請求。** 第一輪 review 結束後 ruleset 不會再自動觸發，這個 REST 端點也請不動
+（同樣回 200、陣列空，而 Copilot 這次真的不會來）。**要 re-request 必須走 GraphQL 的
+`requestReviews(botIds:)`** —— 見 `../review-loop/references/copilot-quirks.md` 第 1 節，
+或直接用 `sh .claude/skills/review-loop/scripts/copilot.sh request <PR編號>`（指令用 repo root 路徑，與本檔的 `ledger.sh` 一致；上一行的文件連結才用相對路徑）。
+
+> 收尾提示：PR 開完後可用 **`/review-loop`** 自動跟催 Copilot review——輪詢、修「必修」、
+> 回覆留言、重新請 review，直到共識才回報。它不會 merge。
 
 **暫存檔一律寫在 `.claude/tmp/ship/`**，不要寫在 repo 根目錄——那裡沒被 gitignore，會被算進 AC 指紋，
 也可能被 `git add` 帶進 commit。

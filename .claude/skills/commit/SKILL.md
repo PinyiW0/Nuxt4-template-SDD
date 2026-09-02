@@ -10,7 +10,7 @@ argument-hint: "[範圍提示或 message 補充(選填)]"
 
 **核心規則：永遠先列出「分群 + 訊息草案」給使用者確認，得到同意後才 `git commit`。** 不先斬後奏。
 
-> **預設是停下來等確認**（上一行那條規則），只有被 `/ship` 編排時例外：草案交回編排層，由它在唯一停點一併確認——本 skill 仍不自己 `git commit`。合約見 [../ship/references/orchestrated-mode.md](../ship/references/orchestrated-mode.md)。
+> **預設是停下來等確認**（上一行那條規則），只有兩種情況例外：被 `/ship` 編排時草案交回編排層，由它在唯一停點一併確認（本 skill 仍不自己 `git commit`，合約見 [../ship/references/orchestrated-mode.md](../ship/references/orchestrated-mode.md)）；以及被 `/review-loop` 引用步驟 2–4 的分群與訊息規則時——那是無人值守的迴圈，停下來等確認等於卡死，但它只取分群與訊息規則，commit 由它自己執行並自帶分支驗證。
 
 ## 為什麼用 SDD 階段分群，而不是用 scope
 

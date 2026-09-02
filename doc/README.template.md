@@ -145,6 +145,7 @@ app/pages · components · layouts · stores   ← 為通過合約而生
 
 | 指令 | 用途 | 前置條件 |
 |------|------|----------|
+| `/sharpen` | 粗略概念 → 盲點診斷 → 精準 prompt ＋ 執行建議 | 無 |
 | `/new-issue` | 建 issue + 綁定 linked 分支 | gh 已認證 |
 | `/sdd-status` | 唯讀盤點 SDD 七站進度＋建議下一步 | 無 |
 | `/feature-to-flow` | Feature → `.flow.md` | `.feature` 已放入 `spec/gherkin-feature/` |
@@ -158,8 +159,12 @@ app/pages · components · layouts · stores   ← 為通過合約而生
 | `/sdd-review` | 審查 diff 的框架語意與邏輯安全 | 有 `.vue`／store／server 改動 |
 | `/nuxt-ui` | 載入 NuxtUI 官方文檔再動手，不憑記憶猜 API | 無 |
 | `/verify-ac` | 對照 issue 驗收標準逐條驗收，未過自動修（上限 2 輪），結果勾回 issue | issue 有 `## 驗收標準`、編號可解析 |
+| `/ship` | **收尾一條龍**：六層關卡（紅燈自動修）→ AC 驗收 → commit → PR，只停一次 | 有改動、不在 main |
 | `/commit` | 依 SDD 階段分群產生 commit | 有改動 |
 | `/pr` | push → PR 草案 → 建 PR | 已 commit、不在 main |
+| `/pr-feedback` | 爬 PR review 留言，分類報告後就地改（不 commit／push／發言） | PR 已開 |
+| `/review-loop` | push 後自動請 Copilot review、輪詢、修「必修」、回覆，直到共識才通知（不 merge） | PR 已開、工作區乾淨 |
+| `/code-review` | 審本地 diff 抓正確性／重用／簡化／效能 bug（Claude Code 內建） | 有未提交或未合併的改動 |
 
 另有兩類非主線能力：`/requirement-breakdown` 走**需求拆解線**（rough 需求 → user story + 時間線 + 工種歸屬），與 SDD 開發線不耦合；`vue`／`nuxt`／`pinia`／`realtime`／`streaming` 是知識型 skill，改到對應檔案時自動載入，負責裁決框架語意（例如 Pinia auto-import、Nuxt 4 與舊版寫法的落差）。
 
