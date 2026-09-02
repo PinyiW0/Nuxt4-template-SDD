@@ -1,7 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Copilot review 的三個 gh 操作。抽成腳本的理由：re-request 要先解出兩個 node ID，
 # 手打三次 gh 容易出錯；而且 REST 版本會「回 200 但無效」，錯了不會報錯只會靜默不動。
-set -euo pipefail
+set -eu   # 刻意不用 pipefail：非 POSIX，dash 會在這行就 Illegal option。
+          # 本檔一律以 `sh` 呼叫（對齊 ship/scripts/ledger.sh 的慣例），所以只能用 POSIX 語法。
+          # 管線失敗的偵測改由下游 jq 的型別檢查負責（見 list_reviews）。
 
 usage() {
   cat <<'USAGE'
@@ -42,7 +44,7 @@ repo_slug() { gh repo view --json nameWithOwner -q .nameWithOwner; }
 # bot_id 與 list_reviews 一律共用下面這條判準：type 是 Bot ＋ login 命中 copilot.*review。
 # （comments 端點的短 login "Copilot" 不適用此式，本腳本沒有用到那個端點。）
 bot_id() {
-  local slug owner name ids
+  # 無 local（非 POSIX）；本檔自包含，變數污染可接受
   slug="$(repo_slug)"; owner="${slug%%/*}"; name="${slug##*/}"
   ids="$(gh api graphql -f owner="$owner" -f name="$name" -f query='
     query($owner:String!,$name:String!){
@@ -72,7 +74,7 @@ bot_id() {
 }
 
 request_review() {
-  local pr="$1" bot="${2:-}" pr_id
+  pr="$1"; bot="${2:-}"
   require_num "PR 編號" "$pr"
   pr_id="$(gh pr view "$pr" --json id -q .id)"
   [ -n "$bot" ] || bot="$(bot_id)"
@@ -90,7 +92,7 @@ request_review() {
 }
 
 list_reviews() {
-  local pr="$1" since="${2:-0}" slug
+  pr="$1"; since="${2:-0}"
   require_num "PR 編號" "$pr"
   require_num "since-review-id" "$since"
   slug="$(repo_slug)"
