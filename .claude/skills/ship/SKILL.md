@@ -353,7 +353,7 @@ gh pr view --web
 **但這只涵蓋初次請求。** 第一輪 review 結束後 ruleset 不會再自動觸發，這個 REST 端點也請不動
 （同樣回 200、陣列空，而 Copilot 這次真的不會來）。**要 re-request 必須走 GraphQL 的
 `requestReviews(botIds:)`** —— 見 `../review-loop/references/copilot-quirks.md` 第 1 節，
-或直接用 `../review-loop/scripts/copilot.sh request <PR編號>`。
+或直接用 `sh .claude/skills/review-loop/scripts/copilot.sh request <PR編號>`（指令用 repo root 路徑，與本檔的 `ledger.sh` 一致；上一行的文件連結才用相對路徑）。
 
 > 收尾提示：PR 開完後可用 **`/review-loop`** 自動跟催 Copilot review——輪詢、修「必修」、
 > 回覆留言、重新請 review，直到共識才回報。它不會 merge。

@@ -11,7 +11,7 @@ GitHub 對認不得的 reviewer 是**靜默忽略**，不報錯——所以只�
 有效做法是 `requestReviews` mutation 的 `botIds`（REST 只認 user／team，這是它失效的原因）：
 
 ```bash
-.claude/skills/review-loop/scripts/copilot.sh request <PR編號>
+sh .claude/skills/review-loop/scripts/copilot.sh request <PR編號>
 ```
 
 bot node ID 由 `copilot.sh bot-id` 解出：掃 repo 近 50 個 PR 的 review 作者，取 `__typename == "Bot"` 且 login 命中 `copilot.*review` 的，**去重後必須唯一**——撈到多個不同 id 就報錯要人工指定，不猜（請錯 bot 一樣會回成功，然後 review 永遠不會來）。
