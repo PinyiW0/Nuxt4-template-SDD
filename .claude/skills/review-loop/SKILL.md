@@ -46,7 +46,10 @@ disable-model-invocation: true
 ## 2. 起手
 
 1. `git push`（PR 已存在，**不要**照 `../pr/SKILL.md` 步驟 6——那步含 `gh pr create` 與開瀏覽器）。被拒（non-fast-forward）→ 停下引導 `git pull --rebase`，**絕不 `--force`**
-2. **取基準線初值**：`sh .claude/skills/review-loop/scripts/copilot.sh reviews <PR編號>` 取最大 `id`（無 review 則 0）。不設初值就會在第一輪把 PR 上所有歷史 review 全部重跑一次
+2. **取基準線初值**：`sh .claude/skills/review-loop/scripts/copilot.sh reviews <PR編號>`，取**錨在「非目前 HEAD」的 review 中的最大 `id`**（都沒有則 0）。
+   不設初值會在第一輪把所有歷史 review 重跑一次；但**不能單純取最大 id**——正常工作流是「開 PR（`/pr` 順手請了 review）→ 才啟動迴圈」，
+   那時第一則 review 已經到了且錨在目前 HEAD，取最大 id 會把它整個吞掉，迴圈開場就漏掉唯一該處理的東西。
+   錨在目前 HEAD 的 review 一律視為待處理
 3. `sh .claude/skills/review-loop/scripts/copilot.sh request <PR編號>` 請 review
 4. 建狀態檔（格式見末節），並排下一輪
 

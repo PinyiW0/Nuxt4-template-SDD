@@ -17,8 +17,9 @@ usage() {
       列出 Copilot 的 review（JSON 陣列，含 body 與 commit_id）。
       給了 since-review-id 就只列 id 大於它的。
 
-結束碼：0 成功／1 執行失敗／2 參數錯誤。
-輸出保證是 JSON 陣列；非 0 結束時一律不得當成「沒有新 review」。
+結束碼：0 成功／非 0 失敗（2 = 參數錯誤）。
+各子命令輸出不同：bot-id 是一行 node ID 字串、request 是一行提示文字、
+只有 reviews 是 JSON 陣列。非 0 結束時一律不得當成「沒有新 review」。
 USAGE
 }
 
@@ -32,9 +33,14 @@ require_num() {
 
 repo_slug() { gh repo view --json nameWithOwner -q .nameWithOwner; }
 
-# Copilot 在不同端點有三種 login（Copilot / copilot-pull-request-reviewer / …[bot]），
-# 所以比對 login 而非硬編字串；但要夠精確才不會撈到 copilot-swe-agent 這類「另一個 copilot bot」
-# ——請錯 bot 一樣會回成功，然後 review 永遠不會來。撈到多個不同 id 就報錯，不猜。
+# reviewer bot 的 login 隨端點而異（實測 2026-09-02）：
+#   GraphQL review author      → copilot-pull-request-reviewer
+#   REST /pulls/N/reviews      → copilot-pull-request-reviewer[bot]
+#   REST /pulls/N/comments     → Copilot
+# 所以比對 login 而非硬編字串。但只用 contains("copilot") 太寬，會撈到 copilot-swe-agent
+# 這類「另一個 copilot bot」——請錯 bot 一樣回成功，然後 review 永遠不會來。
+# bot_id 與 list_reviews 一律共用下面這條判準：type 是 Bot ＋ login 命中 copilot.*review。
+# （comments 端點的短 login "Copilot" 不適用此式，本腳本沒有用到那個端點。）
 bot_id() {
   local slug owner name ids
   slug="$(repo_slug)"; owner="${slug%%/*}"; name="${slug##*/}"
@@ -58,7 +64,7 @@ bot_id() {
   fi
   if [ "$(printf '%s\n' "$ids" | wc -l | tr -d ' ')" -gt 1 ]; then
     echo "撈到多個 copilot review bot，無法判斷該請哪一個：" >&2
-    printf '  %s\n' $ids >&2
+    printf '%s\n' "$ids" | sed 's/^/  /' >&2
     echo "請人工指定：copilot.sh request <PR編號> <botId>" >&2
     exit 1
   fi
@@ -95,7 +101,7 @@ list_reviews() {
         [ .[]
           | if type == "array" then . else error("GitHub API 回傳非陣列：" + tostring) end
           | .[]
-          | select((.user.login | ascii_downcase | contains("copilot")) and .id > $since)
+          | select(.user.type == "Bot" and (.user.login | ascii_downcase | test("copilot.*review")) and .id > $since)
           | {id, state, submitted_at, commit_id, body} ]'
 }
 
