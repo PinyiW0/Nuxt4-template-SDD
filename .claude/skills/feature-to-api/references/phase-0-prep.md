@@ -227,7 +227,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
    - □ 未自創第三種包裝（如 `{ status, data, meta }`）；envelope 模式判定已寫入 `response_conventions`
    - □ HTTP code 對齊 spec
    - □ 若偵測到角色分層，`rbac` 區塊已寫入且涵蓋所有角色限制端點（見 rbac-scaffold.md §2）
-7. **依「輸出格式：路由規劃」輸出對照表後立即停止回應，等使用者回覆 OK／調整；未確認不得進 Phase 1**
+7. **依「輸出格式：路由規劃」輸出對照表後立即停止回應，等使用者回覆 OK／調整；未確認不得進 Phase 1**（本模式的型別檔與 `spec/report/route-map.yaml` 在前面步驟已寫入磁碟，本步只輸出對照表、不再寫檔；使用者要求調整時直接修改 `spec/report/route-map.yaml` 後再進 Phase 1。首次建置無既有檔可覆蓋，故不像 Sync 模式延後落檔）
 
 ---
 
@@ -291,7 +291,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 
    流程與輸出見 [phase-0-sync.md 步驟 7.6](phase-0-sync.md#步驟-76孤兒偵測反向-audit-必跑)。產出寫入新 `sync-report.md`（或全量模式下的 `initial-report.md`）的「🗑️ 孤兒清單」段。
 
-8. **依「輸出格式：路由規劃」輸出對照表（含孤兒清單，若有）後立即停止回應，等使用者回覆 OK／調整；未確認不得進 Phase 1**
+8. **依「輸出格式：路由規劃」輸出對照表（含孤兒清單，若有）後立即停止回應，等使用者回覆 OK／調整；未確認不得進 Phase 1**（本模式的型別檔與 `spec/report/route-map.yaml` 在前面步驟已寫入磁碟，本步只輸出對照表、不再寫檔；使用者要求調整時直接修改 `spec/report/route-map.yaml` 後再進 Phase 1。首次建置無既有檔可覆蓋，故不像 Sync 模式延後落檔）
 
 ---
 
