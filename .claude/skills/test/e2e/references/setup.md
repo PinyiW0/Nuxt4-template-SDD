@@ -113,19 +113,58 @@ export default defineConfig({
 
 讓每個 spec 在 `test.beforeEach` 重設 mock 資料，確保測試獨立可執行。
 
+body 可選 `{ empty?: string[] }`：`empty` 內列出的集合，重設回初始值後**再清空**。
+空狀態 Scenario 中沒有刪除端點的資源，靠這條通道構造初始狀態，優於憑空新增業務刪除 API；
+也順帶解掉種子與建立類 Scenario 撞號——先清空集合再照 flow 原字面值建立，不必改名遷就種子。
+
 ```typescript
 // server/api/__test__/reset.post.ts
 import type { H3Event } from 'h3'
-import { resetMockData } from '~/server/mock/data'
+import { z } from 'zod'
+// ⚠️ 用 ~~（root alias）不用 ~：server 端的 ~ 對應 app/，~/server/... 解析不到（issue #137 實測）
+import { resetMockData } from '~~/server/mock/data'
 
-export default defineEventHandler(async (_event: H3Event) => {
-  resetMockData()
+// 集合名白名單：z.enum 只認真實存在的 mock 集合名，任意鍵（含 __proto__）一律 400。
+// notes／tags 為示意集合名，依專案實際 mock store 名稱調整（不要照抄成真實端點名）。
+const resetBodySchema = z.object({
+  empty: z.array(z.enum(['notes', 'tags'])).optional(),
+})
+
+// 測試專用端點，僅 dev 模式存在；production 建置一律 404，不隨 app 上生產
+export default defineEventHandler(async (event: H3Event) => {
+  if (!import.meta.dev)
+    throw createError({ statusCode: 404 })
+
+  const body = await readBody(event).catch(() => undefined)
+  const parsed = resetBodySchema.safeParse(body ?? {})
+  if (!parsed.success)
+    throw createError({ statusCode: 400, statusMessage: '輸入格式錯誤' })
+
+  resetMockData({ empty: parsed.data.empty })
   return { ok: true }
 })
 ```
 
-> 若 `server/mock/data/index.ts` 尚無 `resetMockData()`，需新增。
-> 此函式將所有 mock store 重設為初始值（深拷貝原始資料）。
+> 若 `server/mock/data/index.ts` 尚無 `resetMockData()`，需新增，並支援 `{ empty?: string[] }`：
+>
+> ```typescript
+> // server/mock/data/index.ts（示意）
+> export function resetMockData(options?: { empty?: string[] }) {
+>   // 先深拷貝回初始資料，避免前次測試殘留污染
+>   mockNotes.length = 0
+>   mockNotes.push(...structuredClone(initialNotes))
+>   mockTags.length = 0
+>   mockTags.push(...structuredClone(initialTags))
+>
+>   // 空狀態 Scenario 用：初始化之後再清空指定集合
+>   for (const name of options?.empty ?? []) {
+>     if (name === 'notes')
+>       mockNotes.length = 0
+>     if (name === 'tags')
+>       mockTags.length = 0
+>   }
+> }
+> ```
 
 ### Step 5：建立 helpers
 
@@ -137,6 +176,11 @@ export default defineEventHandler(async (_event: H3Event) => {
 // test/e2e/helpers/actions.ts
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
+import { matchesRoutePattern } from './route-match'
+
+// 送出鈕文案：提到 module 層（不寫在 login() 內）——inline regex literal 每次呼叫都重新編譯，
+// 觸發 eslint e18e/prefer-static-regex
+const LOGIN_BUTTON = /登入/
 
 /**
  * 登入操作（對應 _common.flow.md「{role} "{account}" 已登入」）
@@ -145,16 +189,21 @@ import { expect } from '@playwright/test'
  * label／按鈕文案依該專案 login 頁調整——UI 側範本見 feature-to-ui/references/page-builder.md「登入表單」。
  *
  * ⚠️ getByLabel 用 `exact: true` 不用 regex：Playwright 的 getByLabel 對**任何**帶 aria-label 的元素
- * 都會回傳該值（不限 form control）。密碼欄內的「顯示/隱藏密碼」切換鈕 aria-label 含「密碼」，
- * 用 /密碼/ 會同時命中 input 與該按鈕 → strict mode violation（實測 count=2）。exact 匹配可避開；
+ * 都會回傳該值（不限 form control）。密碼欄內顯示／隱藏密碼的切換鈕 aria-label 不含欄位名
+ * （page-builder 範本已改成「顯示」／「隱藏」，不再是「顯示密碼」／「隱藏密碼」），故不會與
+ * 欄位本身的 label 撞名；exact: true 仍保留（防未來欄位名剛好是切換鈕文案的子字串），但非必要。
  * UFormField required 的 `*` 是 CSS pseudo，不計入 accessible name，故 exact 安全。
+ *
+ * ⚠️ 離開判斷用 `matchesRoutePattern`（見 `route-match.ts`）不用 `startsWith('/login')`：
+ * startsWith 是字面前綴比對，會誤中同前綴的兄弟路由（如 `/login-recovery`），
+ * 導致登入後仍被判定「還在 login 頁」而卡住等待（v2 bug，issue #137）。
  */
 export async function login(page: Page, account: string, password: string) {
   await page.goto('/login', { waitUntil: 'networkidle' })
   await page.getByLabel('帳號', { exact: true }).fill(account)
   await page.getByLabel('密碼', { exact: true }).fill(password)
-  await page.getByRole('button', { name: /登入/ }).click()
-  await page.waitForURL(url => !url.pathname.startsWith('/login'))
+  await page.getByRole('button', { name: LOGIN_BUTTON }).click()
+  await page.waitForURL(url => !matchesRoutePattern('/login', url.pathname))
 }
 
 /** USelect 操作：click 打開 → 選擇 option（testId 為 flow 授權的 fallback testid） */
@@ -172,9 +221,38 @@ export async function confirmDelete(page: Page) {
   await page.getByTestId('confirm-ok').click()
 }
 
-/** 重設 mock 資料到初始全集（打 /api/__test__/reset 端點），spec 於 test.beforeEach 呼叫確保測試獨立 */
-export async function resetMockData(page: Page) {
-  await page.request.post('/api/__test__/reset')
+/**
+ * 重設 mock 資料到初始全集（打 /api/__test__/reset 端點），spec 於 test.beforeEach 呼叫確保測試獨立。
+ * `empty` 透傳給端點：列出的集合重設後再清空，供「空狀態」Scenario 構造初始狀態（見 Step 4）。
+ */
+export async function resetMockData(page: Page, options?: { empty?: string[] }) {
+  await page.request.post('/api/__test__/reset', { data: options })
+}
+```
+
+#### route-match.ts
+
+路由 pattern（含 `:param`）與真實路徑的比對 helper。抽出獨立檔案，`login`（離開 `/login` 判斷）與
+`01-auth-guard.spec.ts`（PUBLIC_PAGES／PROTECTED_PAGES 比對）共用，避免各自重寫一份 `startsWith` 誤判。
+
+```typescript
+// test/e2e/helpers/route-match.ts
+/**
+ * 路徑是否命中路由 pattern：pattern 與 path 各自以 `/` 切段，段數不同不命中，
+ * `:param` 段吃任意非空值，其他段逐字相等。
+ *
+ * ⚠️ 不用 `startsWith` 或字面值比對：
+ * - pattern 含 `:param` 時，字面值（如 `/users/:id`）永遠比不中真實路徑（如 `/users/42`）。
+ * - 純字面 pattern（如 `/login`）用 `startsWith` 會誤中同前綴的兄弟路由（如 `/login-recovery`）。
+ */
+export function matchesRoutePattern(pattern: string, path: string): boolean {
+  const patternSegments = pattern.split('/').filter(Boolean)
+  const pathSegments = path.split('/').filter(Boolean)
+  if (patternSegments.length !== pathSegments.length)
+    return false
+  return patternSegments.every((seg, i) =>
+    seg.startsWith(':') ? pathSegments[i].length > 0 : seg === pathSegments[i],
+  )
 }
 ```
 
@@ -251,6 +329,7 @@ export { expect } from '@playwright/test'
 export * from './actions'
 export * from './fixtures'
 export { expect, test } from './hydration'
+export * from './route-match'
 ```
 
 ### Step 6：建立 hydration smoke spec
@@ -305,13 +384,25 @@ test.describe('Hydration 守門', () => {
 // test/e2e/specs/01-auth-guard.spec.ts
 // 路徑值從 route-map.yaml > auth 讀取（login_path / home_path / public_paths），不寫死
 import { expect, test } from '@playwright/test'
-import { login, Routes, TestUsers } from '../helpers'
+import { login, matchesRoutePattern, Routes, TestUsers } from '../helpers'
 
 // 受保護路由挑代表頁即可（middleware 全域生效，不必逐頁）；公開頁列 public_paths 中 login 以外者（賓客端）
 const PROTECTED_PAGES: string[] = [Routes.home]
 const PUBLIC_PAGES: string[] = []
 
 test.describe('Auth 守衛', () => {
+  // 設定自檢：兩份清單若有 pattern 重疊，代表同一路由被同時判定「需登入」與「免登入」，設定本身矛盾。
+  // 用 matchesRoutePattern（逐段比對）不用 startsWith——pattern 含 :param 時字面值比對永遠比不中，
+  // 純字面 pattern 又會誤判同前綴的兄弟路由（v2 bug，issue #137）。
+  // ⚠️ PUBLIC_PAGES 為空時，下面雙層迴圈外層零次迭代，本測試零斷言空跑（恆過，不提供保護）；
+  // 專案有公開頁、把 PUBLIC_PAGES 填值後，這個自檢才真的生效。
+  test('PUBLIC_PAGES 每一項都不得比中任何 PROTECTED_PAGES', () => {
+    for (const publicPath of PUBLIC_PAGES) {
+      for (const protectedPath of PROTECTED_PAGES)
+        expect(matchesRoutePattern(protectedPath, publicPath)).toBe(false)
+    }
+  })
+
   for (const path of PROTECTED_PAGES) {
     test(`未登入訪 ${path} → 導向 login`, async ({ page }) => {
       await page.goto(path, { waitUntil: 'networkidle' })
@@ -413,6 +504,7 @@ test/e2e/
 │   ├── actions.ts                  # 共用操作（login, selectOption, confirmDelete, resetMockData）
 │   ├── fixtures.ts                 # 測試資料（帳號、路由）
 │   ├── hydration.ts                # Hydration 守門 fixture（auto，dev-only）
+│   ├── route-match.ts              # 路由 pattern 逐段比對（:param 段吃任意非空值）
 │   └── index.ts                    # 匯出
 ├── specs/                          # .spec.ts 檔案（由 /test e2e spec 產出）
 │   ├── 00-hydration.spec.ts        # Hydration smoke（逐 route 整頁載入）
@@ -436,6 +528,7 @@ E2E Setup 完成
 - test/e2e/helpers/actions.ts（login, selectOption, confirmDelete, resetMockData）
 - test/e2e/helpers/fixtures.ts（N 個帳號、N 個路由）
 - test/e2e/helpers/hydration.ts（hydration 守門 fixture）
+- test/e2e/helpers/route-match.ts（matchesRoutePattern，逐段比對路由 pattern）
 - test/e2e/specs/00-hydration.spec.ts（逐 route hydration smoke）
 - test/e2e/specs/01-auth-guard.spec.ts（auth 守衛 smoke；無 auth 專案略）
 - test/e2e/specs/02-authz-scope.spec.ts（巢狀 scope smoke；無巢狀端點專案略）
@@ -453,11 +546,14 @@ E2E Setup 完成
 - [ ] `playwright.config.ts` 存在且指向 `test/e2e/specs`
 - [ ] `package.json` 有 `test:e2e` / `test:e2e:headed` / `test:e2e:ui` 指令
 - [ ] `server/api/__test__/reset.post.ts` 存在且 `resetMockData()` 可用
-- [ ] `actions.ts` 包含 login / selectOption / confirmDelete / resetMockData
+- [ ] reset 端點支援 `{ empty?: string[] }` 通道（集合名走 zod enum 白名單）並清空指定集合
+- [ ] reset 端點有 `if (!import.meta.dev) throw createError({ statusCode: 404 })` 守門，不隨 app 上生產
+- [ ] `actions.ts` 包含 login / selectOption / confirmDelete / resetMockData（`resetMockData` 支援透傳 `{ empty }`）
 - [ ] `fixtures.ts` 包含測試帳號和路由（與 `_common.flow.md` 一致）
 - [ ] `hydration.ts` 存在且 `index.ts` re-export `{ expect, test }`
+- [ ] `route-match.ts` 存在，`login` 與 `01-auth-guard.spec.ts` 皆改用 `matchesRoutePattern`（不用 `startsWith`）
 - [ ] `specs/00-hydration.spec.ts` 涵蓋所有 Routes（公開 + 登入後）
-- [ ] `route-map.yaml` 有 `auth` 區塊時，`specs/01-auth-guard.spec.ts` 存在（未登入導 login／公開頁不被導走／已登入訪 login 導回）
+- [ ] `route-map.yaml` 有 `auth` 區塊時，`specs/01-auth-guard.spec.ts` 存在（未登入導 login／公開頁不被導走／已登入訪 login 導回／`PUBLIC_PAGES` 不比中任何 `PROTECTED_PAGES`；`PUBLIC_PAGES` 為空時互斥斷言零斷言空跑，填值後才生效）
 - [ ] `route-map.yaml > api_contract.endpoints` 有 ≥2 個 path 參數的端點時，`specs/02-authz-scope.spec.ts` 存在且**含寫入端點**的錯誤父子組合
 - [ ] `.gitignore` 排除測試產物
 - [ ] `npx playwright test --list` 可執行
