@@ -105,7 +105,7 @@ Phase 0 開始前先判斷：
 ## 自動執行規則
 
 - 執行 `/feature-to-api`（無參數或參數為 `0`）時，**直接開始 Phase 0，不要在開工前詢問任何前置問題**
-- **例外（不受上一條限制）**：Phase 0 結束時必須停下來，依 `phase-0-prep.md`「輸出格式：路由規劃」列出路由對照表（含孤兒清單，若有），等使用者回覆 `OK`／調整後才進入 Phase 1
+- **例外（不受上一條限制）**：Phase 0 結束時必須停下來等使用者確認。OpenAPI／全量模式依 [phase-0-prep.md](references/phase-0-prep.md)「輸出格式：路由規劃」列出路由對照表（含孤兒清單，若有）；Sync 模式依 [phase-0-sync.md](references/phase-0-sync.md) 步驟 10 展示變更報告。使用者回覆 `OK`／調整後才進入 Phase 1
 - **來源判斷**：先檢查 `spec/api/api-spec.yml` 是否存在
   - 存在 → 進入 **OpenAPI 模式**（以 spec 為 SoT）
   - 不存在 → 進入 **Feature 推導模式**

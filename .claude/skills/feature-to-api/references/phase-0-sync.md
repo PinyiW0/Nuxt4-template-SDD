@@ -252,7 +252,7 @@ grep -rE "export (interface|type) [A-Z][A-Za-z]*(Body|Event|Item|Detail)" app/ty
 
 ### 步驟 10：停下來等使用者確認
 
-向用戶展示以下內容後**立即停止回應**，等使用者回覆 OK／調整；未確認不得進 Phase 1：
+向使用者展示以下內容後**立即停止回應**，等使用者回覆 OK／調整；未確認不得進 Phase 1：
 1. 變更報告摘要（Feature 變更總覽表格）
 2. Phase 執行建議（哪些 Phase 需要跑、哪些可跳過）
 3. 待刪除項目（提醒用戶手動處理）
