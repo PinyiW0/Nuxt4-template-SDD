@@ -275,11 +275,12 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       >
         <template #trailing>
           <UButton
+            type="button"
             :icon="showPassword ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'"
             color="neutral"
             variant="link"
             size="sm"
-            :aria-label="showPassword ? '隱藏密碼' : '顯示密碼'"
+            :aria-label="showPassword ? '隱藏' : '顯示'"
             @click="showPassword = !showPassword"
           />
         </template>
@@ -294,7 +295,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 
 > **不放 testid 是刻意的**：`UFormField` 的 `label` 已把 `帳號`／`密碼` 綁成 accessible name（`<label for>` 關聯），送出鈕有可見文字「登入」——`test/e2e/helpers` 的 `login()` 用 `getByLabel('帳號', { exact: true })` ＋ `getByRole('button', { name: /登入/ })` 就定位得到（見 [setup.md](../../test/e2e/references/setup.md)）。表單欄位 testid 是 SSOT [testid-conventions.md](../../feature-to-flow/references/testid-conventions.md) 明文禁止的形式。
 >
-> ⚠️ **欄位內 icon 按鈕的 `aria-label` 不得包含該欄位的 label 字串**。Playwright 的 `getByLabel` 對任何帶 `aria-label` 的元素都會回傳該值（不限 form control），所以密碼欄配上 `aria-label="顯示密碼"` 時，`getByLabel(/密碼/)` 會同時命中 input 與該按鈕 → strict mode violation（實測 count=2）。上面範本用 `顯示密碼`／`隱藏密碼` 是為了 a11y 可讀性，因此 `login()` 端**必須**用 `exact: true` 匹配；若你改用 regex 匹配，就要把 aria-label 換成不含「密碼」的字（如 `切換顯示`）。
+> ⚠️ **欄位內 icon 按鈕的 `aria-label` 不得包含該欄位的 label 字串**。Playwright 的 `getByLabel` 對任何帶 `aria-label` 的元素都會回傳該值（不限 form control），密碼欄若配上含欄位名的 `aria-label`（如 `顯示密碼`）會讓 `getByLabel(/密碼/)` 同時命中 input 與該按鈕 → strict mode violation（實測 count=2）。上面範本的 `aria-label` 只用 `顯示`／`隱藏`，不含「密碼」，`login()` 端不必依賴 `exact: true` 才能避開碰撞（保留 `exact: true` 也無害）。
 >
 > **改動此範本的 label／按鈕文案時，要同步 `setup.md` 的 `login()` helper**——兩者是一對耦合。
 
@@ -395,18 +396,21 @@ const showPassword = ref(false)
     :ui="{ error: 'absolute top-full left-0 mt-1' }"
   >
     <UInput
+      id="password-input"
       v-model="state.password"
       :type="showPassword ? 'text' : 'password'"
       class="w-full"
     >
       <template #trailing>
         <UButton
+          type="button"
           :icon="showPassword ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'"
           color="neutral"
           variant="link"
           size="sm"
           :padded="false"
-          :aria-label="showPassword ? '隱藏密碼' : '顯示密碼'"
+          :aria-label="showPassword ? '隱藏' : '顯示'"
+          aria-describedby="password-input"
           @click="showPassword = !showPassword"
         />
       </template>
@@ -414,6 +418,8 @@ const showPassword = ref(false)
   </UFormField>
 </template>
 ```
+
+> 同頁有多個密碼欄（如改密碼頁的目前密碼／新密碼／確認密碼）時，每欄的 `UInput` id 各自命名（如 `current-password-input`、`new-password-input`），對應切換鈕的 `aria-describedby` 各自指向自己欄位的 id。
 
 ---
 
