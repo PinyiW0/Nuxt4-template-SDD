@@ -111,7 +111,7 @@ Phase 0 開始前先判斷：
   - 不存在 → 進入 **Feature 推導模式**
   - **兩種模式進 Phase 1 前都須確認 `spec/e2e-flows/*.flow.md` 存在**（Phase 1 讀 flow 對齊 mock 資料值）；不存在則提示「請先執行 `/feature-to-flow`」
 - **格式對齊**：兩種模式下，產出都必須遵守 [openapi-conventions.md](references/openapi-conventions.md)
-- Phase 0 開始前，先讀取 `ui-config-pm.yaml`，按照 `phase-0-prep.md` 的「PM 設定同步邏輯」將資訊同步填入 `ui-config.yaml`
+- Phase 0 開始前，先讀取 `spec/ui-config/ui-config-pm.yaml`，按照 [phase-0-prep.md](references/phase-0-prep.md) 的「PM 設定同步邏輯」將資訊同步填入 `spec/ui-config/ui-config.yaml`
 - **PM 設定同步本身不需停下來等使用者確認**，同步完成後直接接續執行 Phase 0 的步驟；此條不否決上方「例外」條列的 Phase 0 結束路由確認
 
 ---
