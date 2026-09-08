@@ -31,6 +31,7 @@
 - page-builder.md（DSL 解析 + 表單範本 + 列表範本 + Command → 元件對照）
 - features.md（僅 features_used 有值時需讀取，了解對應元件的使用方式）
 - rules.md [P5] 段落（配色、對比色、Zod v4、Nuxt UI 類型、表單型別安全、API、第三方 import、Pinia Store、testid）
+- pitfalls.md（實測踩過的 12 條坑，含正確寫法片段）
 
 ⚠️ 必須先掃描 API 端點結構：
 執行 glob server/api/**/*.ts 取得實際 API 路徑列表

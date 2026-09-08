@@ -97,7 +97,7 @@ flowchart LR
 | 2 | 路由骨架 | 所有 pages/*.vue 空殼（語意結構，**不含 testid**） | [phase-2](references/phase-2-skeleton.md) + [rules.md `[P2]`](references/rules.md) |
 | 3 | Layout 建置 | layouts/*.vue | [phase-3](references/phase-3-layout.md) + [rules.md `[P3]`](references/rules.md) + visual-hierarchy.md |
 | 4 | 共用元件 | components/common/*.vue（+ additionalFeature 元件） | [phase-4](references/phase-4-components.md) + [features.md](references/features.md)（若有） + [rules.md `[P4]`](references/rules.md) + visual-hierarchy.md + frontend-security.md |
-| 5 | 頁面實作 | 逐一填充 pages 內容 | [phase-5](references/phase-5-pages.md) + [page-builder.md](references/page-builder.md) + [rules.md `[P5]`](references/rules.md) + visual-hierarchy.md + frontend-security.md（選讀：components.md、features.md） |
+| 5 | 頁面實作 | 逐一填充 pages 內容 | [phase-5](references/phase-5-pages.md) + [page-builder.md](references/page-builder.md) + [rules.md `[P5]`](references/rules.md) + [pitfalls.md](references/pitfalls.md) + visual-hierarchy.md + frontend-security.md（選讀：components.md、features.md） |
 
 **設計理念**：骨架優先，細節後填。每個 Phase 只載入必要的規範，避免 context 過載。`app/types/api/` 作為 API 合約的單一真相來源（由 `/feature-to-api` 建立）。`route-map.yaml` 作為路由與 feature 對照的單一真相來源。**Phase 5 以 `.spec.ts` 為唯一 UI 合約**（語意 anchor——role、accessible name、label——依 spec 的 `getByRole`/`getByLabel` 提供；`getByTestId` 之處 testid 逐字複製；不讀 `.flow.md`）。
 
