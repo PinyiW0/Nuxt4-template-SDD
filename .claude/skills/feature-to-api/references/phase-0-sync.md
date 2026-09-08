@@ -250,9 +250,9 @@ grep -rE "export (interface|type) [A-Z][A-Za-z]*(Body|Event|Item|Detail)" app/ty
 - **同步更新 `enabled_features`**：反映 PM yaml 最新的 `additionalFeatures`
 - 更新 `generated_at` 為今天日期
 
-### 步驟 10：詢問用戶確認
+### 步驟 10：停下來等使用者確認
 
-向用戶展示：
+向用戶展示以下內容後**立即停止回應**，等使用者回覆 OK／調整；未確認不得進 Phase 1：
 1. 變更報告摘要（Feature 變更總覽表格）
 2. Phase 執行建議（哪些 Phase 需要跑、哪些可跳過）
 3. 待刪除項目（提醒用戶手動處理）
@@ -261,7 +261,7 @@ grep -rE "export (interface|type) [A-Z][A-Za-z]*(Body|Event|Item|Detail)" app/ty
 
 **⚠️ 孤兒清單必須口頭強調**：不能只放進報告就算數。若 `UI` 類孤兒存在，必須在回應中明確提示「下一步：清除 UI 層孤兒 [列項目]」，否則 claude 容易跳過此步直接進 Phase 1。
 
-確認後才寫入檔案。
+使用者回覆 OK／調整後才寫入檔案。
 
 ---
 

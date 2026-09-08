@@ -104,21 +104,22 @@ Phase 0 開始前先判斷：
 
 ## 自動執行規則
 
-- 執行 `/feature-to-api`（無參數或參數為 `0`）時，**直接開始 Phase 0，不要詢問使用者任何問題**
+- 執行 `/feature-to-api`（無參數或參數為 `0`）時，**直接開始 Phase 0，不要在開工前詢問任何前置問題**
+- **例外（不受上一條限制）**：Phase 0 結束時必須停下來，依 `phase-0-prep.md`「輸出格式：路由規劃」列出路由對照表（含孤兒清單，若有），等使用者回覆 `OK`／調整後才進入 Phase 1
 - **來源判斷**：先檢查 `spec/api/api-spec.yml` 是否存在
   - 存在 → 進入 **OpenAPI 模式**（以 spec 為 SoT）
   - 不存在 → 進入 **Feature 推導模式**
   - **兩種模式進 Phase 1 前都須確認 `spec/e2e-flows/*.flow.md` 存在**（Phase 1 讀 flow 對齊 mock 資料值）；不存在則提示「請先執行 `/feature-to-flow`」
 - **格式對齊**：兩種模式下，產出都必須遵守 [openapi-conventions.md](references/openapi-conventions.md)
 - Phase 0 開始前，先讀取 `ui-config-pm.yaml`，按照 `phase-0-prep.md` 的「PM 設定同步邏輯」將資訊同步填入 `ui-config.yaml`
-- 同步完成後直接執行 Phase 0 的步驟，不需額外確認
+- **PM 設定同步本身不需停下來等使用者確認**，同步完成後直接接續執行 Phase 0 的步驟；此條不否決上方「例外」條列的 Phase 0 結束路由確認
 
 ---
 
 ## 注意事項
 
 - **每個 Phase 完成後，告知用戶下一步應執行的指令**
-- **Phase 0 完成後提示：「下一步：`/feature-to-api 1`」**
+- **Phase 0 完成後提示：「請確認 Phase 0 產出（OpenAPI／全量：路由對照表；Sync：變更報告），回覆 OK 後執行 `/feature-to-api 1`」**
 - **Phase 1 完成後提示：「下一步：`/feature-to-api 1.5`」**
 - **Phase 1.5 完成後提示：「下一步：`/test e2e`（偵測 E2E 狀態並產出執行計畫）」**
 - Phase 0 建立 `app/types/api/` 合約型別，Phase 1 建立 mock data + server API（+ 條件式 `app/constants/invariants.ts`），Phase 1.5 建立 `app/api/*.api.ts` client 包裝層
