@@ -239,7 +239,7 @@ grep -rE "export (interface|type) [A-Z][A-Za-z]*(Body|Event|Item|Detail)" app/ty
    - 若已不存在 → 視為已清理，可從新版移除（但建議在報告底部「本次已清理孤兒」段記錄一行）
 3. 若是從 OpenAPI 模式切到 Feature 模式（或反向），**舊版的「待 PM 處理」清單必須完整遞延**進新版孤兒/待處理段，不可整段消失
 
-### 步驟 9：更新 route-map.yaml
+### 步驟 9：更新 route-map.yaml（準備內容；落檔在步驟 10 確認之後）
 
 - `version` 遞增（如 1 → 2）
 - 新增的 feature → 加入對應路由的 features 陣列（或建立新路由條目）
@@ -252,7 +252,7 @@ grep -rE "export (interface|type) [A-Z][A-Za-z]*(Body|Event|Item|Detail)" app/ty
 
 ### 步驟 10：停下來等使用者確認
 
-向使用者展示以下內容後**立即停止回應**，等使用者回覆 OK／調整；未確認不得進 Phase 1：
+向使用者展示以下內容後**立即停止回應**（本輪回應到此結束、不進 Phase 1），等使用者回覆 OK／調整：
 1. 變更報告摘要（Feature 變更總覽表格）
 2. Phase 執行建議（哪些 Phase 需要跑、哪些可跳過）
 3. 待刪除項目（提醒用戶手動處理）
@@ -261,7 +261,7 @@ grep -rE "export (interface|type) [A-Z][A-Za-z]*(Body|Event|Item|Detail)" app/ty
 
 **⚠️ 孤兒清單必須口頭強調**：不能只放進報告就算數。若 `UI` 類孤兒存在，必須在回應中明確提示「下一步：清除 UI 層孤兒 [列項目]」，否則 claude 容易跳過此步直接進 Phase 1。
 
-使用者回覆 OK／調整後才寫入檔案。
+使用者回覆 OK／調整後，才將步驟 8 產出的 `spec/report/sync-report.md` 與步驟 9 更新後的 `spec/report/route-map.yaml` 寫入磁碟。步驟 8、9 的「寫入／更新」指的是在回應中準備內容，落檔一律在本步確認之後。
 
 ---
 

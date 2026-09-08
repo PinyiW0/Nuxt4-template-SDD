@@ -363,6 +363,13 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 | /login | login.vue | auth | 01-使用者登入 |
 | / | index.vue | default | 首頁/Dashboard |
 | /sites | sites/index.vue | default | 03-查詢觀測點列表 |
+
+### 🗑️ 孤兒清單（若有；無則寫「無」）
+
+| 類別 | 項目 | 建議處置 |
+|------|------|----------|
+| UI | app/pages/legacy.vue | 刪除（無對應 feature） |
+| Backend | server/api/v1/legacy.get.ts | 加進 task list，不阻塞 |
 ```
 
 ---
