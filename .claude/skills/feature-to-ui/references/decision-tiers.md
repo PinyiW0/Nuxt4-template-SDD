@@ -1,6 +1,6 @@
 # Phase 5 決策權限分級表
 
-> **上位規範**：[ops/judgment-rubrics.md](../../../ops/judgment-rubrics.md) 第 3 節「何時停下來問使用者」是唯一真理來源，本檔只把該節的判準**具體化到 Phase 5 的實際情境**，不重列該節既有的必停清單。本檔任何一級都**不得**與該節矛盾——凍結區、`maintenance.md` 第 1 節「動前必問」清單、vibe spec 刪改，一律照該節規則停下來問，本檔不重複也不放寬。
+> **上位規範**：[ops/judgment-rubrics.md](../../../ops/judgment-rubrics.md) 第 3 節「何時停下來問使用者」是唯一真理來源，本檔只把該節的判準**具體化到 Phase 5 的實際情境**，不重列該節既有的必停清單。本檔任何一級都**不得**與該節矛盾——凍結區、[maintenance.md](../../../ops/maintenance.md) 第 1 節「動前必問」清單、vibe spec 刪改，一律照該節規則停下來問，本檔不重複也不放寬。
 
 ## 一、自決不回報
 

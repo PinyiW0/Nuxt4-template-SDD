@@ -218,7 +218,7 @@ E2E Pipeline 完成：04-建立觀測點
 
 ## 檢查清單
 
-- [ ] 前置條件已滿足（.flow.md 存在、helpers/actions.ts 存在、spec/report/contract-facts.md 已存在或已先盤點）
+- [ ] 前置條件已滿足（.flow.md 存在、test/e2e/helpers/actions.ts 存在、spec/report/contract-facts.md 已存在或已先盤點）
 - [ ] fixtures.ts 已包含所需的路由和測試帳號
 - [ ] .spec.ts 已產出（從 helpers import 共用操作，不含本地定義）
 - [ ] `npm run eslint` + `npm run typelint` 零錯誤

@@ -105,10 +105,14 @@ v2 起，`.spec.ts` 從「testid 主導」改為「**business outcome 主導**�
 
 ```bash
 ls spec/report/contract-facts.md
-node -e "console.log(require('crypto').createHash('md5').update(require('fs').readFileSync('spec/report/route-map.yaml')).digest('hex'))"
+if [ -f spec/report/route-map.yaml ]; then
+  node -e "console.log(require('crypto').createHash('md5').update(require('fs').readFileSync('spec/report/route-map.yaml')).digest('hex'))"
+else
+  echo "none"   # 本專案未走 route-map 產出流程（未跑過 /feature-to-api 或非 OpenAPI 模式），route_map_hash 直接填 none
+fi
 ```
 
-把上面指令算出的 hash 拿去比對 contract-facts.md 內的 `route_map_hash` 欄位：
+把上面指令算出的 hash（或 `none`）拿去比對 contract-facts.md 內的 `route_map_hash` 欄位：
 
 - **檔案不存在**（本專案第一次跑 `/test e2e spec`）：依下方模板逐欄盤點，來源：
   - envelope 形狀 → `spec/report/route-map.yaml > api_contract.response_conventions`（若 `/feature-to-api` 已產出）；沒有則讀 `server/api/**/*.ts` 的實際回應結構
@@ -116,9 +120,9 @@ node -e "console.log(require('crypto').createHash('md5').update(require('fs').re
   - 登入方式 → `test/e2e/helpers/actions.ts` 的 `login()` 實作 + `server/api/auth/**`
   - 種子總表（帳號／初始資料） → `server/mock/data/*.ts` 全部初始資料
   - testid 慣例來源 → SSOT 指標見上方「v2 抽象化原則」第 5 點連結，加上本專案實際使用的 testid 前綴清單
-  - 把上面指令算出的 hash 填進 `route_map_hash` 欄位，寫入 `spec/report/contract-facts.md`（格式見下方模板），完成後再進入 Step 1
+  - 把上面指令算出的 hash（或 `none`）填進 `route_map_hash` 欄位，寫入 `spec/report/contract-facts.md`（格式見下方模板），完成後再進入 Step 1
 - **檔案存在且 hash 相同**：直接讀取引用。Step 2 交叉比對時**只查本 feature 特有的部分**（Feature Background、本 feature 的錯誤訊息），上述五類共用事實不重查
-- **檔案存在但 hash 不同**（route-map.yaml 之後又變動過，如新增端點或角色）：route-map.yaml 是 API 合約的來源，五類共用事實可能已經過期——逐欄重新核對，改過的地方更新、其餘保留，核對完把新算出的 hash 寫回 `route_map_hash`
+- **檔案存在但 hash 不同**（route-map.yaml 之後又變動過，如新增端點或角色；或原本 `route_map_hash` 是 `none`、現在 route-map.yaml 第一次出現）：route-map.yaml 是 API 合約的來源，五類共用事實可能已經過期——逐欄重新核對，改過的地方更新、其餘保留，核對完把新算出的 hash 寫回 `route_map_hash`
 
 **contract-facts.md 格式模板**（欄位固定，依實際盤點結果填入儲存格）：
 
@@ -169,7 +173,7 @@ route_map_hash: <md5，算法見上方 Step 0「檢查」指令>
 
 | 項目 | 值 |
 |---|---|
-| SSOT 檔案 | feature-to-flow/references/testid-conventions.md |
+| SSOT 檔案 | .claude/skills/feature-to-flow/references/testid-conventions.md |
 | 本專案實際前綴清單 | |
 ```
 
