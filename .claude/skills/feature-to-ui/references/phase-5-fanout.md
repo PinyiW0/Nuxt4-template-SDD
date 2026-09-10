@@ -27,7 +27,7 @@
 
 **不要**讓兩個分身在同一個目錄跑。原因：
 
-- 本專案的 mock 資料是單一 dev server process 內的記憶體狀態，每個 spec 用 `test.beforeEach` 呼叫 `/api/__test__/reset` 重設（見 [test/e2e/references/setup.md:114](../../test/e2e/references/setup.md) 與 `:175-178`）
+- 本專案的 mock 資料是單一 dev server process 內的記憶體狀態，每個 spec 用 `test.beforeEach` 呼叫 `/api/__test__/reset` 重設（見 [test/e2e/references/setup.md](../../test/e2e/references/setup.md) 的 Step 4「建立 Mock Data Reset Endpoint」與 `resetMockData()` helper 實作——行號依 issue #137 各 PR 進度會變動，故不寫死行號）
 - 兩個分身共用同一個 dev server（同目錄、同 port）時，一個分身的 `beforeEach` reset 會把另一個分身跑到一半的測試資料清空，兩邊互打
 - `playwright.config.ts:7-17` 的 port 是用 **worktree 根目錄路徑**做 hash 算出來的（3100–3499）——不同 worktree 天生拿到不同 port、跑各自的 dev server，資料互不影響；這正是 [README.md「多 issue 並行開發」](../../../../README.md)既有慣例的機制
 - **殘餘風險**：hash 碰撞機率約 1/400（md5 前兩 byte 對映到 400 個 port）。dev server 起不來或 port 被佔用時視為異常——回報主線、換一個 worktree 目錄名重建，不要默默失敗或硬等

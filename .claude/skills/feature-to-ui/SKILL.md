@@ -164,7 +164,7 @@ flowchart LR
 
 5. **Phase 5**：逐一實作每個頁面的完整功能（一次只做一個頁面，確認後才做下一個）
 
-> `route-map.yaml` 的 `routes[]` 筆數 > 10 時讀 [phase-5-fanout.md](references/phase-5-fanout.md)，改採模組級 worktree 扇出。
+> `spec/report/route-map.yaml` 的 `routes[]` 筆數 > 10 時讀 [phase-5-fanout.md](references/phase-5-fanout.md)，改採模組級 worktree 扇出。
 
 ---
 

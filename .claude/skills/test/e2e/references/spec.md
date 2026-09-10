@@ -104,7 +104,12 @@ v2 起，`.spec.ts` 從「testid 主導」改為「**business outcome 主導**�
 **檢查**：先確認檔案存不存在，再比對 `route-map.yaml` 有沒有變過（用 hash 判斷，不用「感覺應該沒變」）：
 
 ```bash
-ls spec/report/contract-facts.md
+mkdir -p spec/report
+if [ -f spec/report/contract-facts.md ]; then
+  echo "contract-facts.md 存在"
+else
+  echo "contract-facts.md 不存在（本專案第一次跑 /test e2e spec）"
+fi
 if [ -f spec/report/route-map.yaml ]; then
   node -e "console.log(require('crypto').createHash('md5').update(require('fs').readFileSync('spec/report/route-map.yaml')).digest('hex'))"
 else

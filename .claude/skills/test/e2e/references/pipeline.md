@@ -125,7 +125,7 @@ for each spec/e2e-flows/{NN}-{name}.flow.md:
   ├─ 檢查前置條件
   │   ├─ _common.flow.md 存在？ → 不存在 → 提示「請先放入 _common.flow.md」
   │   ├─ 目標 .flow.md 存在？ → 不存在 → 提示「請先放入對應的 .flow.md」
-  │   ├─ actions.ts 存在？ → 不存在 → 提示 /test e2e setup
+  │   ├─ test/e2e/helpers/actions.ts 存在？ → 不存在 → 提示 /test e2e setup
   │   └─ contract-facts.md 存在？ → 不存在 → 先執行合約事實盤點（spec.md Step 0），盤點完再繼續
   │
   ├─ 讀取 .flow.md + _common.flow.md
