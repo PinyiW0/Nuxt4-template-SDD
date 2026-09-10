@@ -129,14 +129,17 @@ import { resetMockData } from '~~/server/mock/data'
 // notes／tags 為示意集合名，依專案實際 mock store 名稱調整（不要照抄成真實端點名）。
 const resetBodySchema = z.object({
   empty: z.array(z.enum(['notes', 'tags'])).optional(),
-})
+}).strict()
 
 // 測試專用端點，僅 dev 模式存在；production 建置一律 404，不隨 app 上生產
 export default defineEventHandler(async (event: H3Event) => {
   if (!import.meta.dev)
     throw createError({ statusCode: 404 })
 
-  const body = await readBody(event).catch(() => undefined)
+  // 不吞掉解析失敗：非法 JSON 明確回 400，不要讓壞 body 被當成空 body 而通過
+  const body = await readBody(event).catch(() => {
+    throw createError({ statusCode: 400, statusMessage: '輸入格式錯誤' })
+  })
   const parsed = resetBodySchema.safeParse(body ?? {})
   if (!parsed.success)
     throw createError({ statusCode: 400, statusMessage: '輸入格式錯誤' })
