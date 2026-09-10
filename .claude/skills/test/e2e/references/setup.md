@@ -403,9 +403,13 @@ test.describe('Auth 守衛', () => {
   // 專案有公開頁、把 PUBLIC_PAGES 填值後，這個自檢才真的生效。
   test('PUBLIC_PAGES 每一項都不得比中任何 PROTECTED_PAGES', () => {
     test.skip(PUBLIC_PAGES.length === 0, 'PUBLIC_PAGES 為空，此自檢暫無意義；填入公開頁清單後才會執行')
+    // 兩邊都可能含 :param（PROTECTED_PAGES 多為具體路徑，PUBLIC_PAGES 來自 route-map 的
+    // public_paths、可能是 pattern），只比一個方向會在「pattern 在另一邊」時漏檢，故雙向都測
     for (const publicPath of PUBLIC_PAGES) {
-      for (const protectedPath of PROTECTED_PAGES)
+      for (const protectedPath of PROTECTED_PAGES) {
         expect(matchesRoutePattern(protectedPath, publicPath)).toBe(false)
+        expect(matchesRoutePattern(publicPath, protectedPath)).toBe(false)
+      }
     }
   })
 
