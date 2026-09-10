@@ -119,6 +119,7 @@ body 可選 `{ empty?: string[] }`：`empty` 內列出的集合，重設回初�
 
 ```typescript
 // server/api/__test__/reset.post.ts
+// defineEventHandler／readBody／createError 是 Nitro server 端 auto-import，不必手動 import
 import type { H3Event } from 'h3'
 import { z } from 'zod'
 // ⚠️ 用 ~~（root alias）不用 ~：server 端的 ~ 對應 app/，~/server/... 解析不到（issue #137 實測）
@@ -226,7 +227,8 @@ export async function confirmDelete(page: Page) {
  * `empty` 透傳給端點：列出的集合重設後再清空，供「空狀態」Scenario 構造初始狀態（見 Step 4）。
  */
 export async function resetMockData(page: Page, options?: { empty?: string[] }) {
-  await page.request.post('/api/__test__/reset', { data: options })
+  // 一律送物件（options 為 undefined 時送 {}），避免 { data: undefined } 在不同實作下的序列化差異
+  await page.request.post('/api/__test__/reset', { data: options ?? {} })
 }
 ```
 
@@ -397,6 +399,7 @@ test.describe('Auth 守衛', () => {
   // ⚠️ PUBLIC_PAGES 為空時，下面雙層迴圈外層零次迭代，本測試零斷言空跑（恆過，不提供保護）；
   // 專案有公開頁、把 PUBLIC_PAGES 填值後，這個自檢才真的生效。
   test('PUBLIC_PAGES 每一項都不得比中任何 PROTECTED_PAGES', () => {
+    test.skip(PUBLIC_PAGES.length === 0, 'PUBLIC_PAGES 為空，此自檢暫無意義；填入公開頁清單後才會執行')
     for (const publicPath of PUBLIC_PAGES) {
       for (const protectedPath of PROTECTED_PAGES)
         expect(matchesRoutePattern(protectedPath, publicPath)).toBe(false)

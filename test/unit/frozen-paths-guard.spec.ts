@@ -597,6 +597,37 @@ describe('frozen-paths-guard：heredoc 邊界（<< 左移、內文散字）', ()
     const result = runGuard(`git -c user.name=x commit -m "chore: restore 依 ${FROZEN_FILE} 調整"`)
     expect(result.status).toBe(0)
   })
+
+  // 已知繞道（PR #141 review 第 2、3 輪抓出，實測確認，尚未修）：
+  // 用 it.fails 而非 it.todo，讓這兩案在 CI 持續執行——一旦 hook 修好，這裡會轉為失敗，
+  // 提醒要把 it.fails 換回正常 it（而不是靠人記得回來補測試）。
+  it.fails('已知繞道：<< 後接空白（如 << EOF）目前不被辨識為 heredoc → 應擋下但實際放行', () => {
+    const command = [
+      'patch -p1 << EOF',
+      `--- a/${FROZEN_FILE}`,
+      `+++ b/${FROZEN_FILE}`,
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+      'EOF',
+    ].join('\n')
+    const result = runGuard(command)
+    expect(result.status).toBe(2)
+  })
+
+  it.fails('已知繞道：heredoc 開啟符不在該行最後一段（如 <<\'EOF\' && echo done）內文被歸錯段 → 應擋下但實際放行', () => {
+    const command = [
+      'patch -p1 <<\'EOF\' && echo done',
+      `--- a/${FROZEN_FILE}`,
+      `+++ b/${FROZEN_FILE}`,
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+      'EOF',
+    ].join('\n')
+    const result = runGuard(command)
+    expect(result.status).toBe(2)
+  })
 })
 
 describe('frozen-paths-guard：既有防線回歸（sed/tee/cp/redirect/git/perl）', () => {
