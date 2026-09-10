@@ -86,7 +86,7 @@ await expect(page.getByTestId('background-item')).toHaveCount(3)
 
 **原因**：切換鈕的 `aria-label` 帶了欄位名稱（如「顯示密碼」）；Playwright 的 `getByLabel` 對任何帶 `aria-label` 的元素都會收單，不限定表單控制項。
 
-**做法**：欄位內的顯示／隱藏鈕 `aria-label` 只用「顯示」「隱藏」，不重複欄位名稱。同頁有多個密碼欄（如改密碼頁）時，`aria-label` 仍只用「顯示」「隱藏」，另加 `:aria-describedby` 指向該欄位 input 的 id，讓報讀器分得出是哪一欄。
+**做法**：欄位內的顯示／隱藏鈕 `aria-label` 只用「顯示」「隱藏」，不重複欄位名稱；用 `aria-controls` 指向被切換的 input id（不是 `aria-describedby`——那個屬性應指向描述文字元素，指向 input id 通常無效），再加 `:aria-pressed` 表示切換狀態。同頁有多個密碼欄（如改密碼頁）時，各欄 `aria-controls` 各自指向自己的 input id，`aria-label` 仍不變，靠 `aria-controls` 天然區分是哪一欄。
 
 ```vue
 <UInput id="password-input" :type="showPassword ? 'text' : 'password'">
@@ -94,7 +94,8 @@ await expect(page.getByTestId('background-item')).toHaveCount(3)
     <UButton
       type="button"
       :aria-label="showPassword ? '隱藏' : '顯示'"
-      aria-describedby="password-input"
+      aria-controls="password-input"
+      :aria-pressed="showPassword"
       @click="showPassword = !showPassword"
     />
   </template>

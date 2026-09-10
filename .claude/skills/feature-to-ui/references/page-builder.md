@@ -410,7 +410,8 @@ const showPassword = ref(false)
           size="sm"
           :padded="false"
           :aria-label="showPassword ? '隱藏' : '顯示'"
-          aria-describedby="password-input"
+          aria-controls="password-input"
+          :aria-pressed="showPassword"
           @click="showPassword = !showPassword"
         />
       </template>
@@ -419,7 +420,7 @@ const showPassword = ref(false)
 </template>
 ```
 
-> 同頁有多個密碼欄（如改密碼頁的目前密碼／新密碼／確認密碼）時，每欄的 `UInput` id 各自命名（如 `current-password-input`、`new-password-input`），對應切換鈕的 `aria-describedby` 各自指向自己欄位的 id。
+> 同頁有多個密碼欄（如改密碼頁的目前密碼／新密碼／確認密碼）時，每欄的 `UInput` id 各自命名（如 `current-password-input`、`new-password-input`），對應切換鈕的 `aria-controls` 各自指向自己欄位的 id，`aria-label` 維持通用（不含欄位名），靠 `aria-controls` 天然區分。
 
 ---
 
