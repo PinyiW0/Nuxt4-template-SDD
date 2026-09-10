@@ -318,6 +318,11 @@ describe('frozen-paths-guard：切段引號感知（引號內的 ; | 不該把�
     const result = runGuard(`echo hi; cp a.txt ${FROZEN_FILE}`)
     expect(result.status).toBe(2)
   })
+
+  it.fails('已知繞道：單一 & 背景執行子不切段，echo hi & tee <frozen> 漏放 → 應擋下但實際放行', () => {
+    const result = runGuard(`echo hi & tee ${FROZEN_FILE}`)
+    expect(result.status).toBe(2)
+  })
 })
 
 describe('frozen-paths-guard：open 變形與 `,\'w\')` 形狀降噪', () => {
