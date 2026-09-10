@@ -39,6 +39,9 @@ function runGuard(command: string) {
     input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }),
     env: { ...process.env, CLAUDE_PROJECT_DIR: tmpDir },
     encoding: 'utf8',
+    // 正常執行約 80-120ms（見下方 ReDoS 測試），5s 足夠寬裕；
+    // 萬一未來重新引入災難性回溯，spawnSync 逾時回傳 status: null，斷言會如實失敗而不是卡住整個 CI
+    timeout: 5000,
   })
 }
 
@@ -48,6 +51,7 @@ function runGuardRaw(payload: unknown) {
     input: JSON.stringify(payload),
     env: { ...process.env, CLAUDE_PROJECT_DIR: tmpDir },
     encoding: 'utf8',
+    timeout: 5000,
   })
 }
 
@@ -57,6 +61,7 @@ function runGuardOnFile(toolName: 'Write' | 'Edit', filePath: string) {
     input: JSON.stringify({ tool_name: toolName, tool_input: { file_path: filePath } }),
     env: { ...process.env, CLAUDE_PROJECT_DIR: tmpDir },
     encoding: 'utf8',
+    timeout: 5000,
   })
 }
 
