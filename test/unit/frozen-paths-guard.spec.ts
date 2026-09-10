@@ -628,6 +628,11 @@ describe('frozen-paths-guard：heredoc 邊界（<< 左移、內文散字）', ()
     const result = runGuard(command)
     expect(result.status).toBe(2)
   })
+
+  it.fails('已知繞道：Path(...).open("r+") 等 r+ 模式未被 Path.open 偵測辨識為寫入 → 應擋下但實際放行', () => {
+    const result = runGuard(`python3 -c "from pathlib import Path; Path('${FROZEN_FILE}').open('r+')"`)
+    expect(result.status).toBe(2)
+  })
 })
 
 describe('frozen-paths-guard：既有防線回歸（sed/tee/cp/redirect/git/perl）', () => {
