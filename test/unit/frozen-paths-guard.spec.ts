@@ -324,7 +324,7 @@ describe('frozen-paths-guard：切段引號感知（引號內的 ; | 不該把�
     expect(result.status).toBe(2)
   })
 
-  it.fails('已知繞道：單一 & 背景執行子不切段，echo hi & tee <frozen> 漏放 → 應擋下但實際放行', () => {
+  it('單一 & 背景執行子也切段，echo hi & tee <frozen> → 擋下後段的 tee', () => {
     const result = runGuard(`echo hi & tee ${FROZEN_FILE}`)
     expect(result.status).toBe(2)
   })
@@ -608,10 +608,8 @@ describe('frozen-paths-guard：heredoc 邊界（<< 左移、內文散字）', ()
     expect(result.status).toBe(0)
   })
 
-  // 已知繞道（PR #141 review 第 2、3 輪抓出，實測確認，尚未修）：
-  // 用 it.fails 而非 it.todo，讓這兩案在 CI 持續執行——一旦 hook 修好，這裡會轉為失敗，
-  // 提醒要把 it.fails 換回正常 it（而不是靠人記得回來補測試）。
-  it.fails('已知繞道：<< 後接空白（如 << EOF）目前不被辨識為 heredoc → 應擋下但實際放行', () => {
+  // PR #141 review 第 1、2、4、6 輪抓出的繞道，2026-09-11 修補後轉為正常回歸案例
+  it('<< 後接空白（如 << EOF）也辨識為 heredoc，內文指向凍結檔 → 擋下', () => {
     const command = [
       'patch -p1 << EOF',
       `--- a/${FROZEN_FILE}`,
@@ -625,7 +623,7 @@ describe('frozen-paths-guard：heredoc 邊界（<< 左移、內文散字）', ()
     expect(result.status).toBe(2)
   })
 
-  it.fails('已知繞道：heredoc 開啟符不在該行最後一段（如 <<\'EOF\' && echo done）內文被歸錯段 → 應擋下但實際放行', () => {
+  it('heredoc 開啟符不在該行最後一段（如 <<\'EOF\' && echo done）內文歸給開啟符所在段 → 擋下', () => {
     const command = [
       'patch -p1 <<\'EOF\' && echo done',
       `--- a/${FROZEN_FILE}`,
@@ -639,7 +637,7 @@ describe('frozen-paths-guard：heredoc 邊界（<< 左移、內文散字）', ()
     expect(result.status).toBe(2)
   })
 
-  it.fails('已知繞道：Path(...).open("r+") 等 r+ 模式未被 Path.open 偵測辨識為寫入 → 應擋下但實際放行', () => {
+  it('呼叫 Path(...).open("r+")（r+ 視為寫入模式） → 擋下', () => {
     const result = runGuard(`python3 -c "from pathlib import Path; Path('${FROZEN_FILE}').open('r+')"`)
     expect(result.status).toBe(2)
   })

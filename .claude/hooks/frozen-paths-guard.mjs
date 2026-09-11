@@ -38,6 +38,13 @@
 // 不算字面值（走 flood）；detect 命中後還要過 CALL_ARG——第一引數得是閉合的引號字串或
 // 識別字／$變數／運算式開頭，否則只算提及、不算呼叫。
 //
+// 2026-09-11（PR #141 Copilot review 第 1、2、4、6 輪）：①heredoc 內文固定併給該行最後一段，
+// `patch -p1 <<'EOF' && echo done` 的內文歸到 echo 段而漏放 ②`<< EOF`（<< 後接空白）不被認成
+// heredoc ③`Path(...).open('r+')` 只認 `['"][wax]` 漏掉 r+ ④單一 `&` 不切段，`echo hi & tee <凍結檔>`
+// 的 tee 不在指令位置。修法：內文歸「含 << 開啟符的那一段」（heredocTerminators 與 splitSegments
+// 同一套引號感知）；`<<-?\s*` 放寬空白（終止符仍限識別字開頭，`1 << 8` 不受影響）；Path.open 的
+// mode 改共用 MODE；單一 `&` 也當分隔符（`>&`／`<&`／`&>`／`&>>` 這類 fd 重導向除外）。
+//
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
 //   2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
@@ -134,7 +141,9 @@ const SCRIPT_WRITE_API = [
 
   // ---- python：write_text／write_bytes／Path.open／shutil／os ----
   { detect: /Path\s*\([^)]*\)\s*\.\s*(?:write_text|write_bytes|unlink)\s*\(/g, capture: /Path\s*\(\s*['"]([^'"]+)['"]\s*\)\s*\.\s*(?:write_text|write_bytes|unlink)\s*\(/g },
-  { detect: /Path\s*\([^)]*\)\s*\.\s*open\s*\(\s*['"][wax]/g, capture: /Path\s*\(\s*['"]([^'"]+)['"]\s*\)\s*\.\s*open\s*\(\s*['"][wax]/g, argsChecked: true },
+  // Path(...).open(mode)：mode 與 open() 系列共用 MODE（'w'／'a'／'x'／'r+'／'rb+'…皆算寫入，'r'／'rb' 不算），
+  // 同樣接受 mode='w' 關鍵字引數形式；只認 `['"][wax]` 會漏掉 'r+'（PR #141 review）
+  { detect: new RegExp(`Path\\s*\\([^)]*\\)\\s*\\.\\s*open\\s*\\(\\s*(?:mode\\s*=\\s*)?${MODE}`, 'g'), capture: new RegExp(`Path\\s*\\(\\s*['"]([^'"]+)['"]\\s*\\)\\s*\\.\\s*open\\s*\\(\\s*(?:mode\\s*=\\s*)?${MODE}`, 'g'), argsChecked: true },
   // open(path, 'w'|'a'|'x'|'r+'…)：同時涵蓋 node 的 fs.open/openSync 與 ruby 的 File.open
   { detect: OPEN_WRITE_DETECT, capture: OPEN_WRITE_CAPTURE, argsChecked: true },
   { detect: /shutil\.copy\w*\s*\(/g, capture: /shutil\.copy\w*\s*\([^,]+,\s*['"]([^'"]+)['"]/g },
@@ -253,35 +262,67 @@ function targetExists(rel) {
   return Boolean(prefix) && existsSync(resolve(projectRoot, prefix))
 }
 
-// heredoc（<<EOF、<<'EOF'、<<-EOF）感知切塊：把開啟行與其內文分開回傳，
+// heredoc（<<EOF、<< EOF、<<'EOF'、<<-EOF）感知切塊：把開啟行與各 heredoc 的內文分開回傳，
 // 避免下面逐行切分時把「動詞在首行、目標路徑在 heredoc 內文」拆成兩段各自看都不像寫入
 // 而漏放（如 `patch -p1 <<'EOF'` 接 unified diff 內文指向凍結檔；issue #137 對抗審查）。
-// 終止符必須緊接在 `<<` 後（不允許空白、不允許數字開頭），否則 `console.log(1 << 8)`
-// 這種位元左移會被當成 heredoc，把後續指令全部吞進同一塊。
-const HEREDOC_OPEN = /<<-?(['"]?)([A-Za-z_]\w*)\1/g
+// `<<` 後允許空白（bash 合法寫法 `<< EOF`），終止符限定識別字開頭（不允許數字），
+// 所以 `console.log(1 << 8)` 這種位元左移仍不會被當成 heredoc 把後續指令吞進同一塊；
+// 前置 (?<!<) 排除 here-string `<<< "text"`。sticky（y）旗標配合 heredocTerminators 從指定位置比對。
+const HEREDOC_OPEN = /(?<!<)<<-?\s*(['"]?)([A-Za-z_]\w*)\1/y
+
+// 引號感知的 heredoc 開啟符掃描：回傳 text 內引號外每個 `<<EOF` 的終止符（依出現順序）。
+// 與 splitSegments 用同一套單／雙引號判斷，`node -e "a << b"` 這種引號內的 << 不算開啟符；
+// 對整行與對切段後的單一 segment 呼叫都給出一致的計數，bashFrozenWrites 靠這點把內文歸段。
+function heredocTerminators(text) {
+  const terminators = []
+  let quote = ''
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (quote) {
+      if (c === quote)
+        quote = ''
+      continue
+    }
+    if (c === '<' && text[i + 1] === '<') {
+      HEREDOC_OPEN.lastIndex = i
+      const m = HEREDOC_OPEN.exec(text)
+      if (m) {
+        terminators.push(m[2])
+        i += m[0].length - 1 // 整個 <<'EOF' 一起跳過，終止符外的引號不進入引號狀態
+        continue
+      }
+    }
+    if (c === '\'' || c === '"')
+      quote = c
+  }
+  return terminators
+}
 
 function splitHeredocBlocks(command) {
   const lines = command.split('\n')
   const blocks = []
   for (let i = 0; i < lines.length; i++) {
     const head = lines[i]
-    let body = ''
-    for (const m of head.matchAll(HEREDOC_OPEN)) {
-      const terminator = m[2]
+    const bodies = []
+    for (const terminator of heredocTerminators(head)) {
+      let body = ''
       while (i + 1 < lines.length) {
         i++
         body += `${lines[i]}\n`
         if (lines[i].trim() === terminator)
           break
       }
+      bodies.push(body)
     }
-    blocks.push({ head, body })
+    blocks.push({ head, bodies })
   }
   return blocks
 }
 
-// 依 |、;、&&、|| 切段，但引號內（單／雙引號）的分隔符不算——
+// 依 |、;、&、&&、|| 切段，但引號內（單／雙引號）的分隔符不算——
 // 否則 `sed -i '' 's/a/b/;s/c/d/' <凍結檔>` 會被 `;` 切散，動詞與目標分屬不同段而漏放。
+// 單一 `&`（背景執行）也是指令分隔符，否則 `echo hi & tee <凍結檔>` 整條併一段、tee 不在
+// 指令位置而漏放；但 `>&`／`<&`／`&>`／`&>>`（含 `2>&1`）是同段內的 fd 重導向，不切。
 // 逐字元掃描而非 regex：避免遮蔽／還原佔位符，也沒有回溯成本。
 function splitSegments(text) {
   const segments = []
@@ -300,12 +341,15 @@ function splitSegments(text) {
       cur += c
       continue
     }
-    const isSeparator = c === ';' || c === '|' || (c === '&' && text[i + 1] === '&')
+    const prev = text[i - 1]
+    const next = text[i + 1]
+    const isSeparator = c === ';' || c === '|'
+      || (c === '&' && (next === '&' || (prev !== '>' && prev !== '<' && next !== '>')))
     if (!isSeparator) {
       cur += c
       continue
     }
-    if (c === '&' || (c === '|' && text[i + 1] === '|'))
+    if ((c === '&' && next === '&') || (c === '|' && next === '|'))
       i++
     segments.push(cur)
     cur = ''
@@ -356,14 +400,16 @@ function hasWriteVerb(words) {
 // 解析 Bash command，回傳會被寫入的凍結路徑清單（repo 相對、小寫）
 function bashFrozenWrites(command) {
   const targets = new Set()
-  for (const { head, body } of splitHeredocBlocks(command)) {
-    const segments = splitSegments(head)
-    for (let i = 0; i < segments.length; i++) {
-      const seg = segments[i]
+  for (const { head, bodies } of splitHeredocBlocks(command)) {
+    let bodyAt = 0
+    for (const seg of splitSegments(head)) {
       const words = tokenize(seg)
-      // heredoc 內文歸給該行最後一段指令（動詞在指令行、目標在內文，如 patch -p1 <<'EOF'）；
-      // 內文只用來找凍結路徑，不參與動詞與重導向判斷。
-      const bodyWords = i === segments.length - 1 ? tokenize(body) : []
+      // heredoc 內文歸給「含 << 開啟符的那一段」（動詞在指令行、目標在內文，如
+      // `patch -p1 <<'EOF' && echo done`——內文屬於 patch 段，不是 echo 段）；
+      // 一行多個 heredoc 時依開啟符出現順序各歸各段。內文只用來找凍結路徑，不參與動詞與重導向判斷。
+      const opened = heredocTerminators(seg).length
+      const bodyWords = bodies.slice(bodyAt, bodyAt + opened).flatMap(tokenize)
+      bodyAt += opened
       const frozen = [...words, ...bodyWords].map(frozenRelOf).filter(Boolean)
       if (!frozen.length)
         continue
