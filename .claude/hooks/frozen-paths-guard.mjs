@@ -11,14 +11,125 @@
 // hook 比中一次即從清單移除（清空刪檔），其餘情況照擋。
 // 為什麼用 hook 不用 rules/frozen-paths.md：paths 觸發規則在 subagent 內不注入
 //（2026-07-06 實測），只有 hook 對主對話與所有 subagent 都生效。
+//
+// 2026-09-08（issue #137）：補直譯器（python/node/ruby/perl/php/deno/bun/tsx/ts-node/vite-node）
+// 繞道——上面的逐段判斷以 `\n` 切段，heredoc 把「直譯器在首行、寫入 API 在後續行」拆成
+// 兩段各自看都不像寫入，會漏放（且漏放不經過 tryConsumeSentinel，sentinel 不會被消耗）。
+// 修法：對「整條指令」（不切段）另外判斷——任一處出現直譯器詞、且該語言的寫入 API
+//（SCRIPT_WRITE_API）被實際呼叫時才觸發。此防線與既有逐段防線（sed/tee/cp/mv、redirect、
+// git）並存、互不取代。
+//
+// 對抗審查一輪回饋（同日）：初版「命中即整條指令 flood」誤攔過廣——凍結區檔案只是被
+// `git diff`／`cat`／`open()` 唯讀讀取、寫入目標其實在別處時，也會被當成寫入擋下（SDD
+// 管線常見寫法：讀 flow/feature 產出 route-map／型別）。修法：SCRIPT_WRITE_API 每一項
+// 都拆成 { detect, capture } 一對——capture 在寫入呼叫的目標引數是字面字串時把它擷取出
+// 來，只有那些路徑才算寫入目標（rename／move 兩個引數都算，搬走等同刪掉來源）；capture
+// 抓不到字面值（引數是變數、`os.path.join(...)` 等運算式）時才對該次呼叫回退成「整條指令
+// flood」（把指令中所有比中凍結路徑的 token 都當寫入目標，寧可誤擋）。
+//
+// 對抗審查二輪回饋（同日）：切段不認引號（`sed -i '' 's/a/b/;s/c/d/' <凍結檔>` 被 `;`
+// 切散）、`<<` 位元左移被當 heredoc、heredoc 內文的散字被當寫入動詞、`,'w')` 形狀誤攔。
+// 修法：切段時忽略引號內的分隔符；heredoc 終止符必須緊接 `<<`；動詞只認「指令位置」的 token；
+// open 類 detect 加上「第一引數是路徑樣或識別字」的語境條件。
+//
+// 對抗審查三輪回饋（同日）：`open('$p','w')`（shell 變數包在引號內）被當字面值抓走而漏放；
+// 反過來，API 名只是被「提及」（grep 樣式 `"createWriteStream("` 未閉合引號、commit 訊息裡的
+// `writeFileSync(...)`）時 capture 抓不到，被誤判成動態呼叫而 flood。修法：含 `$` 的引號字串
+// 不算字面值（走 flood）；detect 命中後還要過 CALL_ARG——第一引數得是閉合的引號字串或
+// 識別字／$變數／運算式開頭，否則只算提及、不算呼叫。
+//
+// 2026-09-11（PR #141 Copilot review 第 1、2、4、6 輪）：①heredoc 內文固定併給該行最後一段，
+// `patch -p1 <<'EOF' && echo done` 的內文歸到 echo 段而漏放 ②`<< EOF`（<< 後接空白）不被認成
+// heredoc ③`Path(...).open('r+')` 只認 `['"][wax]` 漏掉 r+ ④單一 `&` 不切段，`echo hi & tee <凍結檔>`
+// 的 tee 不在指令位置。修法：內文歸「含 << 開啟符的那一段」（heredocTerminators 與 splitSegments
+// 同一套引號感知）；`<<-?\s*` 放寬空白（終止符仍限識別字開頭，`1 << 8` 不受影響）；Path.open 的
+// mode 改共用 MODE；單一 `&` 也當分隔符（`>&`／`<&`／`&>`／`&>>` 這類 fd 重導向除外）。
+//
+// 2026-09-11（PR #141 Copilot review 後續輪，使用者裁決後修）：①MODE 缺 't'，Python 的
+// 'wt'／'at' 文字寫入模式漏放 ②OPEN_ARGS 上限 120 太小，第一引數稍長的合法運算式會讓整個
+// open() 呼叫對 hook 隱形 ③OPEN_FIRST_ARG 把數字當識別字，`open(1,'w')` 這種 fd 寫入誤判成
+// 動態呼叫，flood 誤擋同指令內單純被提及的凍結路徑 ④HEREDOC_OPEN 終止符限定識別字開頭，
+// 數字終止符 `<<1` 判不出來 ⑤重導向偵測只認 `>`／`>>`，`>&`（stdout/stderr 一起導檔）漏放
+// ⑥⑦`commandVerbs()`／`gitWriteSubcmd()` 都只認 wrapper 後緊接的下一個 token 當子指令，
+// `sudo -u alice rm`、`git --work-tree /tmp checkout` 這類「wrapper 帶了一個吃值的選項」
+// 會把真正的動詞／子指令往後推而漏放。修法：MODE 的 't' 只放進兩側可選字元類（不影響
+// [wax+] 必要判斷，'rt' 仍不算寫入）；OPEN_ARGS 上限放寬到 2000（仍有界，ReDoS 風險不變）；
+// OPEN_FIRST_ARG 第二分支改 `[^\d\W]`（排除開頭數字）；HEREDOC_OPEN 拆成數字／識別字兩分支；
+// 重導向 regex 加 `>&`／`&>`／`&>>`；`commandVerbs()`／`gitWriteSubcmd()` 都改成先跳過吃值旗標
+// （WRAPPER_VALUE_FLAGS／GIT_VALUE_FLAGS，只收斂 sudo／env／git 實際會用到的旗標，不窮舉）
+// 再找子指令位置。
+//
+// 2026-09-11（PR #141 Copilot review round 13，使用者裁決後修）：①上一輪的數字 heredoc
+// 終止符（`<<1`）會誤判 `$((1<<1))` 這種算術展開，把換行後真正的寫入指令吞成「heredoc 內文」
+// 而漏放——這是上一輪修補的迴歸，不是新發現的獨立繞道 ②`WRAPPER_VALUE_FLAGS` 沒收 xargs
+// 的 `-I`，`xargs -I {} rm <凍結檔>` 的 `{}` 被誤判成子指令，`rm` 判不出來。修法：
+// `heredocTerminators()` 加追蹤 `$(( ))`／`(( ))` 括號深度，深度 >0 時的 `<<` 一律不當
+// heredoc 開啟符；`WRAPPER_VALUE_FLAGS` 補上 `-I`／`--replace`。
+//
+// 2026-09-11（PR #141 收尾，使用者裁決「只修誤擋、其餘列已知極限」）：直譯器偵測原本對整條指令
+// 所有 token 掃，grep 搜尋樣式裡的 `"node …"`、寫進文件的 heredoc 內文提到 python3，都會被當成
+// 真的在跑直譯器而誤擋唯讀／寫到別處的指令。修法：hasScriptInterpreter 改成只認指令位置的 token
+// （commandVerbs 同一套判準）、只看 heredoc 開啟行；npx／pnpx／bunx 補進 COMMAND_PREFIX 讓
+// `npx tsx -e` 的 tsx 仍算指令位置。寫入 API 的比對維持整條指令掃。
+//
+// 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
+//   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
+//   2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
+//   3. 指令或腳本內容先 base64／其他編碼再解碼執行
+//   4. 動態組出函式名（如 `getattr(p, 'write' + '_text')`）
+//   5. 路徑拆成兩段、用 shell 變數組回（如 `T=test/e2e; python3 -c "open('$T/specs/x','w')"`）
+//   6. 路徑或 API 名由運算式組出（f-string、`Path(dir) / name`、字串拼接）——capture 抓不到
+//      字面值時雖會退回 flood，但路徑本身沒有以字面值出現在指令原文時，flood 也無從比中
+//   7. 引號內含 shell 分隔符時只認成對的單／雙引號（涵蓋常見 sed／perl 形式）；跳脫引號
+//      （`\'`）、`$'...'`、巢狀引號等變體仍可能被誤切段
+//   8. `vim -es`／`emacs --batch`／`awk -i inplace` 這類編輯器不在 WRITE_VERBS／INPLACE_TOOLS 內
+//   9. flood 命中時擋出來的是「指令原文裡比中凍結路徑的 token」，可能是目錄而不是檔案；
+//      要走 sentinel 授權時，files 要照 hook 訊息列出的字串填（是目錄就填目錄字串）
+//  10. `tool_input.command` 不是字串（缺欄位或型別不對）時直接放行
+//  11. fail-open 設計：hook 內部 throw 時 node 以 exit 1 結束，Claude Code 視同非阻斷
+//  12. 含 `$` 的引號字串只在 open() 系列的 capture 被排除；renameSync／writeFileSync／shutil.* 等
+//      其他 API 的 capture 仍把 '$p' 當字面值路徑，`p=<凍結檔>; node -e "…renameSync('$p',…)"` 會漏放
+//  13. heredoc 數字終止符（`<<1`）只在緊接 `<<`（無空白）時才被認出；`<< 1`（`<<` 與數字終止符
+//      間有空白）目前仍判不出來，是刻意窄化——放寬空白會讓 `1 << 8` 這種位元左移誤判成 heredoc
+//
+// 以下 14–23 是 PR #141 Copilot review 抓出、經使用者裁決「不修、列為已知極限」的形狀（2026-09-11）。
+// 理由：本 hook 防的對象是 Claude 自己（主對話或 subagent 沒讀到規則、順手改了凍結檔），
+// 不是刻意繞道的攻擊者；Claude 想改檔用的是 Edit 工具、sed -i、tee、cat >、patch、open(…,'w')、
+// writeFileSync，這些全都擋住了。下列形狀是「知道有 guard、故意要繞」才會寫的，而第 1–3 條
+// 早已說明刻意繞道三秒就能做到，再堵這些也不會讓 hook 變成防線。
+//  14. SCRIPT_INTERPRETERS 認得 php／deno／bun，但 SCRIPT_WRITE_API 沒有這三種語言的寫入 API
+//      （file_put_contents／Deno.writeTextFile／Bun.write），等於這三種語言完全不設防
+//  15. `os.open(path, os.O_WRONLY | os.O_TRUNC)` 用數字旗標而非 mode 字串，MODE 系列 regex 比不中
+//  16. `Path(<凍結檔>).replace(dest)` 完全沒有對應規則（只有 `os.replace(`）；`Path(...).rename(dest)`
+//      的接收端來源路徑也沒被 capture，但 detect 命中＋capture 少一個會退回 flood，端到端仍擋得住
+//  17. optional chaining：`writeFileSync?.(…)` 這類 `?.(` 呼叫，所有 detect 都要求 API 名緊接 `(`
+//  18. `open(path, mode)` 的 mode 是變數而非字面字串時，detect 整段比不中，連 flood 都不會觸發
+//      （要堵得把「mode 是識別字」也算呼叫，代價是唯讀的 `mode='r'` 也會被 flood 誤擋）
+//  19. `Path(os.path.join(…)).open('w')`：Path.open 的 detect 用 `[^)]*`，建構子引數含巢狀括號就提前收尾
+//  20. `if rm <凍結檔>; then …`、`while`／`for`／`{ …; }` 等 shell 控制結構：關鍵字不在 COMMAND_PREFIX，
+//      其後的動詞不算指令位置
+//  21. heredoc 內文餵給 pipeline 下游寫入指令：`cat <<'EOF' | patch -p1`，內文歸給 `cat` 段、寫入的
+//      `patch` 段拿不到路徑（直譯器路線不受影響：`cat <<'PY' | python3` 仍由整條指令掃 API 擋下）
+//  22. `>|`（noclobber override）：splitSegments 先把 `|` 當管線切開，重導向 regex 也沒收 `>|`
+//  23. 直譯器偵測只認指令位置後，仍有一種殘留誤擋：grep 樣式裡放了引號閉合的完整寫檔呼叫
+//      （`grep -rn "writeFileSync('<凍結檔>','x')" . && node -v`），同一行又真的跑直譯器——寫入 API
+//      刻意對整條指令掃（跨行 `python3 -c "` 要靠這個），這種形狀就分不出樣式與呼叫
+// 這些只能靠 Bash 權限策略或人審補位。
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { normalize, relative, resolve } from 'node:path'
 
 // 凍結清單以本陣列為準（一律小寫）；增刪時須同步 rules/frozen-paths.md（frontmatter paths + 表格）
 const FROZEN = ['test/e2e/specs', 'spec/gherkin-feature', 'spec/e2e-flows']
 
-// Bash 寫入類動詞：與凍結路徑同段出現即視為寫入
-const WRITE_VERBS = new Set(['tee', 'cp', 'mv', 'rm', 'ln', 'truncate', 'dd'])
+// Bash 寫入類動詞：出現在「指令位置」且與凍結路徑同段即視為寫入
+// patch／ed／ex 皆能就地改檔（patch -p1 直接套用；ed／ex 是行編輯器，非互動下用 script 或 stdin 一樣能寫檔）
+const WRITE_VERBS = new Set(['tee', 'cp', 'mv', 'rm', 'ln', 'truncate', 'dd', 'patch', 'ed', 'ex'])
+// 指令位置：段落第一個 token（段落已在 |、;、&&、|| 處切開）。
+// 下列前綴後的第一個 token 一併視為指令位置，免得 `sudo rm <凍結檔>`、
+// `find … -exec rm {} \;`、`bash -c "rm <凍結檔>"` 這類寫法因為動詞不在第一位而漏放。
+// npx／pnpx／bunx 是套件執行器：直譯器偵測改成只認指令位置後，`npx tsx -e …` 的 tsx 要靠
+// 這裡才會被算進指令位置（PR #141 review）。
+const COMMAND_PREFIX = new Set(['sudo', 'env', 'time', 'command', 'nohup', 'xargs', 'npx', 'pnpx', 'bunx', 'then', 'do', 'else', '-exec', '-execdir', '-c'])
 // git 會改寫工作區檔案的子指令（git add/diff/log 等唯讀或只動 index 的不算）
 const GIT_WRITE_SUBCMDS = new Set(['checkout', 'restore', 'apply', 'mv', 'rm', 'clean', 'stash'])
 // 支援 -i／--in-place 就地改檔的串流編輯器與直譯器：帶 in-place 旗標時視為寫入。
@@ -28,6 +139,149 @@ const INPLACE_TOOLS = new Set(['sed', 'perl', 'ruby', 'gsed'])
 // 不忽略大小寫：就地改檔旗標一律小寫慣例（-i、-pi、-i.bak、--in-place），
 // 忽略大小寫會讓 perl -Ilib（include path，純讀取）之類的大寫旗標被誤判成寫入。
 const INPLACE_FLAG = /^-(?!-)[a-z]*i|^--in-place/
+
+// 腳本直譯器：比對 token 去路徑前綴後的最後一段（如 /usr/bin/python3.11 → python3.11）。
+// 含版本號變體（python3.11）與本 repo node_modules/.bin 常見的 tsx／ts-node／vite-node。
+const SCRIPT_INTERPRETERS = /^(?:python\d*(?:\.\d+)?|node|ruby|perl|php|deno|bun|tsx|ts-node|vite-node)$/
+
+// 寫入模式字串（'w'、'a'、'x'、'r+'、'wb'、'wt'…）。字元類一律用有界量詞：無界的
+// [rwaxbt+]* 兩側夾一個 [wax+] 會在長字串上回溯爆炸（ReDoS）。
+// 不可簡化成 [rwaxbt+]+ —— 那會把 'r'／'rb'／'rt' 這種唯讀模式也當成寫入。
+// 't' 只是文字模式修飾字，本身不代表寫入，所以只出現在兩側的可選字元類，不在必要的
+// [wax+] 裡——否則 'rt'（純讀文字模式）會被誤判成寫入（PR #141 review）。
+const MODE = `['"][rwaxbt+]{0,3}[wax+][rwaxbt+]{0,3}['"]`
+// open() 第一引數的語境條件：路徑樣字面值（含 / 或 .）、含 shell 變數的字串（'$p'、"${p}"）、
+// 或以識別字／下標起頭的運算式（變數、os.path.join(...)）。
+// 純短字串（print('x','a')、'foo'.replace('o','bar')）不算，藉此把 `,'w')` 形狀的誤攔降噪。
+// 第一段刻意寫成 [^'"/.$]* 起頭（遇 / . $ 或引號就停），避免兩個無界 [^'"]* 造成回溯爆炸。
+// 第二分支排除開頭數字（[^\d\W] 而非 \w）——純數字是檔案代號（如 open(1,'w')），不是路徑／
+// 識別字，原本 \w 會把它也當成呼叫，抓不到字面值時整條 flood，誤擋同指令內單純被提及的
+// 凍結路徑（PR #141 review）；fd 寫入本來就不是本 hook 要防的目標，直接不算呼叫更準確。
+const OPEN_FIRST_ARG = `(?:['"][^'"/.$]*[./$][^'"]*['"]|[^\\d\\W]|\\[)`
+// 引數區掃描：有界惰性重複，且引號字串整段吃掉；兩個分支在同一位置互斥，不會回溯爆炸。
+// 上限從 120 放寬到 2000——原上限會讓第一引數是稍長運算式（如 os.path.join 接長變數名）
+// 的合法呼叫整段比不中、anyCall 都不會是 true，比抓不到字面值退回 flood 更嚴重（等於這次
+// 呼叫對 hook 完全隱形）；2000 字元對正常程式碼綽綽有餘，仍是有界量詞，ReDoS 風險不變
+// （已用 80KB 惡意輸入實測，見 test/unit/frozen-paths-guard.spec.ts）。
+const OPEN_ARGS = `(?:[^;'"]|['"][^'"]*['"]){0,2000}?`
+const OPEN_WRITE_DETECT = new RegExp(`\\bopen(?:Sync)?\\s*\\(\\s*${OPEN_FIRST_ARG}${OPEN_ARGS},\\s*(?:mode\\s*=\\s*)?${MODE}\\s*[,)]`, 'g')
+// capture 的路徑不收含 $ 的字串：`open('$p','w')` 的 $p 要 shell 展開才知道指向哪，
+// 抓成字面值會誤判成「非凍結路徑」而放行；排除後它算不出字面值 → 退回 flood。
+const OPEN_WRITE_CAPTURE = new RegExp(`\\bopen(?:Sync)?\\s*\\(\\s*['"]([^'"$]+)['"]\\s*,\\s*(?:mode\\s*=\\s*)?${MODE}`, 'g')
+
+// 判斷 detect 命中處是不是「真的呼叫」：括號後第一個引數必須是「閉合的引號字串」
+// 或識別字／$變數／運算式開頭（[A-Za-z_$([]）。
+// 第一引數是 `.`（如 commit 訊息裡的 `writeFileSync(...)`）、`)`（空引數）、
+// 或引號但整條指令內都閉不起來（如 grep 的 `"createWriteStream("`）→ 只是「提及」，不算呼叫。
+// 用 sticky（y）旗標從指定位置起比對，不必切字串。
+const CALL_ARG = /\s*(?:['"][^'"]*['"]|[A-Za-z_$([])/y
+
+// 各語言常見寫入／刪除 API：對「整條指令原文」做 regex 比對（不切段，heredoc 內容也要吃到）。
+// 每項 { detect, capture, argsChecked }：
+// - detect：判斷此類呼叫是否存在（不要求引數是字面值，寧可多算）。detect 以 `\(` 收尾者，
+//   命中後還要過 CALL_ARG 才算呼叫；detect 本身已把引數形狀寫進去的標 argsChecked: true
+// - capture：引數是字面字串時，擷取真正的寫入／刪除目標路徑（所有 capture group 都算目標）
+// 呼叫次數 > capture 命中次數 → 代表至少一次呼叫的引數是變數／運算式（如
+// os.path.join(...)），該情況才需要對整條指令做 flood（見 bashFrozenWrites）。
+// 只挑會落地寫檔／刪檔的 API，純讀取（如 python 的 open(path) 預設 'r'）刻意不比中。
+// rename／move 類的 capture 有兩個 group（來源、目的）：來源被搬走等同刪除，一樣要擋；
+// copy 類只收目的地 group，來源是凍結檔仍放行（不動原檔）。
+const SCRIPT_WRITE_API = [
+  // ---- node：write／append／stream ----
+  { detect: /\b(?:writeFileSync|writeFile)\s*\(/g, capture: /\b(?:writeFileSync|writeFile)\s*\(\s*['"]([^'"]+)['"]/g },
+  { detect: /\b(?:appendFileSync|appendFile)\s*\(/g, capture: /\b(?:appendFileSync|appendFile)\s*\(\s*['"]([^'"]+)['"]/g },
+  { detect: /\bcreateWriteStream\s*\(/g, capture: /\bcreateWriteStream\s*\(\s*['"]([^'"]+)['"]/g },
+  // rename／renameSync：同時涵蓋 python 的 os.rename 與 ruby 的 File.rename（皆為 `.rename(` 形狀）
+  { detect: /\b(?:renameSync|rename)\s*\(/g, capture: /\b(?:renameSync|rename)\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]/g },
+  // copy 類：只有目的地算寫入目標
+  { detect: /\b(?:copyFileSync|copyFile|cpSync|cp)\s*\(/g, capture: /\b(?:copyFileSync|copyFile|cpSync|cp)\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]/g },
+  // 刪除類（含非同步版與 rmdir）
+  { detect: /\b(?:rmSync|unlinkSync|rmdirSync|rm|unlink|rmdir)\s*\(/g, capture: /\b(?:rmSync|unlinkSync|rmdirSync|rm|unlink|rmdir)\s*\(\s*['"]([^'"]+)['"]/g },
+  // 截斷類（含非同步版；os.truncate 亦命中）
+  { detect: /\b(?:truncateSync|ftruncateSync|truncate|ftruncate)\s*\(/g, capture: /\b(?:truncateSync|ftruncateSync|truncate|ftruncate)\s*\(\s*['"]([^'"]+)['"]/g },
+  // symlink／hard link：第二引數是被建立／覆蓋的路徑
+  { detect: /(?:\b(?:symlinkSync|linkSync)|os\.(?:symlink|link))\s*\(/g, capture: /(?:\b(?:symlinkSync|linkSync)|os\.(?:symlink|link))\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]/g },
+
+  // ---- python：write_text／write_bytes／Path.open／shutil／os ----
+  { detect: /Path\s*\([^)]*\)\s*\.\s*(?:write_text|write_bytes|unlink)\s*\(/g, capture: /Path\s*\(\s*['"]([^'"]+)['"]\s*\)\s*\.\s*(?:write_text|write_bytes|unlink)\s*\(/g },
+  // Path(...).open(mode)：mode 與 open() 系列共用 MODE（'w'／'a'／'x'／'r+'／'rb+'…皆算寫入，'r'／'rb' 不算），
+  // 同樣接受 mode='w' 關鍵字引數形式；只認 `['"][wax]` 會漏掉 'r+'（PR #141 review）
+  { detect: new RegExp(`Path\\s*\\([^)]*\\)\\s*\\.\\s*open\\s*\\(\\s*(?:mode\\s*=\\s*)?${MODE}`, 'g'), capture: new RegExp(`Path\\s*\\(\\s*['"]([^'"]+)['"]\\s*\\)\\s*\\.\\s*open\\s*\\(\\s*(?:mode\\s*=\\s*)?${MODE}`, 'g'), argsChecked: true },
+  // open(path, 'w'|'a'|'x'|'r+'…)：同時涵蓋 node 的 fs.open/openSync 與 ruby 的 File.open
+  { detect: OPEN_WRITE_DETECT, capture: OPEN_WRITE_CAPTURE, argsChecked: true },
+  { detect: /shutil\.copy\w*\s*\(/g, capture: /shutil\.copy\w*\s*\([^,]+,\s*['"]([^'"]+)['"]/g },
+  { detect: /shutil\.move\s*\(/g, capture: /shutil\.move\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]/g },
+  { detect: /shutil\.rmtree\s*\(/g, capture: /shutil\.rmtree\s*\(\s*['"]([^'"]+)['"]/g },
+  { detect: /os\.replace\s*\(/g, capture: /os\.replace\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]/g },
+  { detect: /os\.(?:remove|unlink|truncate|rmdir)\s*\(/g, capture: /os\.(?:remove|unlink|truncate|rmdir)\s*\(\s*['"]([^'"]+)['"]/g },
+
+  // ---- ruby：File.write／IO.write／File.delete／FileUtils ----
+  { detect: /(?:File|IO)\.write\s*\(/g, capture: /(?:File|IO)\.write\s*\(\s*['"]([^'"]+)['"]/g },
+  { detect: /File\.delete\s*\(/g, capture: /File\.delete\s*\(\s*['"]([^'"]+)['"]/g },
+  { detect: /FileUtils\.(?:rm_rf|rm_r|rm)\s*\(/g, capture: /FileUtils\.(?:rm_rf|rm_r|rm)\s*\(\s*['"]([^'"]+)['"]/g },
+  { detect: /FileUtils\.cp\w*\s*\(/g, capture: /FileUtils\.cp\w*\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]/g },
+  { detect: /FileUtils\.mv\s*\(/g, capture: /FileUtils\.mv\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]/g },
+
+  // ---- perl：open(..., '>'...)（追加、覆寫皆以 '>' 開頭；'>>' 也命中）----
+  // 3-arg 形式：open($fh, '>', 'file')——mode 自己是一個完整字串，檔名是下一個字串
+  { detect: /open\s*\([^,]+,\s*['"]>>?['"]\s*,/g, capture: /open\s*\([^,]+,\s*['"]>>?['"]\s*,\s*['"]([^'"]+)['"]/g, argsChecked: true },
+  // 2-arg 形式：open($fh, '>file')——mode 與檔名黏在同一個字串裡
+  { detect: /open\s*\([^,]+,\s*['"]>>?[^'"]+['"]/g, capture: /open\s*\([^,]+,\s*['"]>>?([^'"]+)['"]/g, argsChecked: true },
+]
+
+function baseName(word) {
+  return word.slice(word.lastIndexOf('/') + 1)
+}
+
+// 指令是否真的在「跑」直譯器：只認指令位置的 token（段首、sudo／npx／-c／變數指派之後），
+// 且只看 heredoc 的開啟行、不看內文。原本對整條指令所有 token 掃，grep 搜尋樣式裡的 `"node …"`、
+// 寫進文件的 heredoc 內文提到 python3，都會被當成真的在跑直譯器，接著把樣式／內文裡的 API 字樣
+// 當成呼叫而誤擋唯讀或寫到別處的指令（PR #141 review）。
+// 只收窄「觸發條件」；寫入 API 的比對（scriptWriteAnalysis）仍對整條指令做——
+// `python3 -c "` 跨行的引號字串會把直譯器與 API 拆到不同行，切段掃會漏。
+function hasScriptInterpreter(command) {
+  for (const { head } of splitHeredocBlocks(command)) {
+    for (const seg of splitSegments(head)) {
+      if (commandVerbs(tokenize(seg)).some(v => SCRIPT_INTERPRETERS.test(v)))
+        return true
+    }
+  }
+  return false
+}
+
+// detect 命中處之後接的是不是可解析的引數（見 CALL_ARG）
+function isCallArgs(command, index) {
+  CALL_ARG.lastIndex = index
+  return CALL_ARG.test(command)
+}
+
+// 分析整條指令的腳本寫入呼叫：回傳是否有呼叫、是否有呼叫的引數抓不到字面值（需 flood）、
+// 以及所有抓得到的字面值寫入／刪除目標路徑
+function scriptWriteAnalysis(command) {
+  let anyCall = false
+  let anyDynamic = false
+  const literalPaths = []
+  for (const { detect, capture, argsChecked } of SCRIPT_WRITE_API) {
+    let callCount = 0
+    for (const m of command.matchAll(detect)) {
+      if (argsChecked || isCallArgs(command, m.index + m[0].length))
+        callCount++
+    }
+    if (!callCount)
+      continue
+    anyCall = true
+    const captured = [...command.matchAll(capture)]
+    for (const m of captured) {
+      for (const group of m.slice(1)) {
+        if (group)
+          literalPaths.push(group)
+      }
+    }
+    if (captured.length < callCount)
+      anyDynamic = true
+  }
+  return { anyCall, anyDynamic, literalPaths }
+}
 
 const realpath = realpathSync.native ?? realpathSync
 let projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd()
@@ -69,27 +323,248 @@ function frozenRelOf(word) {
   return null
 }
 
+// 目標是否指向「既有檔」：本 hook 只擋既有檔，新增放行。
+// glob 樣式（*、?、[）沒辦法逐一比對，退回檢查最近的非 glob 祖先目錄——
+// 目錄在就當作可能命中既有檔（寧可誤擋），例如 `git checkout main -- 'test/e2e/specs/*'`。
+function targetExists(rel) {
+  if (existsSync(resolve(projectRoot, rel)))
+    return true
+  const globAt = rel.search(/[*?[]/)
+  if (globAt === -1)
+    return false
+  const prefix = rel.slice(0, globAt).replace(/\/[^/]*$/, '')
+  return Boolean(prefix) && existsSync(resolve(projectRoot, prefix))
+}
+
+// heredoc（<<EOF、<< EOF、<<'EOF'、<<-EOF、<<1）感知切塊：把開啟行與各 heredoc 的內文分開回傳，
+// 避免下面逐行切分時把「動詞在首行、目標路徑在 heredoc 內文」拆成兩段各自看都不像寫入
+// 而漏放（如 `patch -p1 <<'EOF'` 接 unified diff 內文指向凍結檔；issue #137 對抗審查）。
+// 前置 (?<!<) 排除 here-string `<<< "text"`。sticky（y）旗標配合 heredocTerminators 從指定位置比對。
+// 兩個分支刻意分開：`<<` 緊接數字終止符（如 `<<1`）才算 heredoc（group 1）；
+// 識別字終止符允許 `<<` 後有空白（如 `<< EOF`，group 3）。
+// 數字終止符不比對「`<<` 後有空白」是刻意的——這樣 `1 << 8` 這種位元左移（有空白）
+// 才不會被誤判成 heredoc；`<< 1`（數字終止符前有空白）目前仍判不出來，是已知殘留限制
+// （見 rules/frozen-paths.md 已知極限清單）。
+const HEREDOC_OPEN = /(?<!<)<<-?(?:(\d+)|\s*(['"]?)([A-Za-z_]\w*)\2)/y
+
+// 引號感知的 heredoc 開啟符掃描：回傳 text 內引號外每個 `<<EOF` 的終止符（依出現順序）。
+// 與 splitSegments 用同一套單／雙引號判斷，`node -e "a << b"` 這種引號內的 << 不算開啟符；
+// 對整行與對切段後的單一 segment 呼叫都給出一致的計數，bashFrozenWrites 靠這點把內文歸段。
+//
+// 額外追蹤 $(( ))／(( ) 算術展開的括號深度：裡面的 << 是位元左移，不是 heredoc。
+// 數字終止符分支放寬後，`$((1<<1))` 會被誤判成 heredoc（`<<1` 緊接數字），把後面真正的
+// 寫入指令吞成「內文」而漏放（PR #141 review，round 13）；`1 << 8`（<< 前後有空白）不受
+// 影響，本來就不會比中數字終止符分支，這裡是專門堵 `$((...))` 這種「數字緊貼 <<」的算術寫法。
+function heredocTerminators(text) {
+  const terminators = []
+  let quote = ''
+  let arithDepth = 0
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (quote) {
+      if (c === quote)
+        quote = ''
+      continue
+    }
+    if (arithDepth > 0) {
+      if (c === '(')
+        arithDepth++
+      else if (c === ')')
+        arithDepth--
+      continue
+    }
+    if (c === '(' && text[i + 1] === '(') {
+      arithDepth = 2
+      i++ // 跳過第二個 (，深度已算進去
+      continue
+    }
+    if (c === '<' && text[i + 1] === '<') {
+      HEREDOC_OPEN.lastIndex = i
+      const m = HEREDOC_OPEN.exec(text)
+      if (m) {
+        terminators.push(m[1] ?? m[3]) // group 1 = 數字終止符，group 3 = 識別字終止符
+        i += m[0].length - 1 // 整個 <<'EOF' 一起跳過，終止符外的引號不進入引號狀態
+        continue
+      }
+    }
+    if (c === '\'' || c === '"')
+      quote = c
+  }
+  return terminators
+}
+
+function splitHeredocBlocks(command) {
+  const lines = command.split('\n')
+  const blocks = []
+  for (let i = 0; i < lines.length; i++) {
+    const head = lines[i]
+    const bodies = []
+    for (const terminator of heredocTerminators(head)) {
+      let body = ''
+      while (i + 1 < lines.length) {
+        i++
+        body += `${lines[i]}\n`
+        if (lines[i].trim() === terminator)
+          break
+      }
+      bodies.push(body)
+    }
+    blocks.push({ head, bodies })
+  }
+  return blocks
+}
+
+// 依 |、;、&、&&、|| 切段，但引號內（單／雙引號）的分隔符不算——
+// 否則 `sed -i '' 's/a/b/;s/c/d/' <凍結檔>` 會被 `;` 切散，動詞與目標分屬不同段而漏放。
+// 單一 `&`（背景執行）也是指令分隔符，否則 `echo hi & tee <凍結檔>` 整條併一段、tee 不在
+// 指令位置而漏放；但 `>&`／`<&`／`&>`／`&>>`（含 `2>&1`）是同段內的 fd 重導向，不切。
+// 逐字元掃描而非 regex：避免遮蔽／還原佔位符，也沒有回溯成本。
+function splitSegments(text) {
+  const segments = []
+  let cur = ''
+  let quote = ''
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (quote) {
+      cur += c
+      if (c === quote)
+        quote = ''
+      continue
+    }
+    if (c === '\'' || c === '"') {
+      quote = c
+      cur += c
+      continue
+    }
+    const prev = text[i - 1]
+    const next = text[i + 1]
+    const isSeparator = c === ';' || c === '|'
+      || (c === '&' && (next === '&' || (prev !== '>' && prev !== '<' && next !== '>')))
+    if (!isSeparator) {
+      cur += c
+      continue
+    }
+    if ((c === '&' && next === '&') || (c === '|' && next === '|'))
+      i++
+    segments.push(cur)
+    cur = ''
+  }
+  segments.push(cur)
+  return segments
+}
+
+function tokenize(text) {
+  return text.split(/[\s"'()`;&|<>]+/).filter(Boolean)
+}
+
+// COMMAND_PREFIX 裡的 wrapper（sudo／env／xargs 會這樣用）常接一個吃值的旗標，
+// 旗標的值會把真正的子指令往後推一位：`sudo -u alice rm <凍結檔>` 原本只認「wrapper 後
+// 緊接的 token」，`-u` 之後是值 `alice` 不是子指令，`rm` 判不出指令位置而漏放（PR #141
+// review）；`xargs -I {} rm <凍結檔>` 同理，`-I` 的替換字串 `{}` 被誤判成子指令，`rm` 判不出來
+// （PR #141 review，round 13）。只收斂 sudo／env／xargs 實際會用到的旗標，不求窮舉每個工具。
+const WRAPPER_VALUE_FLAGS = new Set(['-u', '--user', '-g', '--group', '-C', '--chdir', '-R', '--chroot', '-I', '--replace'])
+
+// 從 wrapper 後一個 token 開始，跳過旗標（吃值旗標額外多跳一個 token 當它的值），
+// 回傳第一個非旗標 token 的索引（可能等於 words.length，代表找不到）。
+function skipWrapperFlags(words, start) {
+  let i = start
+  while (i < words.length && words[i].startsWith('-'))
+    i += WRAPPER_VALUE_FLAGS.has(words[i]) ? 2 : 1
+  return i
+}
+
+// 只有「指令位置」的 token 才算動詞：段落第一個 token，或 sudo／xargs／find -exec 等前綴
+// 之後、或 shell 變數指派之後。這樣 heredoc 內文與訊息字串裡散落的 ed／restore 不會被誤判。
+function commandVerbs(words) {
+  const verbs = []
+  for (let i = 0; i < words.length; i++) {
+    if (i === 0 || COMMAND_PREFIX.has(words[i - 1]) || /^\w+=/.test(words[i - 1]))
+      verbs.push(baseName(words[i]))
+    if (COMMAND_PREFIX.has(words[i])) {
+      const subcmdIndex = skipWrapperFlags(words, i + 1)
+      if (subcmdIndex < words.length && subcmdIndex !== i + 1)
+        verbs.push(baseName(words[subcmdIndex]))
+    }
+  }
+  return verbs
+}
+
+// git 全域旗標裡會吃一個值的（-C／-c 之外，--work-tree／--git-dir／--namespace 同樣把
+// 下一個 token 當值，不是子指令；`git --work-tree /tmp checkout -- <凍結檔>` 原本只跳
+// -C/-c，把 /tmp 誤判成子指令位置，真正的 checkout 判不出來，PR #141 review）。
+const GIT_VALUE_FLAGS = new Set(['-C', '-c', '--work-tree', '--git-dir', '--namespace'])
+
+// git 的子指令只認緊接 git 之後的第一個非旗標 token（吃值旗標會多跳一個 token），
+// 否則 `git commit -m "… restore …"` 的訊息內文會被當成 git restore。
+function gitWriteSubcmd(words) {
+  const gi = words.findIndex(w => baseName(w) === 'git')
+  if (gi === -1)
+    return false
+  for (let i = gi + 1; i < words.length; i++) {
+    if (GIT_VALUE_FLAGS.has(words[i])) {
+      i++
+      continue
+    }
+    if (words[i].startsWith('-'))
+      continue
+    return GIT_WRITE_SUBCMDS.has(words[i])
+  }
+  return false
+}
+
+function hasWriteVerb(words) {
+  return commandVerbs(words).some(v => WRITE_VERBS.has(v))
+    || (words.some(w => INPLACE_TOOLS.has(baseName(w))) && words.some(w => INPLACE_FLAG.test(w)))
+    || gitWriteSubcmd(words)
+}
+
 // 解析 Bash command，回傳會被寫入的凍結路徑清單（repo 相對、小寫）
 function bashFrozenWrites(command) {
   const targets = new Set()
-  for (const seg of command.split(/\|\||&&|;|\||\n/)) {
-    const words = seg.split(/[\s"'()`;&|<>]+/).filter(Boolean)
-    const frozen = words.map(frozenRelOf).filter(Boolean)
-    if (!frozen.length)
-      continue
-    const hasWriteVerb = words.some(w => WRITE_VERBS.has(w.slice(w.lastIndexOf('/') + 1)))
-      || (words.some(w => INPLACE_TOOLS.has(w.slice(w.lastIndexOf('/') + 1)))
-        && words.some(w => INPLACE_FLAG.test(w)))
-      || (words.includes('git') && words.some(w => GIT_WRITE_SUBCMDS.has(w)))
-    if (hasWriteVerb) {
-      frozen.forEach(t => targets.add(t))
-      continue
+  for (const { head, bodies } of splitHeredocBlocks(command)) {
+    let bodyAt = 0
+    for (const seg of splitSegments(head)) {
+      const words = tokenize(seg)
+      // heredoc 內文歸給「含 << 開啟符的那一段」（動詞在指令行、目標在內文，如
+      // `patch -p1 <<'EOF' && echo done`——內文屬於 patch 段，不是 echo 段）；
+      // 一行多個 heredoc 時依開啟符出現順序各歸各段。內文只用來找凍結路徑，不參與動詞與重導向判斷。
+      const opened = heredocTerminators(seg).length
+      const bodyWords = bodies.slice(bodyAt, bodyAt + opened).flatMap(tokenize)
+      bodyAt += opened
+      const frozen = [...words, ...bodyWords].map(frozenRelOf).filter(Boolean)
+      if (!frozen.length)
+        continue
+      if (hasWriteVerb(words)) {
+        frozen.forEach(t => targets.add(t))
+        continue
+      }
+      // 無寫入動詞的段落：只有重導向（>、>>、>&、&>、&>>）目標比中凍結路徑才算寫入。
+      // >& 是 bash 把 stdout/stderr 一起導到目標檔的簡寫（等同 > file 2>&1），漏了這個形狀
+      // 會讓 `echo x >& <凍結檔>` 這種寫入漏放（PR #141 review）；`2>&1` 這類 fd 複製會被
+      // 一併掃到 capture，但目標是純數字 fd、比不中任何真實凍結路徑，frozenRelOf 自然濾掉。
+      for (const m of seg.matchAll(/(?:>{1,2}&?|&>{1,2})\s*["']?([^\s"'<>|;&]+)/g)) {
+        const rel = frozenRelOf(m[1])
+        if (rel)
+          targets.add(rel)
+      }
     }
-    // 無寫入動詞的段落：只有重導向（> >>）目標比中凍結路徑才算寫入
-    for (const m of seg.matchAll(/>{1,2}\s*["']?([^\s"'<>|;&]+)/g)) {
-      const rel = frozenRelOf(m[1])
-      if (rel)
-        targets.add(rel)
+  }
+  // 直譯器防線：對「整條指令」（跨 \n、不切段）判斷，heredoc 把直譯器詞與寫入 API
+  // 拆到不同行也吃得到。優先用 capture 抓到的字面值路徑當寫入目標（精準，不誤傷同指令
+  // 內被唯讀讀取的凍結檔）；只有引數抓不到字面值（變數／運算式）時才回退整條指令 flood。
+  const allWords = tokenize(command)
+  if (hasScriptInterpreter(command)) {
+    const { anyCall, anyDynamic, literalPaths } = scriptWriteAnalysis(command)
+    if (anyCall) {
+      for (const p of literalPaths) {
+        const rel = frozenRelOf(p)
+        if (rel)
+          targets.add(rel)
+      }
+      if (anyDynamic) {
+        for (const rel of allWords.map(frozenRelOf).filter(Boolean))
+          targets.add(rel)
+      }
     }
   }
   return [...targets]
@@ -143,12 +618,11 @@ process.stdin.on('end', () => {
   }
 
   if (input?.tool_name === 'Bash') {
-    const command = String(input?.tool_input?.command ?? '')
+    const command = typeof input?.tool_input?.command === 'string' ? input.tool_input.command : ''
     if (!command)
       process.exit(0)
     // 只擋「既有檔」；寫入不存在的目標＝新增，放行
-    const existing = bashFrozenWrites(command)
-      .filter(rel => existsSync(resolve(projectRoot, rel)))
+    const existing = bashFrozenWrites(command).filter(targetExists)
     if (!existing.length)
       process.exit(0)
     if (tryConsumeSentinel(existing))
