@@ -402,8 +402,8 @@ test.describe('Auth 守衛', () => {
   // 設定自檢：兩份清單若有 pattern 重疊，代表同一路由被同時判定「需登入」與「免登入」，設定本身矛盾。
   // 用 matchesRoutePattern（逐段比對）不用 startsWith——pattern 含 :param 時字面值比對永遠比不中，
   // 純字面 pattern 又會誤判同前綴的兄弟路由（v2 bug，issue #137）。
-  // ⚠️ PUBLIC_PAGES 為空時，下面雙層迴圈外層零次迭代，本測試零斷言空跑（恆過，不提供保護）；
-  // 專案有公開頁、把 PUBLIC_PAGES 填值後，這個自檢才真的生效。
+  // ⚠️ PUBLIC_PAGES 為空時，下面的 test.skip 會把這個自檢標成 skipped（不是零斷言空跑後顯示通過）；
+  // 專案有公開頁、把 PUBLIC_PAGES 填值後，這個自檢才會真的執行。
   test('PUBLIC_PAGES 每一項都不得比中任何 PROTECTED_PAGES', () => {
     test.skip(PUBLIC_PAGES.length === 0, 'PUBLIC_PAGES 為空，此自檢暫無意義；填入公開頁清單後才會執行')
     // 兩邊都可能含 :param（PROTECTED_PAGES 多為具體路徑，PUBLIC_PAGES 來自 route-map 的
@@ -422,6 +422,10 @@ test.describe('Auth 守衛', () => {
   const isOnLogin = (page: import('@playwright/test').Page) =>
     matchesRoutePattern(Routes.login, new URL(page.url()).pathname)
 
+  // ⚠️ 下面兩個迴圈把 PROTECTED_PAGES／PUBLIC_PAGES 的值直接丟給 page.goto()，只能放具體路徑。
+  // 若清單裡混了 route-map 來的 pattern（如 `/users/[id]`），page.goto() 會把它當成字面 URL
+  // 訪問（不會展開成真實頁面），導向斷言可能因此對到錯誤頁面而誤判過。pattern 混合具體值的清單
+  // 只安全用在上面的互斥自檢（純字串比對，不導航）；這裡導航用的項目要換成一個真實存在的頁面。
   for (const path of PROTECTED_PAGES) {
     test(`未登入訪 ${path} → 導向 login`, async ({ page }) => {
       await page.goto(path, { waitUntil: 'networkidle' })
@@ -572,7 +576,7 @@ E2E Setup 完成
 - [ ] `hydration.ts` 存在且 `index.ts` re-export `{ expect, test }`
 - [ ] `route-match.ts` 存在，`login` 與 `01-auth-guard.spec.ts` 皆改用 `matchesRoutePattern`（不用 `startsWith`）
 - [ ] `specs/00-hydration.spec.ts` 涵蓋所有 Routes（公開 + 登入後）
-- [ ] `route-map.yaml` 有 `auth` 區塊時，`specs/01-auth-guard.spec.ts` 存在（未登入導 login／公開頁不被導走／已登入訪 login 導回／`PUBLIC_PAGES` 不比中任何 `PROTECTED_PAGES`；`PUBLIC_PAGES` 為空時互斥斷言零斷言空跑，填值後才生效）
+- [ ] `route-map.yaml` 有 `auth` 區塊時，`specs/01-auth-guard.spec.ts` 存在（未登入導 login／公開頁不被導走／已登入訪 login 導回／`PUBLIC_PAGES` 不比中任何 `PROTECTED_PAGES`；`PUBLIC_PAGES` 為空時互斥自檢標成 skipped，填值後才執行）
 - [ ] `route-map.yaml > api_contract.endpoints` 有 ≥2 個 path 參數的端點時，`specs/02-authz-scope.spec.ts` 存在且**含寫入端點**的錯誤父子組合
 - [ ] `.gitignore` 排除測試產物
 - [ ] `npx playwright test --list` 可執行
