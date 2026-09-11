@@ -193,9 +193,10 @@ const LOGIN_BUTTON = /登入/
  * label／按鈕文案依該專案 login 頁調整——UI 側範本見 feature-to-ui/references/page-builder.md「登入表單」。
  *
  * ⚠️ getByLabel 用 `exact: true` 不用 regex：Playwright 的 getByLabel 對**任何**帶 aria-label 的元素
- * 都會回傳該值（不限 form control）。密碼欄內顯示／隱藏密碼的切換鈕 aria-label 不含欄位名
- * （page-builder 範本已改成「顯示」／「隱藏」，不再是「顯示密碼」／「隱藏密碼」），故不會與
- * 欄位本身的 label 撞名；exact: true 仍保留（防未來欄位名剛好是切換鈕文案的子字串），但非必要。
+ * 都會回傳該值（不限 form control）。密碼欄內顯示／隱藏密碼的切換鈕 aria-label 是「顯示密碼」／
+ * 「隱藏密碼」（page-builder 範本刻意保留，為了 a11y 可讀性），含「密碼」這個欄位名子字串——
+ * 用 regex `/密碼/` 會同時命中 input 與切換鈕（strict mode violation，實測 count=2）；exact: true
+ * 只精確匹配「密碼」二字，才能跟「顯示密碼」／「隱藏密碼」分開，這裡是必要寫法，不是防禦性保留。
  * UFormField required 的 `*` 是 CSS pseudo，不計入 accessible name，故 exact 安全。
  *
  * ⚠️ 離開判斷用 `matchesRoutePattern`（見 `route-match.ts`）不用 `startsWith('/login')`：
