@@ -65,8 +65,8 @@ Phase 2 增量更新完成
 2.5. **RBAC route guard（條件式）**：檢查 `route-map.yaml > rbac.protected_routes`
    - **無 `rbac` 區塊 / 無 `protected_routes`** → 跳過，本專案不做角色路由守門
    - **有 `protected_routes`** → 確保 `app/middleware/rbac.global.ts` 存在（範本見下方「RBAC route guard 範本」），並建立守門目標頁空殼（如 `/403`，若 `route-map.routes` 未含則一併補一個 `app/pages/403.vue` 空殼）。角色名用 `rbac` 實際值、不寫死。入口 / 操作鈕的角色隱藏由 Phase 5 依 [rules.md](rules.md)「角色導向 UI 可見性」實作。
-     另檢查 `protected_routes` 沒有重複的路徑（只差參數名也算，如 `/members/[id]` 與 `/members/:memberId`）：有就停下回報路由規劃問題，不要默默產出——兩條 `allow` 不同時，套用哪一條會取決於清單順序。
-     也檢查沒有任何一條涵蓋 `auth.login_path`（最常見是寫了 `/`，它涵蓋整站）：有就停下回報——未登入者會在 login 與 `/403` 之間來回導向。
+     另檢查 `protected_routes` 沒有重複的路徑（只差參數名或尾斜線也算，如 `/members/[id]` 與 `/members/:memberId`、`/members` 與 `/members/`）：有就停下回報路由規劃問題，不要默默產出——兩條 `allow` 不同時，套用哪一條會取決於清單順序。
+     也檢查沒有任何具體路徑同時被某條 `protected_routes` 涵蓋、又被某條 `auth.public_paths` 命中（例如 `/members` 涵蓋公開的 `/members/[id]`；最常見是寫了 `/`，它涵蓋整站含 login）：有就停下回報——匿名者進該公開頁會被導去 `/403`，公開頁形同失效；撞到的是 login 時，還會在 login 與 `/403` 之間來回導向。
      路徑段的語法限制同步驟 2：不支援的語法（catch-all、選填段、正規式參數）停下回報。
 3. **根據路由規劃建立所有頁面空殼**（**不帶 testid**，見上方必讀規範）
 4. **每個頁面只包含基本結構**：語意標籤（`<main>`／`<section>`）＋ `<h1>` 頁面標題，讓後續 Phase 5 有語意 anchor 可用
@@ -149,7 +149,7 @@ const siteId = computed(() => route.params.id)
 |---|---|---|---|
 | `matchesRoutePattern` | 段數相同、逐段對上 | Auth `public_paths`（白名單） | 公開頁不連帶放行子頁，漏列只會多擋、不會漏守 |
 | `coversRoutePattern` | pattern 本身或其下子頁 | RBAC `protected_routes`（黑名單） | 守住 `/members` 也守住 `/members/42`，漏列子頁仍有守門 |
-| `compareRouteSpecificity` | —（排序用） | RBAC 規則優先序 | 深的先、同深度具體段先；`/members/me` 的例外不會被 `/members/[id]` 蓋掉，清單順序不影響結果（只差參數名的重複規則除外，由步驟 2.5 擋下） |
+| `compareRouteSpecificity` | —（排序用） | RBAC 規則優先序 | 深的先、同深度具體段先；`/members/me` 的例外不會被 `/members/[id]` 蓋掉，清單順序不影響結果（只差參數名或尾斜線的重複規則除外，由步驟 2.5 擋下） |
 
 ```ts
 // app/utils/route-match.ts
@@ -275,7 +275,7 @@ const PROTECTED_ROUTES: { path: string, allow: string[] }[] = [
 
 // 最具體的規則先比：子頁另列一條就能覆寫上層（如 /accounts/me 開放給其他角色）。
 // 深的先、同深度具體段先（/accounts/me 先於 /accounts/[id]），不受生成時的排列順序影響。
-// 只差參數名的重複規則（/accounts/[id] 與 /accounts/:accountId）排不出先後，生成前就要擋下（見步驟 2.5）。
+// 只差參數名或尾斜線的重複規則（/accounts/[id] 與 /accounts/:accountId）排不出先後，生成前就要擋下（見步驟 2.5）。
 // 複製後 sort，不用 toSorted：它是 ES2023，Vite 預設支援的 Chrome 107／Firefox 104 沒有，Nuxt 也不補 polyfill
 const RULES_BY_SPECIFICITY = [...PROTECTED_ROUTES].sort((a, b) => compareRouteSpecificity(a.path, b.path))
 
