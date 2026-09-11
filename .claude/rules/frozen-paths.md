@@ -44,14 +44,18 @@ guard 覆蓋面的回歸清單，發現新繞道就補一列，修補後保留�
 
 ### 已知極限（擋不住，只能靠 Bash 權限策略或人審補位）
 
-本 hook 是純文字靜態解析，不是執行期分析。下列手法一律繞得過，別把 hook 當成唯一防線：
+本 hook 是純文字靜態解析，不是執行期分析。下列手法一律繞得過，別把 hook 當成唯一防線。
+編號與 `.claude/hooks/frozen-paths-guard.mjs` 檔頭註解的清單一一對應，方便跨檔對照：
 
-1. 先把腳本寫到 `/tmp` 等非凍結路徑，再另開一條指令執行該腳本檔；或腳本帶 shebang 直接 `./script.py` 執行（指令原文看不到直譯器詞）
-2. 指令或腳本內容先 base64／其他編碼再解碼執行；動態組出函式名（`getattr(p, 'write' + '_text')`）
-3. 路徑由運算式組出——f-string、`Path(dir) / name`、字串拼接、shell 變數拆兩段（`T=test/e2e; python3 -c "open('$T/specs/x','w')"`）。capture 抓不到字面值時雖會退回 flood，但路徑沒有以字面值出現在指令原文時，flood 也無從比中
-4. 引號內含 shell 分隔符只認成對的單／雙引號（涵蓋常見 sed／perl 形式）；跳脫引號（`\'`）、`$'...'`、巢狀引號仍可能被誤切段
-5. `vim -es`／`emacs --batch`／`awk -i inplace` 這類編輯器不在寫入動詞清單內
-6. flood 命中時擋出來的是「指令原文裡比中凍結路徑的 token」，可能是目錄或 glob 字串而非檔案——要走 sentinel 授權時，`files` 要照 hook 訊息列出的字串填
-7. `tool_input.command` 不是字串（缺欄位或型別不對）時直接放行
-8. fail-open 設計：hook 內部 throw 時 node 以 exit 1 結束，Claude Code 視同非阻斷（寧可放行，不讓鎖壞掉癱瘓所有編輯）
-9. 含 `$` 的引號字串只在 `open()` 系列的 capture 被排除；`renameSync`／`writeFileSync`／`shutil.*` 等其他 API 的 capture 仍把 `'$p'` 當字面值路徑，`p=<凍結檔>; node -e "require('fs').renameSync('$p',…)"` 這種形狀會漏放（2026-09-08 回歸實測）
+1. 先把腳本寫到 `/tmp` 等非凍結路徑，再另開一條指令執行該腳本檔
+2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
+3. 指令或腳本內容先 base64／其他編碼再解碼執行
+4. 動態組出函式名（如 `getattr(p, 'write' + '_text')`）
+5. 路徑拆成兩段、用 shell 變數組回（如 `T=test/e2e; python3 -c "open('$T/specs/x','w')"`）
+6. 路徑或 API 名由運算式組出（f-string、`Path(dir) / name`、字串拼接）——capture 抓不到字面值時雖會退回 flood，但路徑本身沒有以字面值出現在指令原文時，flood 也無從比中
+7. 引號內含 shell 分隔符時只認成對的單／雙引號（涵蓋常見 sed／perl 形式）；跳脫引號（`\'`）、`$'...'`、巢狀引號等變體仍可能被誤切段
+8. `vim -es`／`emacs --batch`／`awk -i inplace` 這類編輯器不在寫入動詞清單內
+9. flood 命中時擋出來的是「指令原文裡比中凍結路徑的 token」，可能是目錄或 glob 字串而非檔案——要走 sentinel 授權時，`files` 要照 hook 訊息列出的字串填
+10. `tool_input.command` 不是字串（缺欄位或型別不對）時直接放行
+11. fail-open 設計：hook 內部 throw 時 node 以 exit 1 結束，Claude Code 視同非阻斷（寧可放行，不讓鎖壞掉癱瘓所有編輯）
+12. 含 `$` 的引號字串只在 `open()` 系列的 capture 被排除；`renameSync`／`writeFileSync`／`shutil.*` 等其他 API 的 capture 仍把 `'$p'` 當字面值路徑，`p=<凍結檔>; node -e "require('fs').renameSync('$p',…)"` 這種形狀會漏放（2026-09-08 回歸實測）
