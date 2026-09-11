@@ -254,7 +254,8 @@ export async function resetMockData(page: Page, options?: { empty?: string[] }) 
 // 與 app/utils/route-match.ts 的 matchesRoutePattern 同一份判準（見上方說明），改一邊要同步另一邊。
 // 不用 startsWith：它對 `/users/[id]` 這類樣板永遠比不中真實路徑（`/users/42`），
 // 且會誤中同前綴的兄弟路由（`/login` 誤中 `/login-recovery`）。
-// 不支援 catch-all `[...slug]`：route-map 推導表不產生；寫了會被當成單一動態段。
+// 只支援具體段、`[id]`、`:id`。catch-all（`[...slug]`）、選填段（`[[id]]`）、正規式參數（`:id(\d+)`）
+// 會被當成單一動態段而算錯——route-map 推導表不產生這些語法，手動加入時由 Step 6.5 在產出前擋下。
 
 // 動態段：`[id]`（route-map 推導表的寫法）或 `:id`，吃任意非空值
 function isDynamicSegment(segment: string): boolean {
@@ -416,7 +417,9 @@ test.describe('Hydration 守門', () => {
 
 ### Step 6.5：建立 auth guard smoke spec（僅 `route-map.yaml` 有 `auth` 區塊時）
 
-守衛（`auth.global.ts`）是生成物，沒有測試覆蓋時改壞抓不到（wedding-host 實戰：守衛無測試，重構後壞掉才人工發現）。`route-map.auth.required` 時必建：
+守衛（`auth.global.ts`）是生成物，沒有測試覆蓋時改壞抓不到（wedding-host 實戰：守衛無測試，重構後壞掉才人工發現）。`route-map.auth.required` 時必建。
+
+產出前先檢查 `auth.public_paths` 的路徑段只能是具體字串、`[id]` 或 `:id`：出現 catch-all（`[...slug]`）、選填段（`[[id]]`）、帶正規式或修飾符的參數（`:id(\d+)`、`:id?`）就停下回報，不產出本檔——`route-match.ts` 不支援這些語法，互斥自檢與導向斷言都會靜默算錯。本步驟比 feature-to-ui Phase 2 早跑，所以兩邊各擋一次。
 
 ```typescript
 // test/e2e/specs/01-auth-guard.spec.ts

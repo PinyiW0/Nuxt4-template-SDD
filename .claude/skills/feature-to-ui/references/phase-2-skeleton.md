@@ -61,11 +61,13 @@ Phase 2 增量更新完成
      並有 `app/pages/login.vue`（範本見 [page-builder.md](page-builder.md)「登入表單」）。API 層（useHttp auth 版 / store / auth.api / types / nuxt.config 追加）由 feature-to-api 依 [auth-scaffold.md](../../feature-to-api/references/auth-scaffold.md) §3a 套用。
      **不可默默跳過**——缺守門要報錯補上。防迴圈六道與收尾 checklist 見 auth-scaffold.md §4 / §5。
      另檢查 `public_paths` 裡含動態段（`[id]` 或 `:id`）的項目：動態段會吃任意非空值，要確認該段不會吃到受保護資源的路徑，範圍夠精準才放行。
+     路徑段只能是具體字串、`[id]` 或 `:id`：出現 catch-all（`[...slug]`）、選填段（`[[id]]`）、帶正規式或修飾符的參數（`:id(\d+)`、`:id?`）就停下回報——比對函式不支援這些語法，照樣產出會靜默算錯守門範圍。
 2.5. **RBAC route guard（條件式）**：檢查 `route-map.yaml > rbac.protected_routes`
    - **無 `rbac` 區塊 / 無 `protected_routes`** → 跳過，本專案不做角色路由守門
    - **有 `protected_routes`** → 確保 `app/middleware/rbac.global.ts` 存在（範本見下方「RBAC route guard 範本」），並建立守門目標頁空殼（如 `/403`，若 `route-map.routes` 未含則一併補一個 `app/pages/403.vue` 空殼）。角色名用 `rbac` 實際值、不寫死。入口 / 操作鈕的角色隱藏由 Phase 5 依 [rules.md](rules.md)「角色導向 UI 可見性」實作。
      另檢查 `protected_routes` 沒有重複的路徑（只差參數名也算，如 `/members/[id]` 與 `/members/:memberId`）：有就停下回報路由規劃問題，不要默默產出——兩條 `allow` 不同時，套用哪一條會取決於清單順序。
      也檢查沒有任何一條涵蓋 `auth.login_path`（最常見是寫了 `/`，它涵蓋整站）：有就停下回報——未登入者會在 login 與 `/403` 之間來回導向。
+     路徑段的語法限制同步驟 2：不支援的語法（catch-all、選填段、正規式參數）停下回報。
 3. **根據路由規劃建立所有頁面空殼**（**不帶 testid**，見上方必讀規範）
 4. **每個頁面只包含基本結構**：語意標籤（`<main>`／`<section>`）＋ `<h1>` 頁面標題，讓後續 Phase 5 有語意 anchor 可用
 5. **詢問用戶確認**
@@ -152,7 +154,8 @@ const siteId = computed(() => route.params.id)
 ```ts
 // app/utils/route-match.ts
 // 不用 startsWith：它對 `/xxx/[id]` 這類樣板永遠比不中，且會誤中同前綴的兄弟路由（`/admin` 誤中 `/administrator`）。
-// 不支援 catch-all `[...slug]`：route-map 推導表不產生；寫了會被當成單一動態段。
+// 只支援具體段、`[id]`、`:id`。catch-all（`[...slug]`）、選填段（`[[id]]`）、正規式參數（`:id(\d+)`）
+// 會被當成單一動態段而算錯——route-map 推導表不產生這些語法，手動加入時由 Phase 2 步驟 2／2.5 在生成前擋下。
 // E2E 的 test/e2e/helpers/route-match.ts 有同一份 matchesRoutePattern（見 test/e2e/references/setup.md）——
 // E2E 骨架先於 UI 產生、拿不到這個檔，所以各存一份；改判準要兩邊一起改。
 
