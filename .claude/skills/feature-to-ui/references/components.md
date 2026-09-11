@@ -193,7 +193,7 @@ const totalItems = computed(() => items.value.length)
 > Layout 完整程式碼與結構 → 詳見 [phase-3-layout.md](phase-3-layout.md)
 > Layout 規範（Sidebar 必備功能、Mobile Top Bar）→ 詳見 [rules.md](rules.md) > Layout 規範
 
-頁面在 `<main class="flex min-h-0 flex-1 flex-col overflow-auto p-6">` 內渲染，注意：
+頁面在 `<div class="flex min-h-0 flex-1 flex-col overflow-auto p-6">` 內渲染，注意：
 - 外層已有 `h-screen overflow-hidden`，頁面不需再設 `h-screen`
 - 頁面用 `flex h-full flex-col` 撐滿即可
 - 需要可滾動區域時，遵循 `flex flex-col min-h-0` 模式
@@ -233,7 +233,8 @@ const totalItems = computed(() => items.value.length)
 ### 直接使用 UModal（不用 CommonConfirmModal）
 
 ```vue
-<UModal v-model:open="deleteModalOpen">
+<!-- :transition="false" 見 pitfalls.md 第 3 條：關閉即同步卸載，避免殘留節點與 inert 背景影響斷言 -->
+<UModal v-model:open="deleteModalOpen" :transition="false">
   <template #content>
     <div data-testid="confirm-modal" class="p-6">
       <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">確認刪除</h3>

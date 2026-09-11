@@ -124,7 +124,8 @@ const isOpen = defineModel<boolean>('open', { default: false })
 </script>
 
 <template>
-  <UModal v-model:open="isOpen">
+  <!-- :transition="false" 見 pitfalls.md 第 3 條：關閉即同步卸載，避免殘留節點與 inert 背景影響斷言 -->
+  <UModal v-model:open="isOpen" :transition="false">
     <template #content>
       <div data-testid="confirm-modal" class="p-6">
         <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
