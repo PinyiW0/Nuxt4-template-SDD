@@ -899,6 +899,37 @@ describe('frozen-paths-guard：heredoc 數字終止符與 >& 重導向', () => {
   })
 })
 
+// PR #141 review round 13：驗過的迴歸與新繞道，2026-09-11 使用者裁決後修補
+describe('frozen-paths-guard：$(( )) 算術展開不誤判成 heredoc（round 12 的迴歸修復）', () => {
+  it('$((1<<1)) 換行後接真正的寫入指令 → 擋下（round 12 曾把它誤判成 heredoc 內文而漏放）', () => {
+    const command = `echo $((1<<1))\nrm ${FROZEN_FILE}`
+    const result = runGuard(command)
+    expect(result.status).toBe(2)
+  })
+
+  it('$((1<<1)) 單獨、後面沒有寫入指令 → 放行', () => {
+    const result = runGuard('echo $((1<<1))')
+    expect(result.status).toBe(0)
+  })
+
+  it('算術展開內含巢狀括號 $(( (1+2) << 1 )) → 放行，不誤判', () => {
+    const result = runGuard('echo $(( (1+2) << 1 ))')
+    expect(result.status).toBe(0)
+  })
+})
+
+describe('frozen-paths-guard：xargs -I {} 吃值旗標', () => {
+  it('xargs -I {} rm 既有凍結檔（-I 的替換字串吃掉一個 token） → 擋下', () => {
+    const result = runGuard(`xargs -I {} rm ${FROZEN_FILE}`)
+    expect(result.status).toBe(2)
+  })
+
+  it('xargs -I {} cat（唯讀子指令） → 放行', () => {
+    const result = runGuard('find . -name x | xargs -I {} cat {}')
+    expect(result.status).toBe(0)
+  })
+})
+
 describe('frozen-paths-guard：wrapper 吃值旗標後的子指令位置（sudo／git）', () => {
   it('sudo -u alice rm 既有凍結檔（-u 吃掉一個值） → 擋下', () => {
     const result = runGuard(`sudo -u alice rm ${FROZEN_FILE}`)

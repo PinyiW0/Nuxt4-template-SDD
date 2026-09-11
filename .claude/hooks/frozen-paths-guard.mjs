@@ -59,6 +59,13 @@
 // （WRAPPER_VALUE_FLAGS／GIT_VALUE_FLAGS，只收斂 sudo／env／git 實際會用到的旗標，不窮舉）
 // 再找子指令位置。
 //
+// 2026-09-11（PR #141 Copilot review round 13，使用者裁決後修）：①上一輪的數字 heredoc
+// 終止符（`<<1`）會誤判 `$((1<<1))` 這種算術展開，把換行後真正的寫入指令吞成「heredoc 內文」
+// 而漏放——這是上一輪修補的迴歸，不是新發現的獨立繞道 ②`WRAPPER_VALUE_FLAGS` 沒收 xargs
+// 的 `-I`，`xargs -I {} rm <凍結檔>` 的 `{}` 被誤判成子指令，`rm` 判不出來。修法：
+// `heredocTerminators()` 加追蹤 `$(( ))`／`(( ))` 括號深度，深度 >0 時的 `<<` 一律不當
+// heredoc 開啟符；`WRAPPER_VALUE_FLAGS` 補上 `-I`／`--replace`。
+//
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
 //   2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
@@ -301,14 +308,32 @@ const HEREDOC_OPEN = /(?<!<)<<-?(?:(\d+)|\s*(['"]?)([A-Za-z_]\w*)\2)/y
 // 引號感知的 heredoc 開啟符掃描：回傳 text 內引號外每個 `<<EOF` 的終止符（依出現順序）。
 // 與 splitSegments 用同一套單／雙引號判斷，`node -e "a << b"` 這種引號內的 << 不算開啟符；
 // 對整行與對切段後的單一 segment 呼叫都給出一致的計數，bashFrozenWrites 靠這點把內文歸段。
+//
+// 額外追蹤 $(( ))／(( ) 算術展開的括號深度：裡面的 << 是位元左移，不是 heredoc。
+// 數字終止符分支放寬後，`$((1<<1))` 會被誤判成 heredoc（`<<1` 緊接數字），把後面真正的
+// 寫入指令吞成「內文」而漏放（PR #141 review，round 13）；`1 << 8`（<< 前後有空白）不受
+// 影響，本來就不會比中數字終止符分支，這裡是專門堵 `$((...))` 這種「數字緊貼 <<」的算術寫法。
 function heredocTerminators(text) {
   const terminators = []
   let quote = ''
+  let arithDepth = 0
   for (let i = 0; i < text.length; i++) {
     const c = text[i]
     if (quote) {
       if (c === quote)
         quote = ''
+      continue
+    }
+    if (arithDepth > 0) {
+      if (c === '(')
+        arithDepth++
+      else if (c === ')')
+        arithDepth--
+      continue
+    }
+    if (c === '(' && text[i + 1] === '(') {
+      arithDepth = 2
+      i++ // 跳過第二個 (，深度已算進去
       continue
     }
     if (c === '<' && text[i + 1] === '<') {
@@ -390,11 +415,12 @@ function tokenize(text) {
   return text.split(/[\s"'()`;&|<>]+/).filter(Boolean)
 }
 
-// COMMAND_PREFIX 裡的 wrapper（目前只有 sudo／env 會這樣用）常接一個吃值的旗標，
+// COMMAND_PREFIX 裡的 wrapper（sudo／env／xargs 會這樣用）常接一個吃值的旗標，
 // 旗標的值會把真正的子指令往後推一位：`sudo -u alice rm <凍結檔>` 原本只認「wrapper 後
-// 緊接的 token」，`-u` 之後是值 `alice` 不是子指令，`rm` 判不出指令位置而漏放
-// （PR #141 review）。只收斂 sudo／env 實際會用到的旗標，不求窮舉每個工具。
-const WRAPPER_VALUE_FLAGS = new Set(['-u', '--user', '-g', '--group', '-C', '--chdir', '-R', '--chroot'])
+// 緊接的 token」，`-u` 之後是值 `alice` 不是子指令，`rm` 判不出指令位置而漏放（PR #141
+// review）；`xargs -I {} rm <凍結檔>` 同理，`-I` 的替換字串 `{}` 被誤判成子指令，`rm` 判不出來
+// （PR #141 review，round 13）。只收斂 sudo／env／xargs 實際會用到的旗標，不求窮舉每個工具。
+const WRAPPER_VALUE_FLAGS = new Set(['-u', '--user', '-g', '--group', '-C', '--chdir', '-R', '--chroot', '-I', '--replace'])
 
 // 從 wrapper 後一個 token 開始，跳過旗標（吃值旗標額外多跳一個 token 當它的值），
 // 回傳第一個非旗標 token 的索引（可能等於 words.length，代表找不到）。
