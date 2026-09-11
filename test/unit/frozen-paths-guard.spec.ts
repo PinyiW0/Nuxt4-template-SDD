@@ -833,3 +833,95 @@ describe('frozen-paths-guard：ReDoS 防護', () => {
     expect(elapsed).toBeLessThan(1000)
   })
 })
+
+// PR #141 review 後續輪抓出的七則繞道，2026-09-11 使用者裁決後修補，轉為正常回歸案例
+describe('frozen-paths-guard：MODE／OPEN_ARGS／OPEN_FIRST_ARG 邊界', () => {
+  it('open(path, "wt")（Python 文字寫入模式） → 擋下', () => {
+    const result = runGuard(`python3 -c "open('${FROZEN_FILE}','wt')"`)
+    expect(result.status).toBe(2)
+  })
+
+  it('open(path, "rt")（純讀文字模式） → 放行，避免 t 被誤判成寫入指標', () => {
+    const result = runGuard(`python3 -c "open('${FROZEN_FILE}','rt')"`)
+    expect(result.status).toBe(0)
+  })
+
+  it('open() 第一引數是超過 120 字元的合法運算式（os.path.join 接長變數名） → 仍擋下', () => {
+    const longExpr = 'a'.repeat(200)
+    const result = runGuard(`python3 -c "open(os.path.join(${longExpr}, '${FROZEN_FILE}'), 'w')"`)
+    expect(result.status).toBe(2)
+  })
+
+  it('open(1, "w")（數字檔案代號，非路徑） → 放行，不誤判成動態呼叫', () => {
+    const result = runGuard(`python3 -c "open(1, 'w')"`)
+    expect(result.status).toBe(0)
+  })
+
+  it('open(1, "w") 與唯讀提及凍結路徑同指令 → 放行，不因誤判觸發 flood 誤擋', () => {
+    const result = runGuard(`python3 -c "open(1, 'w'); print('${FROZEN_FILE}')"`)
+    expect(result.status).toBe(0)
+  })
+})
+
+describe('frozen-paths-guard：heredoc 數字終止符與 >& 重導向', () => {
+  it('heredoc 數字終止符 <<1（無空白） → 擋下', () => {
+    const command = [
+      'patch -p1 <<1',
+      `--- a/${FROZEN_FILE}`,
+      `+++ b/${FROZEN_FILE}`,
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+      '1',
+    ].join('\n')
+    const result = runGuard(command)
+    expect(result.status).toBe(2)
+  })
+
+  it('1 << 8 位元左移仍不誤判成 heredoc（新增數字終止符分支後的回歸） → 放行', () => {
+    const result = runGuard('console.log(1 << 8)')
+    expect(result.status).toBe(0)
+  })
+
+  it('echo x >& 既有凍結檔（stdout/stderr 一起導檔） → 擋下', () => {
+    const result = runGuard(`echo x >& ${FROZEN_FILE}`)
+    expect(result.status).toBe(2)
+  })
+
+  it('2>&1（fd 複製，目標是數字非路徑） → 放行', () => {
+    const result = runGuard(`echo x 2>&1 | tee /tmp/not-frozen`)
+    expect(result.status).toBe(0)
+  })
+
+  it('cat 既有凍結檔 &>/dev/null（唯讀讀取） → 放行', () => {
+    const result = runGuard(`cat ${FROZEN_FILE} &>/dev/null`)
+    expect(result.status).toBe(0)
+  })
+})
+
+describe('frozen-paths-guard：wrapper 吃值旗標後的子指令位置（sudo／git）', () => {
+  it('sudo -u alice rm 既有凍結檔（-u 吃掉一個值） → 擋下', () => {
+    const result = runGuard(`sudo -u alice rm ${FROZEN_FILE}`)
+    expect(result.status).toBe(2)
+  })
+
+  it('env -u X rm 既有凍結檔（env 的 -u 吃掉一個值） → 擋下', () => {
+    const result = runGuard(`env -u X rm ${FROZEN_FILE}`)
+    expect(result.status).toBe(2)
+  })
+
+  it('sudo rm 非凍結路徑（無吃值旗標） → 放行，確認沒有過度誤擋', () => {
+    const result = runGuard('sudo rm /tmp/not-frozen')
+    expect(result.status).toBe(0)
+  })
+
+  it('git --work-tree /tmp checkout -- 既有凍結檔（--work-tree 吃掉一個值） → 擋下', () => {
+    const result = runGuard(`git --work-tree /tmp checkout -- ${FROZEN_FILE}`)
+    expect(result.status).toBe(2)
+  })
+
+  it('git --git-dir /tmp/.git status（唯讀子指令，--git-dir 吃掉一個值） → 放行', () => {
+    const result = runGuard('git --git-dir /tmp/.git status')
+    expect(result.status).toBe(0)
+  })
+})

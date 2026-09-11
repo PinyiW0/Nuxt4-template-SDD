@@ -45,6 +45,20 @@
 // 同一套引號感知）；`<<-?\s*` 放寬空白（終止符仍限識別字開頭，`1 << 8` 不受影響）；Path.open 的
 // mode 改共用 MODE；單一 `&` 也當分隔符（`>&`／`<&`／`&>`／`&>>` 這類 fd 重導向除外）。
 //
+// 2026-09-11（PR #141 Copilot review 後續輪，使用者裁決後修）：①MODE 缺 't'，Python 的
+// 'wt'／'at' 文字寫入模式漏放 ②OPEN_ARGS 上限 120 太小，第一引數稍長的合法運算式會讓整個
+// open() 呼叫對 hook 隱形 ③OPEN_FIRST_ARG 把數字當識別字，`open(1,'w')` 這種 fd 寫入誤判成
+// 動態呼叫，flood 誤擋同指令內單純被提及的凍結路徑 ④HEREDOC_OPEN 終止符限定識別字開頭，
+// 數字終止符 `<<1` 判不出來 ⑤重導向偵測只認 `>`／`>>`，`>&`（stdout/stderr 一起導檔）漏放
+// ⑥⑦`commandVerbs()`／`gitWriteSubcmd()` 都只認 wrapper 後緊接的下一個 token 當子指令，
+// `sudo -u alice rm`、`git --work-tree /tmp checkout` 這類「wrapper 帶了一個吃值的選項」
+// 會把真正的動詞／子指令往後推而漏放。修法：MODE 的 't' 只放進兩側可選字元類（不影響
+// [wax+] 必要判斷，'rt' 仍不算寫入）；OPEN_ARGS 上限放寬到 2000（仍有界，ReDoS 風險不變）；
+// OPEN_FIRST_ARG 第二分支改 `[^\d\W]`（排除開頭數字）；HEREDOC_OPEN 拆成數字／識別字兩分支；
+// 重導向 regex 加 `>&`／`&>`／`&>>`；`commandVerbs()`／`gitWriteSubcmd()` 都改成先跳過吃值旗標
+// （WRAPPER_VALUE_FLAGS／GIT_VALUE_FLAGS，只收斂 sudo／env／git 實際會用到的旗標，不窮舉）
+// 再找子指令位置。
+//
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
 //   2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
@@ -62,6 +76,8 @@
 //  11. fail-open 設計：hook 內部 throw 時 node 以 exit 1 結束，Claude Code 視同非阻斷
 //  12. 含 `$` 的引號字串只在 open() 系列的 capture 被排除；renameSync／writeFileSync／shutil.* 等
 //      其他 API 的 capture 仍把 '$p' 當字面值路徑，`p=<凍結檔>; node -e "…renameSync('$p',…)"` 會漏放
+//  13. heredoc 數字終止符（`<<1`）只在緊接 `<<`（無空白）時才被認出；`<< 1`（`<<` 與數字終止符
+//      間有空白）目前仍判不出來，是刻意窄化——放寬空白會讓 `1 << 8` 這種位元左移誤判成 heredoc
 // 這些只能靠 Bash 權限策略或人審補位。
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { normalize, relative, resolve } from 'node:path'
@@ -90,17 +106,26 @@ const INPLACE_FLAG = /^-(?!-)[a-z]*i|^--in-place/
 // 含版本號變體（python3.11）與本 repo node_modules/.bin 常見的 tsx／ts-node／vite-node。
 const SCRIPT_INTERPRETERS = /^(?:python\d*(?:\.\d+)?|node|ruby|perl|php|deno|bun|tsx|ts-node|vite-node)$/
 
-// 寫入模式字串（'w'、'a'、'x'、'r+'、'wb'…）。字元類一律用有界量詞：無界的
-// [rwaxb+]* 兩側夾一個 [wax+] 會在長字串上回溯爆炸（ReDoS）。
-// 不可簡化成 [rwaxb+]+ —— 那會把 'r'／'rb' 這種唯讀模式也當成寫入。
-const MODE = `['"][rwaxb+]{0,3}[wax+][rwaxb+]{0,3}['"]`
+// 寫入模式字串（'w'、'a'、'x'、'r+'、'wb'、'wt'…）。字元類一律用有界量詞：無界的
+// [rwaxbt+]* 兩側夾一個 [wax+] 會在長字串上回溯爆炸（ReDoS）。
+// 不可簡化成 [rwaxbt+]+ —— 那會把 'r'／'rb'／'rt' 這種唯讀模式也當成寫入。
+// 't' 只是文字模式修飾字，本身不代表寫入，所以只出現在兩側的可選字元類，不在必要的
+// [wax+] 裡——否則 'rt'（純讀文字模式）會被誤判成寫入（PR #141 review）。
+const MODE = `['"][rwaxbt+]{0,3}[wax+][rwaxbt+]{0,3}['"]`
 // open() 第一引數的語境條件：路徑樣字面值（含 / 或 .）、含 shell 變數的字串（'$p'、"${p}"）、
 // 或以識別字／下標起頭的運算式（變數、os.path.join(...)）。
 // 純短字串（print('x','a')、'foo'.replace('o','bar')）不算，藉此把 `,'w')` 形狀的誤攔降噪。
 // 第一段刻意寫成 [^'"/.$]* 起頭（遇 / . $ 或引號就停），避免兩個無界 [^'"]* 造成回溯爆炸。
-const OPEN_FIRST_ARG = `(?:['"][^'"/.$]*[./$][^'"]*['"]|[\\w[])`
-// 引數區掃描：有界惰性重複，且引號字串整段吃掉；兩個分支在同一位置互斥，不會回溯爆炸
-const OPEN_ARGS = `(?:[^;'"]|['"][^'"]*['"]){0,120}?`
+// 第二分支排除開頭數字（[^\d\W] 而非 \w）——純數字是檔案代號（如 open(1,'w')），不是路徑／
+// 識別字，原本 \w 會把它也當成呼叫，抓不到字面值時整條 flood，誤擋同指令內單純被提及的
+// 凍結路徑（PR #141 review）；fd 寫入本來就不是本 hook 要防的目標，直接不算呼叫更準確。
+const OPEN_FIRST_ARG = `(?:['"][^'"/.$]*[./$][^'"]*['"]|[^\\d\\W]|\\[)`
+// 引數區掃描：有界惰性重複，且引號字串整段吃掉；兩個分支在同一位置互斥，不會回溯爆炸。
+// 上限從 120 放寬到 2000——原上限會讓第一引數是稍長運算式（如 os.path.join 接長變數名）
+// 的合法呼叫整段比不中、anyCall 都不會是 true，比抓不到字面值退回 flood 更嚴重（等於這次
+// 呼叫對 hook 完全隱形）；2000 字元對正常程式碼綽綽有餘，仍是有界量詞，ReDoS 風險不變
+// （已用 80KB 惡意輸入實測，見 test/unit/frozen-paths-guard.spec.ts）。
+const OPEN_ARGS = `(?:[^;'"]|['"][^'"]*['"]){0,2000}?`
 const OPEN_WRITE_DETECT = new RegExp(`\\bopen(?:Sync)?\\s*\\(\\s*${OPEN_FIRST_ARG}${OPEN_ARGS},\\s*(?:mode\\s*=\\s*)?${MODE}\\s*[,)]`, 'g')
 // capture 的路徑不收含 $ 的字串：`open('$p','w')` 的 $p 要 shell 展開才知道指向哪，
 // 抓成字面值會誤判成「非凍結路徑」而放行；排除後它算不出字面值 → 退回 flood。
@@ -262,13 +287,16 @@ function targetExists(rel) {
   return Boolean(prefix) && existsSync(resolve(projectRoot, prefix))
 }
 
-// heredoc（<<EOF、<< EOF、<<'EOF'、<<-EOF）感知切塊：把開啟行與各 heredoc 的內文分開回傳，
+// heredoc（<<EOF、<< EOF、<<'EOF'、<<-EOF、<<1）感知切塊：把開啟行與各 heredoc 的內文分開回傳，
 // 避免下面逐行切分時把「動詞在首行、目標路徑在 heredoc 內文」拆成兩段各自看都不像寫入
 // 而漏放（如 `patch -p1 <<'EOF'` 接 unified diff 內文指向凍結檔；issue #137 對抗審查）。
-// `<<` 後允許空白（bash 合法寫法 `<< EOF`），終止符限定識別字開頭（不允許數字），
-// 所以 `console.log(1 << 8)` 這種位元左移仍不會被當成 heredoc 把後續指令吞進同一塊；
 // 前置 (?<!<) 排除 here-string `<<< "text"`。sticky（y）旗標配合 heredocTerminators 從指定位置比對。
-const HEREDOC_OPEN = /(?<!<)<<-?\s*(['"]?)([A-Za-z_]\w*)\1/y
+// 兩個分支刻意分開：`<<` 緊接數字終止符（如 `<<1`）才算 heredoc（group 1）；
+// 識別字終止符允許 `<<` 後有空白（如 `<< EOF`，group 3）。
+// 數字終止符不比對「`<<` 後有空白」是刻意的——這樣 `1 << 8` 這種位元左移（有空白）
+// 才不會被誤判成 heredoc；`<< 1`（數字終止符前有空白）目前仍判不出來，是已知殘留限制
+// （見 rules/frozen-paths.md 已知極限清單）。
+const HEREDOC_OPEN = /(?<!<)<<-?(?:(\d+)|\s*(['"]?)([A-Za-z_]\w*)\2)/y
 
 // 引號感知的 heredoc 開啟符掃描：回傳 text 內引號外每個 `<<EOF` 的終止符（依出現順序）。
 // 與 splitSegments 用同一套單／雙引號判斷，`node -e "a << b"` 這種引號內的 << 不算開啟符；
@@ -287,7 +315,7 @@ function heredocTerminators(text) {
       HEREDOC_OPEN.lastIndex = i
       const m = HEREDOC_OPEN.exec(text)
       if (m) {
-        terminators.push(m[2])
+        terminators.push(m[1] ?? m[3]) // group 1 = 數字終止符，group 3 = 識別字終止符
         i += m[0].length - 1 // 整個 <<'EOF' 一起跳過，終止符外的引號不進入引號狀態
         continue
       }
@@ -362,6 +390,21 @@ function tokenize(text) {
   return text.split(/[\s"'()`;&|<>]+/).filter(Boolean)
 }
 
+// COMMAND_PREFIX 裡的 wrapper（目前只有 sudo／env 會這樣用）常接一個吃值的旗標，
+// 旗標的值會把真正的子指令往後推一位：`sudo -u alice rm <凍結檔>` 原本只認「wrapper 後
+// 緊接的 token」，`-u` 之後是值 `alice` 不是子指令，`rm` 判不出指令位置而漏放
+// （PR #141 review）。只收斂 sudo／env 實際會用到的旗標，不求窮舉每個工具。
+const WRAPPER_VALUE_FLAGS = new Set(['-u', '--user', '-g', '--group', '-C', '--chdir', '-R', '--chroot'])
+
+// 從 wrapper 後一個 token 開始，跳過旗標（吃值旗標額外多跳一個 token 當它的值），
+// 回傳第一個非旗標 token 的索引（可能等於 words.length，代表找不到）。
+function skipWrapperFlags(words, start) {
+  let i = start
+  while (i < words.length && words[i].startsWith('-'))
+    i += WRAPPER_VALUE_FLAGS.has(words[i]) ? 2 : 1
+  return i
+}
+
 // 只有「指令位置」的 token 才算動詞：段落第一個 token，或 sudo／xargs／find -exec 等前綴
 // 之後、或 shell 變數指派之後。這樣 heredoc 內文與訊息字串裡散落的 ed／restore 不會被誤判。
 function commandVerbs(words) {
@@ -369,18 +412,28 @@ function commandVerbs(words) {
   for (let i = 0; i < words.length; i++) {
     if (i === 0 || COMMAND_PREFIX.has(words[i - 1]) || /^\w+=/.test(words[i - 1]))
       verbs.push(baseName(words[i]))
+    if (COMMAND_PREFIX.has(words[i])) {
+      const subcmdIndex = skipWrapperFlags(words, i + 1)
+      if (subcmdIndex < words.length && subcmdIndex !== i + 1)
+        verbs.push(baseName(words[subcmdIndex]))
+    }
   }
   return verbs
 }
 
-// git 的子指令只認緊接 git 之後的第一個非旗標 token（-C／-c 會吃掉一個值），
+// git 全域旗標裡會吃一個值的（-C／-c 之外，--work-tree／--git-dir／--namespace 同樣把
+// 下一個 token 當值，不是子指令；`git --work-tree /tmp checkout -- <凍結檔>` 原本只跳
+// -C/-c，把 /tmp 誤判成子指令位置，真正的 checkout 判不出來，PR #141 review）。
+const GIT_VALUE_FLAGS = new Set(['-C', '-c', '--work-tree', '--git-dir', '--namespace'])
+
+// git 的子指令只認緊接 git 之後的第一個非旗標 token（吃值旗標會多跳一個 token），
 // 否則 `git commit -m "… restore …"` 的訊息內文會被當成 git restore。
 function gitWriteSubcmd(words) {
   const gi = words.findIndex(w => baseName(w) === 'git')
   if (gi === -1)
     return false
   for (let i = gi + 1; i < words.length; i++) {
-    if (words[i] === '-C' || words[i] === '-c') {
+    if (GIT_VALUE_FLAGS.has(words[i])) {
       i++
       continue
     }
@@ -417,8 +470,11 @@ function bashFrozenWrites(command) {
         frozen.forEach(t => targets.add(t))
         continue
       }
-      // 無寫入動詞的段落：只有重導向（> >>）目標比中凍結路徑才算寫入
-      for (const m of seg.matchAll(/>{1,2}\s*["']?([^\s"'<>|;&]+)/g)) {
+      // 無寫入動詞的段落：只有重導向（>、>>、>&、&>、&>>）目標比中凍結路徑才算寫入。
+      // >& 是 bash 把 stdout/stderr 一起導到目標檔的簡寫（等同 > file 2>&1），漏了這個形狀
+      // 會讓 `echo x >& <凍結檔>` 這種寫入漏放（PR #141 review）；`2>&1` 這類 fd 複製會被
+      // 一併掃到 capture，但目標是純數字 fd、比不中任何真實凍結路徑，frozenRelOf 自然濾掉。
+      for (const m of seg.matchAll(/(?:>{1,2}&?|&>{1,2})\s*["']?([^\s"'<>|;&]+)/g)) {
         const rel = frozenRelOf(m[1])
         if (rel)
           targets.add(rel)
