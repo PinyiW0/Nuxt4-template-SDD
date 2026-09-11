@@ -300,9 +300,10 @@ async function handleLogout() {
         </button>
         <span class="text-lg font-bold text-neutral-900 dark:text-white">網站名稱</span>
       </div>
-      <main class="flex min-h-0 flex-1 flex-col overflow-auto p-6">
+      <!-- 頁面自帶 <main>，layout 用 div 避免巢狀 main landmark -->
+      <div class="flex min-h-0 flex-1 flex-col overflow-auto p-6">
         <slot />
-      </main>
+      </div>
     </div>
   </div>
 </template>
