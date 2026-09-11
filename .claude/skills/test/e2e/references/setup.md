@@ -232,7 +232,10 @@ export async function confirmDelete(page: Page) {
  */
 export async function resetMockData(page: Page, options?: { empty?: string[] }) {
   // 一律送物件（options 為 undefined 時送 {}），避免 { data: undefined } 在不同實作下的序列化差異
-  await page.request.post('/api/__test__/reset', { data: options ?? {} })
+  const response = await page.request.post('/api/__test__/reset', { data: options ?? {} })
+  // page.request.post() 對 4xx 預設不會 throw，只回傳一個 ok()=false 的 APIResponse；
+  // 不檢查的話，empty 傳錯集合名這類重設失敗會被吞掉，測試拿著沒清空的舊資料繼續跑出假綠
+  expect(response.ok(), `重設 mock 資料失敗：${response.status()} ${await response.text()}`).toBeTruthy()
 }
 ```
 
