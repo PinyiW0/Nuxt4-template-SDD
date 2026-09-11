@@ -408,6 +408,11 @@ test.describe('Auth 守衛', () => {
   // 純字面 pattern 又會誤判同前綴的兄弟路由（v2 bug，issue #137）。
   // ⚠️ PUBLIC_PAGES 為空時，下面的 test.skip 會把這個自檢標成 skipped（不是零斷言空跑後顯示通過）；
   // 專案有公開頁、把 PUBLIC_PAGES 填值後，這個自檢才會真的執行。
+  // ⚠️ 已知不一致（PR #141 review，另開 issue 追）：本自檢用逐段比對（段數必須相同），但
+  // phase-2-skeleton.md 生成的 auth.global.ts 用前綴比對（to.path === p || startsWith(`${p}/`)）。
+  // PUBLIC_PAGES=['/announcement'] + PROTECTED_PAGES=['/announcement/settings'] 這裡兩個方向都比不中
+  // 而通過，middleware 卻會把子頁當公開放行；Nuxt catch-all `[...slug]` 也不支援。這裡的綠燈不代表
+  // middleware 沒有父子層衝突，兩邊語意統一前請自行檢查。
   test('PUBLIC_PAGES 每一項都不得比中任何 PROTECTED_PAGES', () => {
     test.skip(PUBLIC_PAGES.length === 0, 'PUBLIC_PAGES 為空，此自檢暫無意義；填入公開頁清單後才會執行')
     // 兩邊都可能含 :param（PROTECTED_PAGES 多為具體路徑，PUBLIC_PAGES 來自 route-map 的

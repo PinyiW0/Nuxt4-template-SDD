@@ -43,6 +43,7 @@ guard 覆蓋面的回歸清單，發現新繞道就補一列，修補後保留�
 | 2026-09-11（PR #141 Copilot review 第 1、2、4、6 輪） | ①heredoc 內文固定併給該行最後一段：`patch -p1 <<'EOF' && echo done` 的內文歸到 `echo` 段，`patch` 段拿不到凍結路徑而漏放 ②`<< EOF`（`<<` 後接空白）不被辨識為 heredoc，內文直接被逐行切散 ③`Path(...).open('r+')`：Path.open 只認 `['"][wax]`，`r+`／`rb+` 等可寫模式漏放 ④單一 `&`（背景執行）不切段：`echo hi & tee <凍結檔>` 整條併一段，`tee` 不在指令位置而漏放 | 已修補：heredoc 內文歸「含 `<<` 開啟符的那一段」（`heredocTerminators` 與 `splitSegments` 共用同一套引號感知，`node -e "a << b"` 引號內的 `<<` 不算開啟符）；`HEREDOC_OPEN` 放寬為 `<<-?\s*`（終止符仍限識別字開頭，`1 << 8` 不受影響；另排除 here-string `<<<`）；Path.open 的 mode 改共用 `MODE`（含 `mode='w'` 關鍵字形式）；單一 `&` 也當分隔符，`>&`／`<&`／`&>`／`&>>`（含 `2>&1`）這類 fd 重導向除外。四案由 `it.fails` 轉回正常 `it`，見 `test/unit/frozen-paths-guard.spec.ts` |
 | 2026-09-11（PR #141 Copilot review 後續輪） | ①`MODE` 缺 `t`：Python `'wt'`／`'at'` 文字寫入模式漏放 ②`OPEN_ARGS` 上限 120 太小，第一引數稍長的合法運算式讓整個 `open()` 呼叫對 hook 隱形 ③`OPEN_FIRST_ARG` 把數字當識別字，`open(1,'w')` 誤判成動態呼叫，flood 誤擋同指令內單純被提及的凍結路徑 ④`HEREDOC_OPEN` 終止符限定識別字開頭，數字終止符 `<<1` 判不出來 ⑤重導向偵測只認 `>`／`>>`，`>&` 漏放 ⑥⑦`commandVerbs()`／`gitWriteSubcmd()` 都只認 wrapper 後緊接的下一個 token 當子指令：`sudo -u alice rm`、`git --work-tree /tmp checkout` 這類「wrapper 帶了一個吃值的選項」會把動詞／子指令往後推而漏放 | 已修補：`MODE` 的 `t` 只放進兩側可選字元類（`'rt'` 仍不算寫入）；`OPEN_ARGS` 上限放寬到 2000（仍有界，ReDoS 風險不變）；`OPEN_FIRST_ARG` 第二分支改 `[^\d\W]`；`HEREDOC_OPEN` 拆成數字／識別字兩分支（`<< 1` 數字終止符前有空白仍判不出來，見已知極限第 13 條）；重導向 regex 加 `>&`／`&>`／`&>>`；`commandVerbs()`／`gitWriteSubcmd()` 都改成先跳過吃值旗標（`WRAPPER_VALUE_FLAGS`／`GIT_VALUE_FLAGS`）再找子指令位置 |
 | 2026-09-11（PR #141 Copilot review round 13） | ①上一輪的數字 heredoc 終止符（`<<1`）誤判 `$((1<<1))` 這種算術展開，把換行後真正的寫入指令吞成「heredoc 內文」而漏放——是上一輪修補的迴歸 ②`WRAPPER_VALUE_FLAGS` 沒收 xargs 的 `-I`，`xargs -I {} rm <凍結檔>` 的 `{}` 被誤判成子指令，`rm` 判不出來 | 已修補：`heredocTerminators()` 加追蹤 `$(( ))`／`(( ))` 括號深度，深度 >0 時的 `<<` 一律不當 heredoc 開啟符；`WRAPPER_VALUE_FLAGS` 補上 `-I`／`--replace` |
+| 2026-09-11（PR #141 收尾） | 直譯器偵測誤擋：`hasScriptInterpreter` 對整條指令所有 token 掃，`grep -R "node writeFileSync('<凍結檔>')" .`（唯讀搜尋）與 `cat > /tmp/doc <<'EOF'`（heredoc 內文提到 python3 與 API、實際寫到 /tmp）都被當成真的在跑直譯器而擋下 | 已修補：`hasScriptInterpreter` 改成只認指令位置的 token（與 `commandVerbs` 同一套判準）、只看 heredoc 開啟行不看內文；`npx`／`pnpx`／`bunx` 補進 `COMMAND_PREFIX` 讓 `npx tsx -e` 仍擋。寫入 API 比對維持整條指令掃（跨行 `python3 -c "` 要靠它），因此殘留一種誤擋形狀，見已知極限第 23 條。其餘 review 抓出的 10 個形狀經使用者裁決不修，列為已知極限 14–22 |
 
 ### 已知極限（擋不住，只能靠 Bash 權限策略或人審補位）
 
@@ -62,3 +63,16 @@ guard 覆蓋面的回歸清單，發現新繞道就補一列，修補後保留�
 11. fail-open 設計：hook 內部 throw 時 node 以 exit 1 結束，Claude Code 視同非阻斷（寧可放行，不讓鎖壞掉癱瘓所有編輯）
 12. 含 `$` 的引號字串只在 `open()` 系列的 capture 被排除；`renameSync`／`writeFileSync`／`shutil.*` 等其他 API 的 capture 仍把 `'$p'` 當字面值路徑，`p=<凍結檔>; node -e "require('fs').renameSync('$p',…)"` 這種形狀會漏放（2026-09-08 回歸實測）
 13. heredoc 數字終止符（`<<1`）只在緊接 `<<`（無空白）時才被認出；`<< 1`（`<<` 與數字終止符間有空白）目前仍判不出來，是刻意窄化——放寬空白會讓 `1 << 8` 這種位元左移誤判成 heredoc
+
+以下 14–23 是 PR #141 Copilot review 抓出、經使用者裁決「不修、列為已知極限」的形狀（2026-09-11）。理由：本 hook 防的對象是 Claude 自己（主對話或 subagent 沒讀到規則、順手改了凍結檔），不是刻意繞道的攻擊者。Claude 想改檔用的是 Edit 工具、`sed -i`、`tee`、`cat >`、`patch`、`open(…,'w')`、`writeFileSync`，這些全都擋住了；下列形狀是「知道有 guard、故意要繞」才會寫的，而第 1–3 條早已說明刻意繞道三秒就能做到，再堵這些也不會讓 hook 變成防線。
+
+14. `SCRIPT_INTERPRETERS` 認得 php／deno／bun，但 `SCRIPT_WRITE_API` 沒有這三種語言的寫入 API（`file_put_contents`／`Deno.writeTextFile`／`Bun.write`），等於這三種語言完全不設防
+15. `os.open(path, os.O_WRONLY | os.O_TRUNC)` 用數字旗標而非 mode 字串，MODE 系列 regex 比不中
+16. `Path(<凍結檔>).replace(dest)` 完全沒有對應規則（只有 `os.replace(`）；`Path(...).rename(dest)` 的接收端來源路徑也沒被 capture，但 detect 命中＋capture 少一個會退回 flood，端到端仍擋得住
+17. optional chaining：`writeFileSync?.(…)` 這類 `?.(` 呼叫，所有 detect 都要求 API 名緊接 `(`
+18. `open(path, mode)` 的 mode 是變數而非字面字串時，detect 整段比不中，連 flood 都不會觸發（要堵得把「mode 是識別字」也算呼叫，代價是唯讀的 `mode='r'` 也會被 flood 誤擋）
+19. `Path(os.path.join(…)).open('w')`：Path.open 的 detect 用 `[^)]*`，建構子引數含巢狀括號就提前收尾
+20. `if rm <凍結檔>; then …`、`while`／`for`／`{ …; }` 等 shell 控制結構：關鍵字不在 `COMMAND_PREFIX`，其後的動詞不算指令位置
+21. heredoc 內文餵給 pipeline 下游寫入指令：`cat <<'EOF' | patch -p1`，內文歸給 `cat` 段、寫入的 `patch` 段拿不到路徑（直譯器路線不受影響：`cat <<'PY' | python3` 仍由整條指令掃 API 擋下）
+22. `>|`（noclobber override）：`splitSegments` 先把 `|` 當管線切開，重導向 regex 也沒收 `>|`
+23. 直譯器偵測只認指令位置後，仍有一種殘留誤擋：grep 樣式裡放了引號閉合的完整寫檔呼叫（`grep -rn "writeFileSync('<凍結檔>','x')" . && node -v`），同一行又真的跑直譯器——寫入 API 刻意對整條指令掃（跨行 `python3 -c "` 要靠這個），這種形狀就分不出樣式與呼叫
