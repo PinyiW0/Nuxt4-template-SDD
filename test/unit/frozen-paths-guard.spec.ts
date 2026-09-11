@@ -930,6 +930,49 @@ describe('frozen-paths-guard：xargs -I {} 吃值旗標', () => {
   })
 })
 
+// PR #141 收尾：直譯器偵測只認指令位置、不看 heredoc 內文（使用者裁決只修誤擋這一類）
+describe('frozen-paths-guard：直譯器偵測只認指令位置', () => {
+  it('grep 搜尋樣式含 node 與寫檔呼叫（唯讀，沒有真的跑 node） → 放行', () => {
+    const result = runGuard(`grep -R "node writeFileSync('${FROZEN_FILE}')" .`)
+    expect(result.status).toBe(0)
+  })
+
+  it('heredoc 內文提到 python3 與寫檔呼叫、實際寫到 /tmp/doc → 放行', () => {
+    const command = [
+      'cat > /tmp/doc <<\'EOF\'',
+      `用 python3 跑 writeFileSync('${FROZEN_FILE}', 'x') 會被擋`,
+      'EOF',
+    ].join('\n')
+    const result = runGuard(command)
+    expect(result.status).toBe(0)
+  })
+
+  it('echo 一段含 python3 呼叫的字串（沒有真的跑） → 放行', () => {
+    const result = runGuard(`echo "python3 -c \\"open('${FROZEN_FILE}','w')\\""`)
+    expect(result.status).toBe(0)
+  })
+
+  it('python3 -c 引號字串跨行（直譯器與 API 不同行，整條指令掃 API 仍要接住） → 擋下', () => {
+    const result = runGuard(`python3 -c "\nopen('${FROZEN_FILE}','w')\n"`)
+    expect(result.status).toBe(2)
+  })
+
+  it('npx --yes tsx -e 寫凍結檔（套件執行器帶旗標，tsx 仍算指令位置） → 擋下', () => {
+    const result = runGuard(`npx --yes tsx -e "require('fs').writeFileSync('${FROZEN_FILE}','x')"`)
+    expect(result.status).toBe(2)
+  })
+
+  it('heredoc 餵給管線下游的 python3 → 擋下', () => {
+    const command = [
+      'cat <<\'PY\' | python3',
+      `open('${FROZEN_FILE}','w')`,
+      'PY',
+    ].join('\n')
+    const result = runGuard(command)
+    expect(result.status).toBe(2)
+  })
+})
+
 describe('frozen-paths-guard：wrapper 吃值旗標後的子指令位置（sudo／git）', () => {
   it('sudo -u alice rm 既有凍結檔（-u 吃掉一個值） → 擋下', () => {
     const result = runGuard(`sudo -u alice rm ${FROZEN_FILE}`)

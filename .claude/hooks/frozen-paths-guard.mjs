@@ -66,6 +66,12 @@
 // `heredocTerminators()` 加追蹤 `$(( ))`／`(( ))` 括號深度，深度 >0 時的 `<<` 一律不當
 // heredoc 開啟符；`WRAPPER_VALUE_FLAGS` 補上 `-I`／`--replace`。
 //
+// 2026-09-11（PR #141 收尾，使用者裁決「只修誤擋、其餘列已知極限」）：直譯器偵測原本對整條指令
+// 所有 token 掃，grep 搜尋樣式裡的 `"node …"`、寫進文件的 heredoc 內文提到 python3，都會被當成
+// 真的在跑直譯器而誤擋唯讀／寫到別處的指令。修法：hasScriptInterpreter 改成只認指令位置的 token
+// （commandVerbs 同一套判準）、只看 heredoc 開啟行；npx／pnpx／bunx 補進 COMMAND_PREFIX 讓
+// `npx tsx -e` 的 tsx 仍算指令位置。寫入 API 的比對維持整條指令掃。
+//
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
 //   2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
@@ -85,6 +91,29 @@
 //      其他 API 的 capture 仍把 '$p' 當字面值路徑，`p=<凍結檔>; node -e "…renameSync('$p',…)"` 會漏放
 //  13. heredoc 數字終止符（`<<1`）只在緊接 `<<`（無空白）時才被認出；`<< 1`（`<<` 與數字終止符
 //      間有空白）目前仍判不出來，是刻意窄化——放寬空白會讓 `1 << 8` 這種位元左移誤判成 heredoc
+//
+// 以下 14–23 是 PR #141 Copilot review 抓出、經使用者裁決「不修、列為已知極限」的形狀（2026-09-11）。
+// 理由：本 hook 防的對象是 Claude 自己（主對話或 subagent 沒讀到規則、順手改了凍結檔），
+// 不是刻意繞道的攻擊者；Claude 想改檔用的是 Edit 工具、sed -i、tee、cat >、patch、open(…,'w')、
+// writeFileSync，這些全都擋住了。下列形狀是「知道有 guard、故意要繞」才會寫的，而第 1–3 條
+// 早已說明刻意繞道三秒就能做到，再堵這些也不會讓 hook 變成防線。
+//  14. SCRIPT_INTERPRETERS 認得 php／deno／bun，但 SCRIPT_WRITE_API 沒有這三種語言的寫入 API
+//      （file_put_contents／Deno.writeTextFile／Bun.write），等於這三種語言完全不設防
+//  15. `os.open(path, os.O_WRONLY | os.O_TRUNC)` 用數字旗標而非 mode 字串，MODE 系列 regex 比不中
+//  16. `Path(<凍結檔>).replace(dest)` 完全沒有對應規則（只有 `os.replace(`）；`Path(...).rename(dest)`
+//      的接收端來源路徑也沒被 capture，但 detect 命中＋capture 少一個會退回 flood，端到端仍擋得住
+//  17. optional chaining：`writeFileSync?.(…)` 這類 `?.(` 呼叫，所有 detect 都要求 API 名緊接 `(`
+//  18. `open(path, mode)` 的 mode 是變數而非字面字串時，detect 整段比不中，連 flood 都不會觸發
+//      （要堵得把「mode 是識別字」也算呼叫，代價是唯讀的 `mode='r'` 也會被 flood 誤擋）
+//  19. `Path(os.path.join(…)).open('w')`：Path.open 的 detect 用 `[^)]*`，建構子引數含巢狀括號就提前收尾
+//  20. `if rm <凍結檔>; then …`、`while`／`for`／`{ …; }` 等 shell 控制結構：關鍵字不在 COMMAND_PREFIX，
+//      其後的動詞不算指令位置
+//  21. heredoc 內文餵給 pipeline 下游寫入指令：`cat <<'EOF' | patch -p1`，內文歸給 `cat` 段、寫入的
+//      `patch` 段拿不到路徑（直譯器路線不受影響：`cat <<'PY' | python3` 仍由整條指令掃 API 擋下）
+//  22. `>|`（noclobber override）：splitSegments 先把 `|` 當管線切開，重導向 regex 也沒收 `>|`
+//  23. 直譯器偵測只認指令位置後，仍有一種殘留誤擋：grep 樣式裡放了引號閉合的完整寫檔呼叫
+//      （`grep -rn "writeFileSync('<凍結檔>','x')" . && node -v`），同一行又真的跑直譯器——寫入 API
+//      刻意對整條指令掃（跨行 `python3 -c "` 要靠這個），這種形狀就分不出樣式與呼叫
 // 這些只能靠 Bash 權限策略或人審補位。
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { normalize, relative, resolve } from 'node:path'
@@ -98,7 +127,9 @@ const WRITE_VERBS = new Set(['tee', 'cp', 'mv', 'rm', 'ln', 'truncate', 'dd', 'p
 // 指令位置：段落第一個 token（段落已在 |、;、&&、|| 處切開）。
 // 下列前綴後的第一個 token 一併視為指令位置，免得 `sudo rm <凍結檔>`、
 // `find … -exec rm {} \;`、`bash -c "rm <凍結檔>"` 這類寫法因為動詞不在第一位而漏放。
-const COMMAND_PREFIX = new Set(['sudo', 'env', 'time', 'command', 'nohup', 'xargs', 'then', 'do', 'else', '-exec', '-execdir', '-c'])
+// npx／pnpx／bunx 是套件執行器：直譯器偵測改成只認指令位置後，`npx tsx -e …` 的 tsx 要靠
+// 這裡才會被算進指令位置（PR #141 review）。
+const COMMAND_PREFIX = new Set(['sudo', 'env', 'time', 'command', 'nohup', 'xargs', 'npx', 'pnpx', 'bunx', 'then', 'do', 'else', '-exec', '-execdir', '-c'])
 // git 會改寫工作區檔案的子指令（git add/diff/log 等唯讀或只動 index 的不算）
 const GIT_WRITE_SUBCMDS = new Set(['checkout', 'restore', 'apply', 'mv', 'rm', 'clean', 'stash'])
 // 支援 -i／--in-place 就地改檔的串流編輯器與直譯器：帶 in-place 旗標時視為寫入。
@@ -202,9 +233,20 @@ function baseName(word) {
   return word.slice(word.lastIndexOf('/') + 1)
 }
 
-// 整條指令是否含直譯器詞（去路徑前綴比對，如 /usr/bin/python3）
-function hasScriptInterpreter(words) {
-  return words.some(w => SCRIPT_INTERPRETERS.test(baseName(w)))
+// 指令是否真的在「跑」直譯器：只認指令位置的 token（段首、sudo／npx／-c／變數指派之後），
+// 且只看 heredoc 的開啟行、不看內文。原本對整條指令所有 token 掃，grep 搜尋樣式裡的 `"node …"`、
+// 寫進文件的 heredoc 內文提到 python3，都會被當成真的在跑直譯器，接著把樣式／內文裡的 API 字樣
+// 當成呼叫而誤擋唯讀或寫到別處的指令（PR #141 review）。
+// 只收窄「觸發條件」；寫入 API 的比對（scriptWriteAnalysis）仍對整條指令做——
+// `python3 -c "` 跨行的引號字串會把直譯器與 API 拆到不同行，切段掃會漏。
+function hasScriptInterpreter(command) {
+  for (const { head } of splitHeredocBlocks(command)) {
+    for (const seg of splitSegments(head)) {
+      if (commandVerbs(tokenize(seg)).some(v => SCRIPT_INTERPRETERS.test(v)))
+        return true
+    }
+  }
+  return false
 }
 
 // detect 命中處之後接的是不是可解析的引數（見 CALL_ARG）
@@ -511,7 +553,7 @@ function bashFrozenWrites(command) {
   // 拆到不同行也吃得到。優先用 capture 抓到的字面值路徑當寫入目標（精準，不誤傷同指令
   // 內被唯讀讀取的凍結檔）；只有引數抓不到字面值（變數／運算式）時才回退整條指令 flood。
   const allWords = tokenize(command)
-  if (hasScriptInterpreter(allWords)) {
+  if (hasScriptInterpreter(command)) {
     const { anyCall, anyDynamic, literalPaths } = scriptWriteAnalysis(command)
     if (anyCall) {
       for (const p of literalPaths) {
