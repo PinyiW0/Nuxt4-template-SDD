@@ -241,30 +241,43 @@ export async function resetMockData(page: Page, options?: { empty?: string[] }) 
 
 #### route-match.ts
 
-路由 pattern（含 `:param` 或 Nuxt bracket 動態段 `[param]`）與真實路徑的比對 helper。抽出獨立檔案，`login`
+路由 pattern（含 `[id]` 或 `:id` 動態段）與真實路徑的比對 helper。抽出獨立檔案，`login`
 （離開 `/login` 判斷）與 `01-auth-guard.spec.ts`（PUBLIC_PAGES／PROTECTED_PAGES 比對）共用，避免各自重寫
 一份 `startsWith` 誤判。
 
+**判準與 `auth.global.ts` 相同**：`matchesRoutePattern` 與 feature-to-ui [phase-2-skeleton.md](../../../feature-to-ui/references/phase-2-skeleton.md)
+的 `app/utils/route-match.ts` 是同一份程式碼。E2E 骨架先於 UI 產生、import 不到那個檔，所以各存一份；改判準要兩邊一起改，
+否則測試綠燈就不代表 middleware 的行為。
+
 ```typescript
 // test/e2e/helpers/route-match.ts
-/**
- * 路徑是否命中路由 pattern：pattern 與 path 各自以 `/` 切段，段數不同不命中，
- * `:param` 或 `[param]`（route-map.yaml 產生的 Nuxt 動態段，如 `/users/[id]`）段吃任意非空值，
- * 其他段逐字相等。
- *
- * ⚠️ 不用 `startsWith` 或字面值比對：
- * - pattern 含動態段時，字面值（如 `/users/:id`、`/users/[id]`）永遠比不中真實路徑（如 `/users/42`）。
- * - 純字面 pattern（如 `/login`）用 `startsWith` 會誤中同前綴的兄弟路由（如 `/login-recovery`）。
- */
+// 與 app/utils/route-match.ts 的 matchesRoutePattern 同一份判準（見上方說明），改一邊要同步另一邊。
+// 不用 startsWith：它對 `/users/[id]` 這類樣板永遠比不中真實路徑（`/users/42`），
+// 且會誤中同前綴的兄弟路由（`/login` 誤中 `/login-recovery`）。
+// 不支援 catch-all `[...slug]`：route-map 推導表不產生；寫了會被當成單一動態段。
+
+// 動態段：`[id]`（route-map 推導表的寫法）或 `:id`，吃任意非空值
+function isDynamicSegment(segment: string): boolean {
+  return segment.startsWith(':') || (segment.startsWith('[') && segment.endsWith(']'))
+}
+
+function toSegments(path: string): string[] {
+  return path.split('/').filter(Boolean)
+}
+
+// pattern 的每一段都對得上 path 同位置的段（只比到 pattern 的長度）
+function leadingSegmentsMatch(patternSegments: string[], pathSegments: string[]): boolean {
+  return patternSegments.every((segment, index) => {
+    const pathSegment = pathSegments[index] ?? ''
+    return isDynamicSegment(segment) ? pathSegment.length > 0 : segment === pathSegment
+  })
+}
+
+// 整條命中：段數相同且逐段對上（公開頁不連帶放行子頁，與 auth.global.ts 一致）
 export function matchesRoutePattern(pattern: string, path: string): boolean {
-  const patternSegments = pattern.split('/').filter(Boolean)
-  const pathSegments = path.split('/').filter(Boolean)
-  if (patternSegments.length !== pathSegments.length)
-    return false
-  const isDynamic = (seg: string) => seg.startsWith(':') || (seg.startsWith('[') && seg.endsWith(']'))
-  return patternSegments.every((seg, i) =>
-    isDynamic(seg) ? pathSegments[i].length > 0 : seg === pathSegments[i],
-  )
+  const patternSegments = toSegments(pattern)
+  const pathSegments = toSegments(path)
+  return patternSegments.length === pathSegments.length && leadingSegmentsMatch(patternSegments, pathSegments)
 }
 ```
 
@@ -404,18 +417,15 @@ const PUBLIC_PAGES: string[] = []
 
 test.describe('Auth 守衛', () => {
   // 設定自檢：兩份清單若有 pattern 重疊，代表同一路由被同時判定「需登入」與「免登入」，設定本身矛盾。
-  // 用 matchesRoutePattern（逐段比對）不用 startsWith——pattern 含 :param 時字面值比對永遠比不中，
+  // 用 matchesRoutePattern（逐段比對）不用 startsWith——pattern 含動態段時字面值比對永遠比不中，
   // 純字面 pattern 又會誤判同前綴的兄弟路由（v2 bug，issue #137）。
+  // matchesRoutePattern 與 auth.global.ts 用的是同一份判準（段數不同不命中，公開頁不連帶放行子頁），
+  // 所以這裡的綠燈等於 middleware 不會把 PROTECTED_PAGES 當公開頁（issue #143）。
   // ⚠️ PUBLIC_PAGES 為空時，下面的 test.skip 會把這個自檢標成 skipped（不是零斷言空跑後顯示通過）；
   // 專案有公開頁、把 PUBLIC_PAGES 填值後，這個自檢才會真的執行。
-  // ⚠️ 已知不一致（PR #141 review，另開 issue 追）：本自檢用逐段比對（段數必須相同），但
-  // phase-2-skeleton.md 生成的 auth.global.ts 用前綴比對（to.path === p || startsWith(`${p}/`)）。
-  // PUBLIC_PAGES=['/announcement'] + PROTECTED_PAGES=['/announcement/settings'] 這裡兩個方向都比不中
-  // 而通過，middleware 卻會把子頁當公開放行；Nuxt catch-all `[...slug]` 也不支援。這裡的綠燈不代表
-  // middleware 沒有父子層衝突，兩邊語意統一前請自行檢查。
   test('PUBLIC_PAGES 每一項都不得比中任何 PROTECTED_PAGES', () => {
     test.skip(PUBLIC_PAGES.length === 0, 'PUBLIC_PAGES 為空，此自檢暫無意義；填入公開頁清單後才會執行')
-    // 兩邊都可能含 :param（PROTECTED_PAGES 多為具體路徑，PUBLIC_PAGES 來自 route-map 的
+    // 兩邊都可能含動態段（PROTECTED_PAGES 多為具體路徑，PUBLIC_PAGES 來自 route-map 的
     // public_paths、可能是 pattern），只比一個方向會在「pattern 在另一邊」時漏檢，故雙向都測
     for (const publicPath of PUBLIC_PAGES) {
       for (const protectedPath of PROTECTED_PAGES) {
@@ -536,7 +546,7 @@ test/e2e/
 │   ├── actions.ts                  # 共用操作（login, selectOption, confirmDelete, resetMockData）
 │   ├── fixtures.ts                 # 測試資料（帳號、路由）
 │   ├── hydration.ts                # Hydration 守門 fixture（auto，dev-only）
-│   ├── route-match.ts              # 路由 pattern 逐段比對（:param 段吃任意非空值）
+│   ├── route-match.ts              # 路由 pattern 逐段比對（[id]／:id 段吃任意非空值）
 │   └── index.ts                    # 匯出
 ├── specs/                          # .spec.ts 檔案（由 /test e2e spec 產出）
 │   ├── 00-hydration.spec.ts        # Hydration smoke（逐 route 整頁載入）

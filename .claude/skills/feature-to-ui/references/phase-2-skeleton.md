@@ -60,7 +60,7 @@ Phase 2 增量更新完成
    - **`auth.required: true`** → 確保 `app/middleware/auth.global.ts` 存在（範本見下方「Auth middleware 範本」）且 `authPublicPaths` 含 `login_path`，
      並有 `app/pages/login.vue`（範本見 [page-builder.md](page-builder.md)「登入表單」）。API 層（useHttp auth 版 / store / auth.api / types / nuxt.config 追加）由 feature-to-api 依 [auth-scaffold.md](../../feature-to-api/references/auth-scaffold.md) §3a 套用。
      **不可默默跳過**——缺守門要報錯補上。防迴圈六道與收尾 checklist 見 auth-scaffold.md §4 / §5。
-     另檢查 `public_paths` 裡含 `:param` 的項目：逐段比對下 `:param` 段會吃任意非空值，要確認該段不會吃到受保護資源的路徑，範圍夠精準才放行。
+     另檢查 `public_paths` 裡含動態段（`[id]` 或 `:id`）的項目：動態段會吃任意非空值，要確認該段不會吃到受保護資源的路徑，範圍夠精準才放行。
 2.5. **RBAC route guard（條件式）**：檢查 `route-map.yaml > rbac.protected_routes`
    - **無 `rbac` 區塊 / 無 `protected_routes`** → 跳過，本專案不做角色路由守門
    - **有 `protected_routes`** → 確保 `app/middleware/rbac.global.ts` 存在（範本見下方「RBAC route guard 範本」），並建立守門目標頁空殼（如 `/403`，若 `route-map.routes` 未含則一併補一個 `app/pages/403.vue` 空殼）。角色名用 `rbac` 實際值、不寫死。入口 / 操作鈕的角色隱藏由 Phase 5 依 [rules.md](rules.md)「角色導向 UI 可見性」實作。
@@ -139,18 +139,49 @@ const siteId = computed(() => route.params.id)
 
 ## 共用路由比對函式（Auth／RBAC 兩處 middleware 共用）
 
+兩種比對，依清單性質選用：
+
+| 函式 | 命中條件 | 用在 | 為什麼 |
+|---|---|---|---|
+| `matchesRoutePattern` | 段數相同、逐段對上 | Auth `public_paths`（白名單） | 公開頁不連帶放行子頁，漏列只會多擋、不會漏守 |
+| `coversRoutePattern` | pattern 本身或其下子頁 | RBAC `protected_routes`（黑名單） | 守住 `/members` 也守住 `/members/42`，漏列子頁仍有守門 |
+
 ```ts
 // app/utils/route-match.ts
-// 不用 startsWith：它對 `/xxx/:param` 這類字面值永遠比不中，且前綴比對會把巢狀子路由一併放行
-export function matchesRoutePattern(pattern: string, path: string): boolean {
-  const patternSegments = pattern.split('/').filter(Boolean)
-  const pathSegments = path.split('/').filter(Boolean)
-  if (patternSegments.length !== pathSegments.length)
-    return false
+// 不用 startsWith：它對 `/xxx/[id]` 這類樣板永遠比不中，且會誤中同前綴的兄弟路由（`/admin` 誤中 `/administrator`）。
+// 不支援 catch-all `[...slug]`：route-map 推導表不產生；寫了會被當成單一動態段。
+// E2E 的 test/e2e/helpers/route-match.ts 有同一份 matchesRoutePattern（見 test/e2e/references/setup.md）——
+// E2E 骨架先於 UI 產生、拿不到這個檔，所以各存一份；改判準要兩邊一起改。
+
+// 動態段：`[id]`（route-map 推導表的寫法）或 `:id`，吃任意非空值
+function isDynamicSegment(segment: string): boolean {
+  return segment.startsWith(':') || (segment.startsWith('[') && segment.endsWith(']'))
+}
+
+function toSegments(path: string): string[] {
+  return path.split('/').filter(Boolean)
+}
+
+// pattern 的每一段都對得上 path 同位置的段（只比到 pattern 的長度）
+function leadingSegmentsMatch(patternSegments: string[], pathSegments: string[]): boolean {
   return patternSegments.every((segment, index) => {
     const pathSegment = pathSegments[index] ?? ''
-    return segment.startsWith(':') ? pathSegment.length > 0 : segment === pathSegment
+    return isDynamicSegment(segment) ? pathSegment.length > 0 : segment === pathSegment
   })
+}
+
+// 整條命中：段數相同且逐段對上（Auth 白名單用）
+export function matchesRoutePattern(pattern: string, path: string): boolean {
+  const patternSegments = toSegments(pattern)
+  const pathSegments = toSegments(path)
+  return patternSegments.length === pathSegments.length && leadingSegmentsMatch(patternSegments, pathSegments)
+}
+
+// 涵蓋：path 是 pattern 本身或其下子頁（RBAC 黑名單用）
+export function coversRoutePattern(pattern: string, path: string): boolean {
+  const patternSegments = toSegments(pattern)
+  const pathSegments = toSegments(path)
+  return patternSegments.length <= pathSegments.length && leadingSegmentsMatch(patternSegments, pathSegments)
 }
 ```
 
@@ -214,19 +245,23 @@ export default defineNuxtRouteMiddleware((to) => {
 ```ts
 // app/middleware/rbac.global.ts
 import { useAuthStore } from '~/stores/auth'
-import { matchesRoutePattern } from '~/utils/route-match'
+import { coversRoutePattern } from '~/utils/route-match'
 
-// 由 route-map.rbac.protected_routes 生成；path 逐段比對，allow = 允許角色
+// 由 route-map.rbac.protected_routes 生成；path 涵蓋其下子頁（寫 /accounts 也守 /accounts/42），allow = 允許角色
 const PROTECTED_ROUTES: { path: string, allow: string[] }[] = [
   { path: '/accounts', allow: ['super_admin'] },
 ]
+
+// 深的規則先比：子頁另列一條就能覆寫上層（如 /accounts/me 開放給其他角色），不受生成時的排列順序影響。
+// 同深度照清單順序，具體段（/accounts/me）要列在動態段（/accounts/[id]）前面
+const RULES_DEEPEST_FIRST = PROTECTED_ROUTES.toSorted((a, b) => b.path.split('/').length - a.path.split('/').length)
 
 const DENIED_PATH = '/403'
 
 export default defineNuxtRouteMiddleware((to) => {
   const authStore = useAuthStore()
 
-  const rule = PROTECTED_ROUTES.find(r => matchesRoutePattern(r.path, to.path))
+  const rule = RULES_DEEPEST_FIRST.find(r => coversRoutePattern(r.path, to.path))
   if (!rule)
     return // 非受保護路由
 
