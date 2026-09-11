@@ -65,6 +65,7 @@ Phase 2 增量更新完成
    - **無 `rbac` 區塊 / 無 `protected_routes`** → 跳過，本專案不做角色路由守門
    - **有 `protected_routes`** → 確保 `app/middleware/rbac.global.ts` 存在（範本見下方「RBAC route guard 範本」），並建立守門目標頁空殼（如 `/403`，若 `route-map.routes` 未含則一併補一個 `app/pages/403.vue` 空殼）。角色名用 `rbac` 實際值、不寫死。入口 / 操作鈕的角色隱藏由 Phase 5 依 [rules.md](rules.md)「角色導向 UI 可見性」實作。
      另檢查 `protected_routes` 沒有重複的路徑（只差參數名也算，如 `/members/[id]` 與 `/members/:memberId`）：有就停下回報路由規劃問題，不要默默產出——兩條 `allow` 不同時，套用哪一條會取決於清單順序。
+     也檢查沒有任何一條涵蓋 `auth.login_path`（最常見是寫了 `/`，它涵蓋整站）：有就停下回報——未登入者會在 login 與 `/403` 之間來回導向。
 3. **根據路由規劃建立所有頁面空殼**（**不帶 testid**，見上方必讀規範）
 4. **每個頁面只包含基本結構**：語意標籤（`<main>`／`<section>`）＋ `<h1>` 頁面標題，讓後續 Phase 5 有語意 anchor 可用
 5. **詢問用戶確認**
@@ -271,8 +272,9 @@ const PROTECTED_ROUTES: { path: string, allow: string[] }[] = [
 
 // 最具體的規則先比：子頁另列一條就能覆寫上層（如 /accounts/me 開放給其他角色）。
 // 深的先、同深度具體段先（/accounts/me 先於 /accounts/[id]），不受生成時的排列順序影響。
-// 只差參數名的重複規則（/accounts/[id] 與 /accounts/:accountId）排不出先後，生成前就要擋下（見步驟 2.5）
-const RULES_BY_SPECIFICITY = PROTECTED_ROUTES.toSorted((a, b) => compareRouteSpecificity(a.path, b.path))
+// 只差參數名的重複規則（/accounts/[id] 與 /accounts/:accountId）排不出先後，生成前就要擋下（見步驟 2.5）。
+// 複製後 sort，不用 toSorted：它是 ES2023，Vite 預設支援的 Chrome 107／Firefox 104 沒有，Nuxt 也不補 polyfill
+const RULES_BY_SPECIFICITY = [...PROTECTED_ROUTES].sort((a, b) => compareRouteSpecificity(a.path, b.path))
 
 const DENIED_PATH = '/403'
 
