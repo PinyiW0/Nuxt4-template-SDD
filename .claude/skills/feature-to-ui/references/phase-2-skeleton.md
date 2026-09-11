@@ -145,6 +145,7 @@ const siteId = computed(() => route.params.id)
 |---|---|---|---|
 | `matchesRoutePattern` | 段數相同、逐段對上 | Auth `public_paths`（白名單） | 公開頁不連帶放行子頁，漏列只會多擋、不會漏守 |
 | `coversRoutePattern` | pattern 本身或其下子頁 | RBAC `protected_routes`（黑名單） | 守住 `/members` 也守住 `/members/42`，漏列子頁仍有守門 |
+| `compareRouteSpecificity` | —（排序用） | RBAC 規則優先序 | 深的先、同深度具體段先；`/members/me` 的例外不會被 `/members/[id]` 蓋掉，清單順序不影響結果 |
 
 ```ts
 // app/utils/route-match.ts
@@ -182,6 +183,21 @@ export function coversRoutePattern(pattern: string, path: string): boolean {
   const patternSegments = toSegments(pattern)
   const pathSegments = toSegments(path)
   return patternSegments.length <= pathSegments.length && leadingSegmentsMatch(patternSegments, pathSegments)
+}
+
+// 比對優先序（給 sort 用，越具體越前面）：段數多的先；同段數時從左逐段比，先出現具體段的那條先
+export function compareRouteSpecificity(a: string, b: string): number {
+  const aSegments = toSegments(a)
+  const bSegments = toSegments(b)
+  if (aSegments.length !== bSegments.length)
+    return bSegments.length - aSegments.length
+  for (const [index, segment] of aSegments.entries()) {
+    const aDynamic = isDynamicSegment(segment)
+    const bDynamic = isDynamicSegment(bSegments[index] ?? '')
+    if (aDynamic !== bDynamic)
+      return aDynamic ? 1 : -1
+  }
+  return 0
 }
 ```
 
@@ -245,23 +261,23 @@ export default defineNuxtRouteMiddleware((to) => {
 ```ts
 // app/middleware/rbac.global.ts
 import { useAuthStore } from '~/stores/auth'
-import { coversRoutePattern } from '~/utils/route-match'
+import { compareRouteSpecificity, coversRoutePattern } from '~/utils/route-match'
 
 // 由 route-map.rbac.protected_routes 生成；path 涵蓋其下子頁（寫 /accounts 也守 /accounts/42），allow = 允許角色
 const PROTECTED_ROUTES: { path: string, allow: string[] }[] = [
   { path: '/accounts', allow: ['super_admin'] },
 ]
 
-// 深的規則先比：子頁另列一條就能覆寫上層（如 /accounts/me 開放給其他角色），不受生成時的排列順序影響。
-// 同深度照清單順序，具體段（/accounts/me）要列在動態段（/accounts/[id]）前面
-const RULES_DEEPEST_FIRST = PROTECTED_ROUTES.toSorted((a, b) => b.path.split('/').length - a.path.split('/').length)
+// 最具體的規則先比：子頁另列一條就能覆寫上層（如 /accounts/me 開放給其他角色）。
+// 深的先、同深度具體段先（/accounts/me 先於 /accounts/[id]），不受生成時的排列順序影響
+const RULES_BY_SPECIFICITY = PROTECTED_ROUTES.toSorted((a, b) => compareRouteSpecificity(a.path, b.path))
 
 const DENIED_PATH = '/403'
 
 export default defineNuxtRouteMiddleware((to) => {
   const authStore = useAuthStore()
 
-  const rule = RULES_DEEPEST_FIRST.find(r => coversRoutePattern(r.path, to.path))
+  const rule = RULES_BY_SPECIFICITY.find(r => coversRoutePattern(r.path, to.path))
   if (!rule)
     return // 非受保護路由
 
