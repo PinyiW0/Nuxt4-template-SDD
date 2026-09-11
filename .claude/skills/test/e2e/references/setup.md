@@ -241,30 +241,57 @@ export async function resetMockData(page: Page, options?: { empty?: string[] }) 
 
 #### route-match.ts
 
-路由 pattern（含 `:param` 或 Nuxt bracket 動態段 `[param]`）與真實路徑的比對 helper。抽出獨立檔案，`login`
-（離開 `/login` 判斷）與 `01-auth-guard.spec.ts`（PUBLIC_PAGES／PROTECTED_PAGES 比對）共用，避免各自重寫
+路由 pattern（含 `[id]` 或 `:id` 動態段）與真實路徑的比對 helper。抽出獨立檔案，`login`
+（離開 `/login` 判斷）與 `01-auth-guard.spec.ts`（PUBLIC_PATTERNS／PROTECTED_PATTERNS 比對）共用，避免各自重寫
 一份 `startsWith` 誤判。
+
+**判準與 `auth.global.ts` 相同**：`matchesRoutePattern` 與 feature-to-ui [phase-2-skeleton.md](../../../feature-to-ui/references/phase-2-skeleton.md)
+的 `app/utils/route-match.ts` 是同一份程式碼。E2E 骨架先於 UI 產生、import 不到那個檔，所以各存一份；改判準要兩邊一起改，
+否則測試綠燈就不代表 middleware 的行為。`patternsOverlap` 只有測試端用得到（自檢兩份清單是否重疊），app 端沒有對應。
 
 ```typescript
 // test/e2e/helpers/route-match.ts
-/**
- * 路徑是否命中路由 pattern：pattern 與 path 各自以 `/` 切段，段數不同不命中，
- * `:param` 或 `[param]`（route-map.yaml 產生的 Nuxt 動態段，如 `/users/[id]`）段吃任意非空值，
- * 其他段逐字相等。
- *
- * ⚠️ 不用 `startsWith` 或字面值比對：
- * - pattern 含動態段時，字面值（如 `/users/:id`、`/users/[id]`）永遠比不中真實路徑（如 `/users/42`）。
- * - 純字面 pattern（如 `/login`）用 `startsWith` 會誤中同前綴的兄弟路由（如 `/login-recovery`）。
- */
+// 與 app/utils/route-match.ts 的 matchesRoutePattern 同一份判準（見上方說明），改一邊要同步另一邊。
+// 不用 startsWith：它對 `/users/[id]` 這類樣板永遠比不中真實路徑（`/users/42`），
+// 且會誤中同前綴的兄弟路由（`/login` 誤中 `/login-recovery`）。
+// 只支援具體段、`[id]`、`:id`。catch-all（`[...slug]`）、選填段（`[[id]]`）、正規式參數（`:id(\d+)`）
+// 會被當成單一動態段而算錯——route-map 推導表不產生這些語法，手動加入時由 Step 6.5 在產出前擋下。
+
+// 動態段：`[id]`（route-map 推導表的寫法）或 `:id`，吃任意非空值
+function isDynamicSegment(segment: string): boolean {
+  return segment.startsWith(':') || (segment.startsWith('[') && segment.endsWith(']'))
+}
+
+function toSegments(path: string): string[] {
+  return path.split('/').filter(Boolean)
+}
+
+// pattern 的每一段都對得上 path 同位置的段（只比到 pattern 的長度）
+function leadingSegmentsMatch(patternSegments: string[], pathSegments: string[]): boolean {
+  return patternSegments.every((segment, index) => {
+    const pathSegment = pathSegments[index] ?? ''
+    return isDynamicSegment(segment) ? pathSegment.length > 0 : segment === pathSegment
+  })
+}
+
+// 整條命中：段數相同且逐段對上（公開頁不連帶放行子頁，與 auth.global.ts 一致）
 export function matchesRoutePattern(pattern: string, path: string): boolean {
-  const patternSegments = pattern.split('/').filter(Boolean)
-  const pathSegments = path.split('/').filter(Boolean)
-  if (patternSegments.length !== pathSegments.length)
-    return false
-  const isDynamic = (seg: string) => seg.startsWith(':') || (seg.startsWith('[') && seg.endsWith(']'))
-  return patternSegments.every((seg, i) =>
-    isDynamic(seg) ? pathSegments[i].length > 0 : seg === pathSegments[i],
-  )
+  const patternSegments = toSegments(pattern)
+  const pathSegments = toSegments(path)
+  return patternSegments.length === pathSegments.length && leadingSegmentsMatch(patternSegments, pathSegments)
+}
+
+// 兩個 pattern 能不能命中同一個具體路徑：段數相同，且每段至少一邊是動態段、或兩邊逐字相等。
+// 自檢重疊不能拿一邊當路徑去比另一邊——兩邊都含動態段時雙向都會漏
+// （`/files/[id]/preview` 與 `/files/admin/[id]` 雙向比都不中，卻都命中 `/files/admin/preview`）
+export function patternsOverlap(a: string, b: string): boolean {
+  const aSegments = toSegments(a)
+  const bSegments = toSegments(b)
+  return aSegments.length === bSegments.length
+    && aSegments.every((segment, index) => {
+      const other = bSegments[index] ?? ''
+      return isDynamicSegment(segment) || isDynamicSegment(other) || segment === other
+    })
 }
 ```
 
@@ -390,38 +417,40 @@ test.describe('Hydration 守門', () => {
 
 ### Step 6.5：建立 auth guard smoke spec（僅 `route-map.yaml` 有 `auth` 區塊時）
 
-守衛（`auth.global.ts`）是生成物，沒有測試覆蓋時改壞抓不到（wedding-host 實戰：守衛無測試，重構後壞掉才人工發現）。`route-map.auth.required` 時必建：
+守衛（`auth.global.ts`）是生成物，沒有測試覆蓋時改壞抓不到（wedding-host 實戰：守衛無測試，重構後壞掉才人工發現）。`route-map.auth.required` 時必建。
+
+產出前先檢查 `auth.public_paths` 的路徑段只能是具體字串、`[id]` 或 `:id`：出現 catch-all（`[...slug]`）、選填段（`[[id]]`）、帶正規式或修飾符的參數（`:id(\d+)`、`:id?`）就停下回報，不產出本檔——`route-match.ts` 不支援這些語法，互斥自檢與導向斷言都會靜默算錯。本步驟比 feature-to-ui Phase 2 早跑，所以兩邊各擋一次。
 
 ```typescript
 // test/e2e/specs/01-auth-guard.spec.ts
 // 路徑值從 route-map.yaml > auth 讀取（login_path / home_path / public_paths），不寫死
 import { expect, test } from '@playwright/test'
-import { login, matchesRoutePattern, Routes, TestUsers } from '../helpers'
+import { login, matchesRoutePattern, patternsOverlap, Routes, TestUsers } from '../helpers'
 
-// 受保護路由挑代表頁即可（middleware 全域生效，不必逐頁）；公開頁列 public_paths 中 login 以外者（賓客端）
+// 自檢用（只做字串比對、不導航）：原樣抄 route-map 的 pattern。
+// PUBLIC_PATTERNS = auth.public_paths 中 login 以外者；PROTECTED_PATTERNS = routes[].path 中不在 public_paths 的「全部」路徑。
+// 不能只放代表頁：公開的 /users/[id] 會蓋掉受保護的 /users/me，只比代表頁抓不到。
+const PUBLIC_PATTERNS: string[] = []
+const PROTECTED_PATTERNS: string[] = [Routes.home]
+// 導航用（page.goto）：只能放具體路徑，動態段換成種子資料裡真實存在的值——page.goto 不會把 /users/[id] 展開成真實頁面。
+// 受保護頁挑代表頁即可（middleware 全域生效，不必逐頁）；公開頁每條 PUBLIC_PATTERNS 各給一個具體值。
 const PROTECTED_PAGES: string[] = [Routes.home]
 const PUBLIC_PAGES: string[] = []
 
 test.describe('Auth 守衛', () => {
   // 設定自檢：兩份清單若有 pattern 重疊，代表同一路由被同時判定「需登入」與「免登入」，設定本身矛盾。
-  // 用 matchesRoutePattern（逐段比對）不用 startsWith——pattern 含 :param 時字面值比對永遠比不中，
+  // 用 patternsOverlap（逐段比對）不用 startsWith——pattern 含動態段時字面值比對永遠比不中，
   // 純字面 pattern 又會誤判同前綴的兄弟路由（v2 bug，issue #137）。
-  // ⚠️ PUBLIC_PAGES 為空時，下面的 test.skip 會把這個自檢標成 skipped（不是零斷言空跑後顯示通過）；
-  // 專案有公開頁、把 PUBLIC_PAGES 填值後，這個自檢才會真的執行。
-  // ⚠️ 已知不一致（PR #141 review，另開 issue 追）：本自檢用逐段比對（段數必須相同），但
-  // phase-2-skeleton.md 生成的 auth.global.ts 用前綴比對（to.path === p || startsWith(`${p}/`)）。
-  // PUBLIC_PAGES=['/announcement'] + PROTECTED_PAGES=['/announcement/settings'] 這裡兩個方向都比不中
-  // 而通過，middleware 卻會把子頁當公開放行；Nuxt catch-all `[...slug]` 也不支援。這裡的綠燈不代表
-  // middleware 沒有父子層衝突，兩邊語意統一前請自行檢查。
-  test('PUBLIC_PAGES 每一項都不得比中任何 PROTECTED_PAGES', () => {
-    test.skip(PUBLIC_PAGES.length === 0, 'PUBLIC_PAGES 為空，此自檢暫無意義；填入公開頁清單後才會執行')
-    // 兩邊都可能含 :param（PROTECTED_PAGES 多為具體路徑，PUBLIC_PAGES 來自 route-map 的
-    // public_paths、可能是 pattern），只比一個方向會在「pattern 在另一邊」時漏檢，故雙向都測
-    for (const publicPath of PUBLIC_PAGES) {
-      for (const protectedPath of PROTECTED_PAGES) {
-        expect(matchesRoutePattern(protectedPath, publicPath)).toBe(false)
-        expect(matchesRoutePattern(publicPath, protectedPath)).toBe(false)
-      }
+  // patternsOverlap 與 auth.global.ts 的 matchesRoutePattern 同一套逐段規則（段數不同不重疊，公開頁不連帶
+  // 放行子頁），所以這裡的綠燈等於沒有任何具體路徑會同時落在兩份清單（issue #143）。
+  // ⚠️ PUBLIC_PATTERNS 為空時，下面的 test.skip 會把這個自檢標成 skipped（不是零斷言空跑後顯示通過）；
+  // 專案有公開頁、把 PUBLIC_PATTERNS 填值後，這個自檢才會真的執行。
+  test('PUBLIC_PATTERNS 每一項都不得與任何 PROTECTED_PATTERNS 重疊', () => {
+    test.skip(PUBLIC_PATTERNS.length === 0, 'PUBLIC_PATTERNS 為空，此自檢暫無意義；填入公開頁 pattern 後才會執行')
+    // 兩邊都可能含動態段，所以比的是「能不能命中同一個具體路徑」，不是拿一邊當路徑去比另一邊
+    for (const publicPattern of PUBLIC_PATTERNS) {
+      for (const protectedPattern of PROTECTED_PATTERNS)
+        expect(patternsOverlap(publicPattern, protectedPattern), `${publicPattern} 與 ${protectedPattern} 會命中同一路徑`).toBe(false)
     }
   })
 
@@ -431,10 +460,9 @@ test.describe('Auth 守衛', () => {
   const isOnLogin = (page: import('@playwright/test').Page) =>
     matchesRoutePattern(Routes.login, new URL(page.url()).pathname)
 
-  // ⚠️ 下面兩個迴圈把 PROTECTED_PAGES／PUBLIC_PAGES 的值直接丟給 page.goto()，只能放具體路徑。
-  // 若清單裡混了 route-map 來的 pattern（如 `/users/[id]`），page.goto() 會把它當成字面 URL
-  // 訪問（不會展開成真實頁面），導向斷言可能因此對到錯誤頁面而誤判過。pattern 混合具體值的清單
-  // 只安全用在上面的互斥自檢（純字串比對，不導航）；這裡導航用的項目要換成一個真實存在的頁面。
+  // ⚠️ 下面兩個迴圈把 PROTECTED_PAGES／PUBLIC_PAGES 直接丟給 page.goto()，所以這兩份只能放具體路徑。
+  // pattern（如 `/users/[id]`）放上面的 *_PATTERNS：page.goto() 會把它當成字面 URL 訪問，
+  // 導向斷言可能因此對到錯誤頁面而誤判過。
   for (const path of PROTECTED_PAGES) {
     test(`未登入訪 ${path} → 導向 login`, async ({ page }) => {
       await page.goto(path, { waitUntil: 'networkidle' })
@@ -536,7 +564,7 @@ test/e2e/
 │   ├── actions.ts                  # 共用操作（login, selectOption, confirmDelete, resetMockData）
 │   ├── fixtures.ts                 # 測試資料（帳號、路由）
 │   ├── hydration.ts                # Hydration 守門 fixture（auto，dev-only）
-│   ├── route-match.ts              # 路由 pattern 逐段比對（:param 段吃任意非空值）
+│   ├── route-match.ts              # 路由 pattern 逐段比對（[id]／:id 段吃任意非空值）
 │   └── index.ts                    # 匯出
 ├── specs/                          # .spec.ts 檔案（由 /test e2e spec 產出）
 │   ├── 00-hydration.spec.ts        # Hydration smoke（逐 route 整頁載入）
@@ -560,7 +588,7 @@ E2E Setup 完成
 - test/e2e/helpers/actions.ts（login, selectOption, confirmDelete, resetMockData）
 - test/e2e/helpers/fixtures.ts（N 個帳號、N 個路由）
 - test/e2e/helpers/hydration.ts（hydration 守門 fixture）
-- test/e2e/helpers/route-match.ts（matchesRoutePattern，逐段比對路由 pattern）
+- test/e2e/helpers/route-match.ts（matchesRoutePattern 逐段比對路由 pattern；patternsOverlap 判兩個 pattern 是否重疊）
 - test/e2e/specs/00-hydration.spec.ts（逐 route hydration smoke）
 - test/e2e/specs/01-auth-guard.spec.ts（auth 守衛 smoke；無 auth 專案略）
 - test/e2e/specs/02-authz-scope.spec.ts（巢狀 scope smoke；無巢狀端點專案略）
@@ -583,9 +611,9 @@ E2E Setup 完成
 - [ ] `actions.ts` 包含 login / selectOption / confirmDelete / resetMockData（`resetMockData` 支援透傳 `{ empty }`）
 - [ ] `fixtures.ts` 包含測試帳號和路由（與 `_common.flow.md` 一致）
 - [ ] `hydration.ts` 存在且 `index.ts` re-export `{ expect, test }`
-- [ ] `route-match.ts` 存在，`login` 與 `01-auth-guard.spec.ts` 皆改用 `matchesRoutePattern`（不用 `startsWith`）
+- [ ] `route-match.ts` 存在，`login` 與 `01-auth-guard.spec.ts` 皆改用 `matchesRoutePattern`／`patternsOverlap`（不用 `startsWith`）
 - [ ] `specs/00-hydration.spec.ts` 涵蓋所有 Routes（公開 + 登入後）
-- [ ] `route-map.yaml` 有 `auth` 區塊時，`specs/01-auth-guard.spec.ts` 存在（未登入導 login／公開頁不被導走／已登入訪 login 導回／`PUBLIC_PAGES` 不比中任何 `PROTECTED_PAGES`；`PUBLIC_PAGES` 為空時互斥自檢標成 skipped，填值後才執行）
+- [ ] `route-map.yaml` 有 `auth` 區塊時，`specs/01-auth-guard.spec.ts` 存在（未登入導 login／公開頁不被導走／已登入訪 login 導回／`PUBLIC_PATTERNS` 不與任何 `PROTECTED_PATTERNS` 重疊（`patternsOverlap`，`PROTECTED_PATTERNS` 列全部受保護路徑）；`PUBLIC_PATTERNS` 為空時互斥自檢標成 skipped，填值後才執行；導航用的 `PROTECTED_PAGES`／`PUBLIC_PAGES` 只放具體路徑）
 - [ ] `route-map.yaml > api_contract.endpoints` 有 ≥2 個 path 參數的端點時，`specs/02-authz-scope.spec.ts` 存在且**含寫入端點**的錯誤父子組合
 - [ ] `.gitignore` 排除測試產物
 - [ ] `npx playwright test --list` 可執行

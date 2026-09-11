@@ -214,8 +214,8 @@ const pageSize = 10
 
 ## 12. 公開路由比對禁 startsWith
 
-**症狀**：middleware 用 `path.startsWith(publicPath)` 比對 route-map 的 `public_paths`，遇到帶參數的路由（`/users/:id`）永遠比不中；或反過來 `/admin` 前綴誤放行 `/administrator`。
+**症狀**：middleware 用 `path.startsWith(publicPath)` 比對 route-map 的 `public_paths`，遇到帶動態段的路由（`/users/[id]`）永遠比不中；或反過來 `/admin` 前綴誤放行 `/administrator`。
 
-**原因**：`public_paths` 的值是路由樣板（含 `:param` 段），不是字面路徑；前綴比對把樣板當字面值。
+**原因**：`public_paths` 的值是路由樣板（含 `[id]` 或 `:id` 動態段），不是字面路徑；前綴比對把樣板當字面值。
 
-**做法**：改逐段參數化比對，`:param` 段吃任意非空值、段數不同不命中。範本已在 `phase-2-skeleton.md` 的 `matchesRoutePattern(pattern, path)`（放 `app/utils/route-match.ts`），middleware 明確 import 使用。
+**做法**：改逐段參數化比對，動態段吃任意非空值。範本在 `phase-2-skeleton.md` 的 `app/utils/route-match.ts`：Auth 白名單用 `matchesRoutePattern`（段數不同不命中），RBAC 黑名單用 `coversRoutePattern`（涵蓋其下子頁）。middleware 明確 import 使用。

@@ -111,6 +111,10 @@ rbac:
   #   - { method: DELETE, path: /api/v1/notes/{noteId}, owner_field: createdBy, restricted_roles: [member] }
 
   # ④ 受角色保護的前端路由：feature-to-ui 據此做「入口隱藏 + 路由守門」
+  #    path 涵蓋其下子頁（寫 /members 也守 /members/[id]），子頁不必逐一列；
+  #    子頁要開放給其他角色時另列一條，最具體的規則優先（深的先、同深度具體段先，列的順序不影響）。
+  #    同一路徑不可重複列（只差參數名或尾斜線也算）；不可涵蓋任何 auth.public_paths（含 login；
+  #    最常見是寫了 `/`）——匿名者進公開頁會被導去 /403。兩者 feature-to-ui Phase 2 生成前都會擋下
   protected_routes:
     - { path: /members, allow: [workspace_owner] }
 
