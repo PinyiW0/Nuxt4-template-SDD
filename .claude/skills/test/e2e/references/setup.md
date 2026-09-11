@@ -237,17 +237,19 @@ export async function resetMockData(page: Page, options?: { empty?: string[] }) 
 
 #### route-match.ts
 
-路由 pattern（含 `:param`）與真實路徑的比對 helper。抽出獨立檔案，`login`（離開 `/login` 判斷）與
-`01-auth-guard.spec.ts`（PUBLIC_PAGES／PROTECTED_PAGES 比對）共用，避免各自重寫一份 `startsWith` 誤判。
+路由 pattern（含 `:param` 或 Nuxt bracket 動態段 `[param]`）與真實路徑的比對 helper。抽出獨立檔案，`login`
+（離開 `/login` 判斷）與 `01-auth-guard.spec.ts`（PUBLIC_PAGES／PROTECTED_PAGES 比對）共用，避免各自重寫
+一份 `startsWith` 誤判。
 
 ```typescript
 // test/e2e/helpers/route-match.ts
 /**
  * 路徑是否命中路由 pattern：pattern 與 path 各自以 `/` 切段，段數不同不命中，
- * `:param` 段吃任意非空值，其他段逐字相等。
+ * `:param` 或 `[param]`（route-map.yaml 產生的 Nuxt 動態段，如 `/users/[id]`）段吃任意非空值，
+ * 其他段逐字相等。
  *
  * ⚠️ 不用 `startsWith` 或字面值比對：
- * - pattern 含 `:param` 時，字面值（如 `/users/:id`）永遠比不中真實路徑（如 `/users/42`）。
+ * - pattern 含動態段時，字面值（如 `/users/:id`、`/users/[id]`）永遠比不中真實路徑（如 `/users/42`）。
  * - 純字面 pattern（如 `/login`）用 `startsWith` 會誤中同前綴的兄弟路由（如 `/login-recovery`）。
  */
 export function matchesRoutePattern(pattern: string, path: string): boolean {
@@ -255,8 +257,9 @@ export function matchesRoutePattern(pattern: string, path: string): boolean {
   const pathSegments = path.split('/').filter(Boolean)
   if (patternSegments.length !== pathSegments.length)
     return false
+  const isDynamic = (seg: string) => seg.startsWith(':') || (seg.startsWith('[') && seg.endsWith(']'))
   return patternSegments.every((seg, i) =>
-    seg.startsWith(':') ? pathSegments[i].length > 0 : seg === pathSegments[i],
+    isDynamic(seg) ? pathSegments[i].length > 0 : seg === pathSegments[i],
   )
 }
 ```
@@ -413,22 +416,28 @@ test.describe('Auth 守衛', () => {
     }
   })
 
+  // ⚠️ 導向判斷一律用 matchesRoutePattern 對 pathname 比對，不用 toHaveURL(/\/login/)：
+  // 後者是子字串比對，會誤中同前綴的兄弟路由（如 /login-recovery），跟上面 login() helper
+  // 與互斥自檢用的判斷方式不一致（PR #141 review）。用 expect.poll 保留 toHaveURL 原有的重試等待。
+  const isOnLogin = (page: import('@playwright/test').Page) =>
+    matchesRoutePattern(Routes.login, new URL(page.url()).pathname)
+
   for (const path of PROTECTED_PAGES) {
     test(`未登入訪 ${path} → 導向 login`, async ({ page }) => {
       await page.goto(path, { waitUntil: 'networkidle' })
-      await expect(page).toHaveURL(/\/login/)
+      await expect.poll(() => isOnLogin(page)).toBe(true)
     })
   }
   for (const path of PUBLIC_PAGES) {
     test(`未登入訪公開頁 ${path} → 不被導去 login`, async ({ page }) => {
       await page.goto(path, { waitUntil: 'networkidle' })
-      await expect(page).not.toHaveURL(/\/login/)
+      await expect.poll(() => isOnLogin(page)).toBe(false)
     })
   }
   test('已登入訪 login → 導回而非停留', async ({ page }) => {
     await login(page, TestUsers.admin.account, TestUsers.admin.password)
     await page.goto(Routes.login, { waitUntil: 'networkidle' })
-    await expect(page).not.toHaveURL(/\/login/)
+    await expect.poll(() => isOnLogin(page)).toBe(false)
   })
 })
 ```
