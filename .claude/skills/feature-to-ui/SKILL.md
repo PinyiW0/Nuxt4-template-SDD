@@ -97,7 +97,7 @@ flowchart LR
 | 2 | 路由骨架 | 所有 pages/*.vue 空殼（語意結構，**不含 testid**） | [phase-2](references/phase-2-skeleton.md) + [rules.md `[P2]`](references/rules.md) |
 | 3 | Layout 建置 | layouts/*.vue | [phase-3](references/phase-3-layout.md) + [rules.md `[P3]`](references/rules.md) + visual-hierarchy.md |
 | 4 | 共用元件 | components/common/*.vue（+ additionalFeature 元件） | [phase-4](references/phase-4-components.md) + [features.md](references/features.md)（若有） + [rules.md `[P4]`](references/rules.md) + visual-hierarchy.md + frontend-security.md |
-| 5 | 頁面實作 | 逐一填充 pages 內容 | [phase-5](references/phase-5-pages.md) + [page-builder.md](references/page-builder.md) + [rules.md `[P5]`](references/rules.md) + [pitfalls.md](references/pitfalls.md) + visual-hierarchy.md + frontend-security.md（選讀：components.md、features.md） |
+| 5 | 頁面實作 | 逐一填充 pages 內容 | [phase-5](references/phase-5-pages.md) + [decision-tiers.md](references/decision-tiers.md) + [page-builder.md](references/page-builder.md) + [rules.md `[P5]`](references/rules.md) + [pitfalls.md](references/pitfalls.md) + visual-hierarchy.md + frontend-security.md（選讀：components.md、features.md） |
 
 **設計理念**：骨架優先，細節後填。每個 Phase 只載入必要的規範，避免 context 過載。`app/types/api/` 作為 API 合約的單一真相來源（由 `/feature-to-api` 建立）。`route-map.yaml` 作為路由與 feature 對照的單一真相來源。**Phase 5 以 `.spec.ts` 為唯一 UI 合約**（語意 anchor——role、accessible name、label——依 spec 的 `getByRole`/`getByLabel` 提供；`getByTestId` 之處 testid 逐字複製；不讀 `.flow.md`）。
 
@@ -164,6 +164,8 @@ flowchart LR
 
 5. **Phase 5**：逐一實作每個頁面的完整功能（一次只做一個頁面，確認後才做下一個）
 
+> `spec/report/route-map.yaml` 的 `routes[]` 筆數 > 10 時讀 [phase-5-fanout.md](references/phase-5-fanout.md)，改採模組級 worktree 扇出。
+
 ---
 
 ## 自動執行規則
@@ -177,7 +179,7 @@ flowchart LR
 
 - **Phase 5 額外前置條件**：`/test e2e spec` 必須先完成（`.spec.ts` 是 Phase 5 的唯一 UI 合約，locator 合約見上方「E2E 測試合約」段）
 - **每個 Phase 完成後，告知用戶下一步應執行的指令**（如「下一步：`/feature-to-ui 5`」），不要用「要我繼續嗎？」的問法
-- **Phase 5 一次只做一個頁面。每個頁面完成後輸出確認格式，然後立即停止回應，等待用戶回覆後才處理下一個頁面**
+- **Phase 5 一次只做一個頁面。每個頁面完成後輸出確認格式，然後立即停止回應，等待用戶回覆後才處理下一個頁面**（模組扇出模式除外，見 [phase-5-fanout.md](references/phase-5-fanout.md)，確認點在模組層）
 - **Phase 5 所有頁面處理完成後（不論 build/patch/rebuild），結尾必須提示：「下一步：`/test e2e green auto`」**
 - **每個 Phase 開始時只讀取該 Phase 的 phase 檔 + rules.md**
 - 禁止自行決定網站名稱、色彩等設定，所有設定從 `ui-config.yaml` 讀取

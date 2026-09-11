@@ -122,6 +122,7 @@ fresh subagent 的 context ＝ CLAUDE.md ＋ **你寫的 prompt**。它乾淨，
 
 > 與並行無關：worktree 多開 session（README「多 issue 並行開發」）買的是 wall-clock，不是獨立性；
 > context 太長要換 session 是稀釋問題，也不是獨立性。三件事別混談。
+> Phase 5 模組級扇出的做法見 [phase-5-fanout.md](../skills/feature-to-ui/references/phase-5-fanout.md)。
 
 ## 7. 隨做隨存
 
