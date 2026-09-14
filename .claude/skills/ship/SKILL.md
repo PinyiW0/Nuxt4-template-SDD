@@ -60,7 +60,7 @@ disable-model-invocation: true
 | 工作區乾淨、且當前分支有 `state=OPEN` 的 PR、且有未 resolved 的 review 留言 | B |
 | 其他 | A（到 PR 鏈） |
 
-**分流前先補發殘留的決策檔**：`.claude/tmp/ship/decisions-<issue 編號>.md` 存在（上一輪 Phase 5 留言失敗留下的）→ 先照 Phase 5 那條 `[ -f … ] && gh issue comment … && rm …` 補發，再判路線。路線 B 沒有任何步驟會消費這個檔，不在這裡補發就會永久殘留、決策永遠貼不到 issue。
+**分流前先解析 issue 編號、再補發殘留的決策檔**：路線 A／B 都先照 `../pr/SKILL.md` 步驟 2 解析 issue 編號（Phase 0 的那一步提前到這裡做，A 路線不重做）；解析到編號、且 `.claude/tmp/ship/decisions-<issue 編號>.md` 存在（上一輪 Phase 5 留言失敗留下的）→ 先照 Phase 5 那條 `[ -f … ] && gh issue comment … && rm …` 補發，再判路線；解析不到編號就跳過這步。路線 B 沒有任何步驟會消費這個檔，不在這裡補發就會永久殘留、決策永遠貼不到 issue。
 
 **為什麼「有未 commit 改動一律走 A」**：本 repo 開 PR 預設掛 Copilot，PR 上有沒人 resolve 的留言是常態。
 如果只看「有沒有未讀留言」就走 B，那麼「PR 開著、你又寫了一批新 code、然後打 `/ship`」會被判成 B——
@@ -96,7 +96,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments" --jq '.[] | select(
 - **建帳**：`sh .claude/skills/ship/scripts/ledger.sh plan`，印出本輪要跑哪幾層、哪幾層可沿用綠燈。
 - **決策留言的流向**：Phase 0 抓到的「決策：」留言附進 Phase 2 verify-ac 派工 prompt 與 L4 審查 prompt，當任務宣告的一部分——已裁決的取捨不算 Conformance 缺口、不列 BLOCKING。留言格式的 SSOT 在 `.claude/ops/model-dispatch.md` 第 7 節。
 
-輸出長這樣（**印給使用者看，但不等回覆**）。第一行由主線自己補——issue、AC 條數與決策留言則數是 `gh issue view` 抓的，
+輸出長這樣（**印給使用者看，但不等回覆**）。第一行由主線自己補——issue 與 AC 條數是 `gh issue view` 抓的，決策留言則數是 `gh api …/issues/<N>/comments` 那行抓的，
 `ledger.sh` 不知道 GitHub 的事；其餘**原樣貼腳本輸出**，不要改寫成別的排版：
 
 ```
@@ -191,7 +191,7 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 > 「無法判定」照實寫，不要為了報告好看改判，也不要停下來問任何人。
 > 任務宣告附上 Phase 0 抓到的「決策：」留言（有的話），已裁決的取捨照留言認、不當缺口。
 > 回報格式：一列一條，欄位為 編號｜原文｜Pass/Fail/無法判定｜證據（`檔案:行號` 或指令輸出）｜Fail 時缺什麼。
-> 另附一段「範圍外改動：<命中範圍外的檔案清單／『無』（已盤點、無命中）／『未執行（原因：issue 無 ## 範圍／算不出 merge-base／fetch 失敗）』>」，三態擇一，不塞進 AC 列。「未執行」不可寫成「無」。
+> 另附一段「範圍外改動：<命中範圍外的檔案清單／『無』（已盤點、無命中）／『未執行（原因：issue 無 ## 範圍／算不出 merge-base／fetch 失敗）』>」，三態擇一，不塞進 AC 列。「未執行」不可寫成「無」。再附一行「未提及：<兩邊都沒寫的檔案>」，沒有就整行省略。
 > 只回結論與證據位置，不要貼檔案全文；超過 30 行寫進 `.claude/tmp/ship/ac-report.md`，回報路徑加 5 行摘要。
 
 ## 3. 自動修迴圈（紅燈修到綠，上限 2 輪）
