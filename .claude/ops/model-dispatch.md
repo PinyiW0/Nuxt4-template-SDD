@@ -133,7 +133,7 @@ fresh subagent 的 context ＝ CLAUDE.md ＋ **你寫的 prompt**。它乾淨，
 
 - 每完成一個交付物**立即存檔**，再做下一個。不要累積到最後一次寫出
 - 中間產物（調查結論、決策理由、待辦）也要落地：長產物寫檔案（見第 5 節），不靠對話往下傳
-- **使用者裁決過的決策，要留言記到 issue**——換 session 接手的人才查得到「為什麼」。觸發（二擇一，客觀可判）：命中 [judgment-rubrics.md](judgment-rubrics.md) 第 3 節必停清單並經使用者裁決；或偏離 skill 範本的取捨
+- **使用者裁決過的決策，要留言記到 issue**——換 session 接手的人才查得到「為什麼」。觸發（二擇一，客觀可判）：命中 [judgment-rubrics.md](judgment-rubrics.md) 第 3 節必停清單並經使用者裁決；或偏離 skill 範本的取捨（只改 `/ship` 草案內容——commit 分群、PR 標題、label——不算偏離）
   - 由主線（不是分身）執行 `gh issue comment <N>` 一則，固定三行「決策：／理由：／捨棄的替代：」，第一行以「決策：」開頭當標記，純文字、不加粗（`/ship` Phase 0 靠這個前綴過濾，`**決策：**` 會漏抓）；同一輪多筆決策可合併成一則留言，各筆維持三行、空行隔開。`<N>` 限 issue 編號，不對 PR 留言
   - 沒有 issue 的決策不留言；要留痕依 [maintenance.md](maintenance.md) 第 2 節分流（ops 正反例或 memory）
   - repo 為 public 時，涉及私有專案細節只寫抽象結論
