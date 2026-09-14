@@ -75,6 +75,8 @@ git ls-files -o --exclude-standard                                # 未追蹤的
 
 `<default>` 取法同 [../pr/SKILL.md](../pr/SKILL.md) 步驟 1（`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`，取不到就 `main`）。實作在別的分支時（上節「確認實作在哪」），`HEAD` 換成該分支名，`git ls-files -o` 那行不要跑——未追蹤檔只存在於目前工作區，跟別條分支無關。
 
+`git merge-base` 算不出結果（淺 clone、本地沒有 `origin/<default>`）→ 先 `git fetch origin <default>` 再算一次；仍算不出 → **停**，明說「無法取得改動檔集合，超編盤點未執行」，不要在沒有檔案集合的情況下繼續驗收。與 `.claude/skills/ship/scripts/ledger.sh` 的 `NOBASE` 處理一致：算不出就不給任何結論。
+
 逐檔標三態：**範圍內**（命中「範圍內」清單）／**範圍外**（命中「範圍外」清單）／**未提及**（兩邊都沒寫）。
 
 - 有檔命中「範圍外」→ **停**，列出清單讓使用者三選一：改 issue 範圍、拆新 issue、撤回改動。被 `/ship` 編排時不停，依 [../ship/references/orchestrated-mode.md](../ship/references/orchestrated-mode.md) 規則 4 結構化回傳
