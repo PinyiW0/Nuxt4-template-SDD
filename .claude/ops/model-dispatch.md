@@ -138,6 +138,6 @@ fresh subagent 的 context ＝ CLAUDE.md ＋ **你寫的 prompt**。它乾淨，
   - 沒有 issue 的決策不留言；要留痕依 [maintenance.md](maintenance.md) 第 2 節分流（ops 正反例或 memory）
   - repo 為 public 時，涉及私有專案細節只寫抽象結論
 - 交辦 subagent 時指定產物路徑，不要讓它把 30 行以上的結果塞回對話
-- 判準：如果這個 session 現在被砍掉，重開的人靠 repo 裡的檔案（含 issue 留言）能不能接手？不能 = 還沒存夠
+- 判準：如果這個 session 現在被砍掉，重開的人靠 repo 裡的檔案（含 issue 留言）與 memory 能不能接手？不能 = 還沒存夠
 
 > 用詞統一為「隨做隨存」（早期文件有「隨做隨寫」的舊稱，同一件事）。

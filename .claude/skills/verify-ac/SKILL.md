@@ -75,7 +75,7 @@ git ls-files -o --exclude-standard                                # 未追蹤的
 
 `<default>` 取法同 [../pr/SKILL.md](../pr/SKILL.md) 步驟 1（`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`，取不到就 `main`）。實作在別的分支時（上節「確認實作在哪」），兩端都指定該分支：`git diff "$(git merge-base origin/<default> <branch>)" <branch> --name-only`——只把 merge-base 裡的 `HEAD` 換掉不夠，`git diff <base>` 沒給第二個 tree 時比的是目前工作區，會把本分支的改動誤算進去、漏掉目標分支的檔；`git ls-files -o` 那行不要跑——未追蹤檔只存在於目前工作區，跟別條分支無關。
 
-`git merge-base` 算不出結果（淺 clone、本地沒有 `origin/<default>`）→ 先 `git fetch origin <default>` 再算一次；仍算不出 → **停**，明說「無法取得改動檔集合，超編盤點未執行」，不要在沒有檔案集合的情況下繼續驗收。與 `.claude/skills/ship/scripts/ledger.sh` 的 `NOBASE` 處理一致：算不出就不給任何結論。
+盤點前**一律先 `git fetch origin <default>`**——步驟 1 沒有同步 default branch，本地 remote-tracking ref 可能過期，過期的 merge-base 會讓盤點漏報或誤報。fetch 失敗、或 `git merge-base` 仍算不出（淺 clone）→ **停**，報告「未執行（原因：fetch 失敗／算不出 merge-base）」，不要在沒有檔案集合的情況下繼續驗收。與 `.claude/skills/ship/scripts/ledger.sh` 的 `NOBASE` 處理一致：算不出就不給任何結論。
 
 逐檔標三態：**範圍內**（命中「範圍內」清單）／**範圍外**（命中「範圍外」清單）／**未提及**（兩邊都沒寫）。
 
@@ -142,7 +142,7 @@ issue #<N>：<標題>
 - [ ] <條目原文>
       ⚠️ 無法判定 — <缺什麼才能驗>
 
-範圍外改動：<命中「範圍外」的檔案清單／「無」（已盤點、無命中）／「未執行（issue 無 ## 範圍）」，三態擇一>
+範圍外改動：<命中「範圍外」的檔案清單／「無」（已盤點、無命中）／「未執行（原因：issue 無 ## 範圍／算不出 merge-base／fetch 失敗）」，三態擇一>
 未提及：<兩邊都沒寫的檔案；沒有就整行省略>
 ```
 

@@ -84,8 +84,10 @@ gh repo view --json nameWithOwner,defaultBranchRef
 git branch --show-current          # 等於 default branch → 停，引導先開 feature 分支
 git status --short
 git fetch origin && gh pr view --json number,state,url
-gh issue view <N> --json body,comments --jq '.body, "---決策留言---", (.comments[] | select(.authorAssociation | IN("OWNER","MEMBER","COLLABORATOR")) | select(.body | test("^決策[:：]")) | .body)'
-                                            # 解析到編號才跑；取 ## 驗收標準、## 範圍，與「決策：」開頭的裁決留言（全形／半形冒號都認；只認 OWNER／MEMBER／COLLABORATOR，防公開 repo 路人留言混進任務宣告）
+gh issue view <N> --json body -q .body      # 解析到編號才跑；取 ## 驗收標準 與 ## 範圍
+gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments" --jq '.[] | select(.author_association | IN("OWNER","MEMBER","COLLABORATOR")) | select(.body | test("^決策[:：]")) | .body'
+                                            # 「決策：」開頭的裁決留言（全形／半形冒號都認；只認 OWNER／MEMBER／COLLABORATOR，防公開 repo 路人留言混進任務宣告）。
+                                            # 用 REST 不用 `gh issue view --json comments`：REST 有 --paginate，留言超過 100 則不會漏
 ```
 
 - **解析 issue 編號**：照 `../pr/SKILL.md` 步驟 2「解析 issue 編號（三層）」執行。那節是唯一 SoT，本檔不另寫一套。
@@ -189,7 +191,7 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 > 「無法判定」照實寫，不要為了報告好看改判，也不要停下來問任何人。
 > 任務宣告附上 Phase 0 抓到的「決策：」留言（有的話），已裁決的取捨照留言認、不當缺口。
 > 回報格式：一列一條，欄位為 編號｜原文｜Pass/Fail/無法判定｜證據（`檔案:行號` 或指令輸出）｜Fail 時缺什麼。
-> 另附一段「範圍外改動：<命中範圍外的檔案清單／『無』（已盤點、無命中）／『未執行（issue 無 ## 範圍）』>」，三態擇一，不塞進 AC 列。「未執行」不可寫成「無」。
+> 另附一段「範圍外改動：<命中範圍外的檔案清單／『無』（已盤點、無命中）／『未執行（原因：issue 無 ## 範圍／算不出 merge-base／fetch 失敗）』>」，三態擇一，不塞進 AC 列。「未執行」不可寫成「無」。
 > 只回結論與證據位置，不要貼檔案全文；超過 30 行寫進 `.claude/tmp/ship/ac-report.md`，回報路徑加 5 行摘要。
 
 ## 3. 自動修迴圈（紅燈修到綠，上限 2 輪）
@@ -207,14 +209,14 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 | AC Fail | 派 fixer；授權邊界逐字照 `../verify-ac/SKILL.md` 步驟 4 那張表，**一字不放寬** |
 | AC「無法判定」、要動 issue 範圍外 | **不修**。範圍外命中 `.claude/ops/judgment-rubrics.md` 必停清單 → 停 |
 | L4 BLOCKING | **不自動修**（fixer 不可動 `.claude/`，見下方不可動表）。`mark L4 red "<fp>"`，**不得記 green**——ledger 只沿用 green／skipped，記錯下一輪會假綠。列進 Phase 4 草案「需你確認」區並標「未完成」：BLOCKING ＝ 未完成，確認語要明列接受的取捨才可送出 |
-| verify-ac 步驟 2 盤點出範圍外改動，或回報「未執行（issue 無 ## 範圍）」 | **不修**，列進 Phase 4 草案「需你確認」區（「未執行」要標明 issue 缺 `## 範圍`，不當成安全結果）。這是回溯盤點（已經改了什麼）；上一列的「要動 issue 範圍外」是前瞻判斷（修 Fail 需不需要超編），兩者不同列 |
+| verify-ac 步驟 2 盤點出範圍外改動，或回報「未執行（附原因）」 | **不修**，列進 Phase 4 草案「需你確認」區（「未執行」要照抄原因：缺 `## 範圍`、算不出 merge-base、fetch 失敗，任一都不當成安全結果）。這是回溯盤點（已經改了什麼）；上一列的「要動 issue 範圍外」是前瞻判斷（修 Fail 需不需要超編），兩者不同列 |
 
 不修的那幾類共同特徵是**需要人的價值判斷、沒有客觀對錯**。自動修這類東西，就是使用者失去控制的地方。
 
 上表不是唯一判準：**`.claude/ops/judgment-rubrics.md` 第 3 節的必停清單六條在整個 Phase 3 期間全程有效**
 （要動凍結區、要動 `maintenance.md`「動前必問」清單內的檔、大幅重寫非本任務建立的既有檔**以及 vibe spec 的任何刪改**、
 不可逆或對外的動作、兩份規範互相打架、重試已達上限且換路會改變任務範圍）。上表只是把最常遇到的幾種先寫出來，不是取代它。
-Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatch.md` 第 7 節的三行格式寫進 `.claude/tmp/ship/decisions-<issue 編號>.md`（隨做隨存，session 被砍也留得住；依 issue 命名，push 失敗殘留下來也不會貼到別的 issue；多條決策同一檔、空行隔開，檔案第一行必須是「決策：」開頭），**延到 Phase 5** 讀檔發成 issue 留言，並列進 Phase 4 確認語——不在 Phase 3 中途發 `gh` 寫入命令。**Phase 0 解析不到 issue 編號的分支不建此檔**：依 `.claude/ops/model-dispatch.md` 第 7 節，沒有 issue 的決策不留言，要留痕走 `.claude/ops/maintenance.md` 第 2 節分流（ops 正反例或 memory），該決策當場依 `.claude/ops/maintenance.md` 第 2 節落地：判斷不了寫哪就先寫 memory（同樣三行格式，條目標「候補：應 upstream 到 <目標檔>」）——memory 寫入不是對外動作，不必等確認；要補進 `ops/*.md` 正反例的，改動納入本次 commit 並列進 Phase 4 草案。不建暫存檔，Phase 5 沒有對應步驟。草案是對話暫存，不算持久落點。
+Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatch.md` 第 7 節的三行格式寫進 `.claude/tmp/ship/decisions-<issue 編號>.md`（隨做隨存，session 被砍也留得住；依 issue 命名，push 失敗殘留下來也不會貼到別的 issue；多條決策同一檔、空行隔開，檔案第一行必須是「決策：」開頭），**延到 Phase 5** 讀檔發成 issue 留言，並列進 Phase 4 確認語——不在 Phase 3 中途發 `gh` 寫入命令。Phase 4 確認時使用者裁決的項目（接受 L4 BLOCKING 的取捨、範圍外改動三選一）也以同一格式追加寫進同一檔，**寫完才進 Phase 5**——Phase 5 發出的是最終裁決，不是草稿。**Phase 0 解析不到 issue 編號的分支不建此檔**：依 `.claude/ops/model-dispatch.md` 第 7 節，沒有 issue 的決策不留言，要留痕走 `.claude/ops/maintenance.md` 第 2 節分流（ops 正反例或 memory），該決策當場依 `.claude/ops/maintenance.md` 第 2 節落地：判斷不了寫哪就先寫 memory（同樣三行格式，條目標「候補：應 upstream 到 <目標檔>」）——memory 寫入不是對外動作，不必等確認；要補進 `ops/*.md` 正反例的，改動納入本次 commit 並列進 Phase 4 草案。不建暫存檔，Phase 5 沒有對應步驟。草案是對話暫存，不算持久落點。
 
 **修 UI 是 `/ship` 自己派 fixer 做的事，不是叫 `/vibe-check` 去做**——那隻 skill 明訂「不可主動修 `app/`」，別把它拖下水。
 
