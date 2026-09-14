@@ -187,7 +187,7 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 > 「無法判定」照實寫，不要為了報告好看改判，也不要停下來問任何人。
 > 任務宣告附上 Phase 0 抓到的「決策：」留言（有的話），已裁決的取捨照留言認、不當缺口。
 > 回報格式：一列一條，欄位為 編號｜原文｜Pass/Fail/無法判定｜證據（`檔案:行號` 或指令輸出）｜Fail 時缺什麼。
-> 另附一段「範圍外改動：<步驟 2 超編盤點命中範圍外的檔案，或『無』>」，不塞進 AC 列。
+> 另附一段「範圍外改動：<命中範圍外的檔案清單／『無』（已盤點、無命中）／『未執行（issue 無 ## 範圍）』>」，三態擇一，不塞進 AC 列。「未執行」不可寫成「無」。
 > 只回結論與證據位置，不要貼檔案全文；超過 30 行寫進 `.claude/tmp/ship/ac-report.md`，回報路徑加 5 行摘要。
 
 ## 3. 自動修迴圈（紅燈修到綠，上限 2 輪）
@@ -205,7 +205,7 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 | AC Fail | 派 fixer；授權邊界逐字照 `../verify-ac/SKILL.md` 步驟 4 那張表，**一字不放寬** |
 | AC「無法判定」、要動 issue 範圍外 | **不修**。範圍外命中 `.claude/ops/judgment-rubrics.md` 必停清單 → 停 |
 | L4 BLOCKING | **不自動修**（fixer 不可動 `.claude/`，見下方不可動表）。`mark L4 red "<fp>"`，**不得記 green**——ledger 只沿用 green／skipped，記錯下一輪會假綠。列進 Phase 4 草案「需你確認」區並標「未完成」：BLOCKING ＝ 未完成，確認語要明列接受的取捨才可送出 |
-| verify-ac 步驟 2 盤點出範圍外改動 | **不修**，列進 Phase 4 草案「需你確認」區。這是回溯盤點（已經改了什麼）；上一列的「要動 issue 範圍外」是前瞻判斷（修 Fail 需不需要超編），兩者不同列 |
+| verify-ac 步驟 2 盤點出範圍外改動，或回報「未執行（issue 無 ## 範圍）」 | **不修**，列進 Phase 4 草案「需你確認」區（「未執行」要標明 issue 缺 `## 範圍`，不當成安全結果）。這是回溯盤點（已經改了什麼）；上一列的「要動 issue 範圍外」是前瞻判斷（修 Fail 需不需要超編），兩者不同列 |
 
 不修的那幾類共同特徵是**需要人的價值判斷、沒有客觀對錯**。自動修這類東西，就是使用者失去控制的地方。
 
@@ -381,8 +381,8 @@ gh pr view --web
 issue 上不會留下半套狀態。Phase 3 寫在 `.claude/tmp/ship/decisions-<issue 編號>.md` 的裁決也在這一步發成留言，同樣的理由。三個 issue 寫入動作順序固定：**打勾 → 驗收記錄留言 → 決策留言**——前兩步照 verify-ac 那節，第三步是：
 
 ```
-gh issue comment <issue 編號> --body-file .claude/tmp/ship/decisions-<issue 編號>.md   # 該檔存在才跑
-rm .claude/tmp/ship/decisions-<issue 編號>.md                                          # 發完立刻刪，免得下一輪重發
+[ -f .claude/tmp/ship/decisions-<issue 編號>.md ] && gh issue comment <issue 編號> --body-file .claude/tmp/ship/decisions-<issue 編號>.md && rm .claude/tmp/ship/decisions-<issue 編號>.md
+    # 檔案存在才發；留言成功（exit 0）才刪，失敗就留著下一輪重發——不可拆成獨立的 rm，那會在留言失敗時刪掉唯一的持久化副本
 ```
 
 **pre-push 紅燈時停，不進自動修迴圈**——本地 dev gate 綠、Docker prod gate 紅，屬於「假設被證偽」，
