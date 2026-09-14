@@ -381,7 +381,8 @@ gh pr view --web
 issue 上不會留下半套狀態。Phase 3 寫在 `.claude/tmp/ship/decisions-<issue 編號>.md` 的裁決也在這一步發成留言，同樣的理由。三個 issue 寫入動作順序固定：**打勾 → 驗收記錄留言 → 決策留言**——前兩步照 verify-ac 那節，第三步是：
 
 ```
-gh issue comment <issue 編號> --body-file .claude/tmp/ship/decisions-<issue 編號>.md   # 該檔存在才跑；發完 rm 該檔，免得下一輪重發
+gh issue comment <issue 編號> --body-file .claude/tmp/ship/decisions-<issue 編號>.md   # 該檔存在才跑
+rm .claude/tmp/ship/decisions-<issue 編號>.md                                          # 發完立刻刪，免得下一輪重發
 ```
 
 **pre-push 紅燈時停，不進自動修迴圈**——本地 dev gate 綠、Docker prod gate 紅，屬於「假設被證偽」，
