@@ -71,11 +71,13 @@ issue 沒有 `## 範圍` → 本節整節跳過（含下方的 fetch），步驟
 先機械列出這條分支實際改了哪些檔，再逐檔對照 `## 範圍`——不要靠讀 diff 的印象判斷：
 
 ```sh
-git diff "$(git merge-base origin/<default> HEAD)" --name-only   # 已 commit 與未 commit 的改動
+git diff --no-renames "$(git merge-base origin/<default> HEAD)" --name-only   # 已 commit 與未 commit 的改動
 git ls-files -o --exclude-standard                                # 未追蹤的新檔
 ```
 
-`<default>` 取法同 [../pr/SKILL.md](../pr/SKILL.md) 步驟 1（`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`，取不到就 `main`）。實作在別的分支時（上節「確認實作在哪」），兩端都指定該分支：`git diff "$(git merge-base origin/<default> '<branch>')" '<branch>' --name-only`（分支名含 `#`，兩處都用單引號包住，同上節 `git show` 的寫法）——只把 merge-base 裡的 `HEAD` 換掉不夠，`git diff <base>` 沒給第二個 tree 時比的是目前工作區，會把本分支的改動誤算進去、漏掉目標分支的檔；`git ls-files -o` 那行不要跑——未追蹤檔只存在於目前工作區，跟別條分支無關。
+上面這條與下段跨分支那條 `git diff` 都帶 `--no-renames`：預設的改名偵測只列新路徑，把範圍外的檔搬進範圍內時，被刪掉的舊路徑會漏報。
+
+`<default>` 取法同 [../pr/SKILL.md](../pr/SKILL.md) 步驟 1（`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`，取不到就 `main`）。實作在別的分支時（上節「確認實作在哪」），兩端都指定該分支：`git diff --no-renames "$(git merge-base origin/<default> '<branch>')" '<branch>' --name-only`（分支名含 `#`，兩處都用單引號包住，同上節 `git show` 的寫法）——只把 merge-base 裡的 `HEAD` 換掉不夠，`git diff <base>` 沒給第二個 tree 時比的是目前工作區，會把本分支的改動誤算進去、漏掉目標分支的檔；`git ls-files -o` 那行不要跑——未追蹤檔只存在於目前工作區，跟別條分支無關。
 
 盤點前**一律先 `git fetch origin <default>`**——步驟 1 沒有同步 default branch，本地 remote-tracking ref 可能過期，過期的 merge-base 會讓盤點漏報或誤報。fetch 失敗、或 `git merge-base` 仍算不出（淺 clone）→ **停**，報告「未執行（原因：fetch 失敗／算不出 merge-base）」，不要在沒有檔案集合的情況下繼續驗收。與 `.claude/skills/ship/scripts/ledger.sh` 的 `NOBASE` 處理一致：算不出就不給任何結論。
 
