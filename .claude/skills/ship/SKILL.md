@@ -60,7 +60,11 @@ disable-model-invocation: true
 | 工作區乾淨、且當前分支有 `state=OPEN` 的 PR、且有未 resolved 的 review 留言 | B |
 | 其他 | A（到 PR 鏈） |
 
-**分流前先解析 issue 編號、再補發殘留的決策檔**：路線 A／B 都先照 `../pr/SKILL.md` 步驟 2 解析 issue 編號（Phase 0 的那一步提前到這裡做，A 路線不重做）；解析到編號、且 `.claude/tmp/ship/decisions-<issue 編號>.md` 存在（上一輪 Phase 5 留言失敗留下的）→ 先照 Phase 5 那條 `if [ -f … ]; then gh issue comment … && rm …; fi` 補發，再判路線；解析不到編號就跳過這步。路線 B 沒有任何步驟會消費這個檔，不在這裡補發就會永久殘留、決策永遠貼不到 issue。
+**分流前先解析 issue 編號，判完路線再處理殘留的決策檔**：路線 A／B 都先照 `../pr/SKILL.md` 步驟 2 解析 issue 編號（Phase 0 的那一步提前到這裡做，A 路線不重做）。`.claude/tmp/ship/decisions-<issue 編號>.md` 存在，代表上一輪 Phase 5 沒走完——commit、push、開 PR、打勾、驗收記錄、決策留言任一步失敗都會留下它。依路線處理：
+
+- **走 A** → 不補發。本輪 Phase 3／4 追加寫進同一檔，Phase 5 照「打勾 → 驗收記錄留言 → 決策留言」的順序一起發
+- **走 B、且當前分支有 `state=OPEN` 的 PR** → 先照 Phase 5 那條 `if [ -f … ]; then gh issue comment … && rm …; fi` 補發。路線 B 沒有任何步驟會消費這個檔，不補發就永久殘留；PR 已開代表上一輪至少走到開 PR，決策不會早於 PR 公開
+- **走 B 但沒有 OPEN PR**、或解析不到 issue 編號 → 不補發，檔案留著
 
 **為什麼「有未 commit 改動一律走 A」**：本 repo 開 PR 預設掛 Copilot，PR 上有沒人 resolve 的留言是常態。
 如果只看「有沒有未讀留言」就走 B，那麼「PR 開著、你又寫了一批新 code、然後打 `/ship`」會被判成 B——
@@ -216,7 +220,7 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 上表不是唯一判準：**`.claude/ops/judgment-rubrics.md` 第 3 節的必停清單六條在整個 Phase 3 期間全程有效**
 （要動凍結區、要動 `maintenance.md`「動前必問」清單內的檔、大幅重寫非本任務建立的既有檔**以及 vibe spec 的任何刪改**、
 不可逆或對外的動作、兩份規範互相打架、重試已達上限且換路會改變任務範圍）。上表只是把最常遇到的幾種先寫出來，不是取代它。
-Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatch.md` 第 7 節的三行格式寫進 `.claude/tmp/ship/decisions-<issue 編號>.md`（隨做隨存，session 被砍也留得住；依 issue 命名，push 失敗殘留下來也不會貼到別的 issue；多條決策同一檔、空行隔開，檔案第一行必須是「決策：」開頭），**延到 Phase 5** 讀檔發成 issue 留言，並列進 Phase 4 確認語——不在 Phase 3 中途發 `gh` 寫入命令。Phase 4 確認時使用者裁決的項目（接受 L4 BLOCKING 的取捨、範圍外改動三選一）也以同一格式追加寫進同一檔，**寫完才進 Phase 5**——Phase 5 發出的是最終裁決，不是草稿。**Phase 0 解析不到 issue 編號的分支不建此檔**：依 `.claude/ops/model-dispatch.md` 第 7 節，沒有 issue 的決策不留言；`/ship` 內一律當場寫 memory（照記憶機制既有格式：frontmatter ＋ Why ＋ How to apply；決策、理由、捨棄的替代三項寫進內文）——memory 寫入不是對外動作，不必等確認。該補進 `ops/*.md` 正反例的，在條目標「候補：應 upstream 到 <目標檔>」留給後續任務，**不在本輪改 `ops/*.md`**：L4 read-back 已在 Phase 1 跑完，這時改的制度檔會沒經 L4 就被送出。不建暫存檔，Phase 5 沒有對應步驟。草案是對話暫存，不算持久落點。
+Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatch.md` 第 7 節的三行格式追加寫進 `.claude/tmp/ship/decisions-<issue 編號>.md`（檔案已存在就接在後面，不覆蓋上一輪留下的；隨做隨存，session 被砍也留得住；依 issue 命名，push 失敗殘留下來也不會貼到別的 issue；多條決策同一檔、空行隔開，檔案第一行必須是「決策：」開頭），**延到 Phase 5** 讀檔發成 issue 留言，並列進 Phase 4 確認語——不在 Phase 3 中途發 `gh` 寫入命令。Phase 4 確認時使用者裁決的項目（接受 L4 BLOCKING 的取捨、範圍外改動三選一）也以同一格式追加寫進同一檔，**寫完才進 Phase 5**——Phase 5 發出的是最終裁決，不是草稿。**Phase 0 解析不到 issue 編號的分支不建此檔**：依 `.claude/ops/model-dispatch.md` 第 7 節，沒有 issue 的決策不留言；`/ship` 內一律當場寫 memory（照記憶機制既有格式：frontmatter ＋ Why ＋ How to apply；決策、理由、捨棄的替代三項寫進內文）——memory 寫入不是對外動作，不必等確認。該補進 `ops/*.md` 正反例的，在條目標「候補：應 upstream 到 <目標檔>」留給後續任務，**不在本輪改 `ops/*.md`**：L4 read-back 已在 Phase 1 跑完，這時改的制度檔會沒經 L4 就被送出。不建暫存檔，Phase 5 沒有對應步驟。草案是對話暫存，不算持久落點。
 
 **修 UI 是 `/ship` 自己派 fixer 做的事，不是叫 `/vibe-check` 去做**——那隻 skill 明訂「不可主動修 `app/`」，別把它拖下水。
 
