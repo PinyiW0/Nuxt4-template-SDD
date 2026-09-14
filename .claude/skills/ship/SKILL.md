@@ -82,19 +82,21 @@ gh repo view --json nameWithOwner,defaultBranchRef
 git branch --show-current          # 等於 default branch → 停，引導先開 feature 分支
 git status --short
 git fetch origin && gh pr view --json number,state,url
-gh issue view <N> --json body -q .body      # 解析到編號才跑；取 ## 驗收標準 與 ## 範圍
+gh issue view <N> --json body,comments --jq '.body, "---決策留言---", (.comments[] | select(.authorAssociation | IN("OWNER","MEMBER","COLLABORATOR")) | select(.body | test("^決策[:：]")) | .body)'
+                                            # 解析到編號才跑；取 ## 驗收標準、## 範圍，與「決策：」開頭的裁決留言（全形／半形冒號都認；只認 OWNER／MEMBER／COLLABORATOR，防公開 repo 路人留言混進任務宣告）
 ```
 
 - **解析 issue 編號**：照 `../pr/SKILL.md` 步驟 2「解析 issue 編號（三層）」執行。那節是唯一 SoT，本檔不另寫一套。
 - **確認實作在不在當前分支**：照 `../verify-ac/SKILL.md`「確認實作在哪」那節判定。不在 → 本輪 AC 標為唯讀驗證、不修。
   這件事在 Phase 0 就做掉，Phase 2 才不必為它停下來。
 - **建帳**：`sh .claude/skills/ship/scripts/ledger.sh plan`，印出本輪要跑哪幾層、哪幾層可沿用綠燈。
+- **決策留言的流向**：Phase 0 抓到的「決策：」留言附進 Phase 2 verify-ac 派工 prompt 與 L4 審查 prompt，當任務宣告的一部分——已裁決的取捨不算 Conformance 缺口、不列 BLOCKING。留言格式的 SSOT 在 `.claude/ops/model-dispatch.md` 第 7 節。
 
-輸出長這樣（**印給使用者看，但不等回覆**）。第一行由主線自己補——issue 與 AC 條數是 `gh issue view` 抓的，
+輸出長這樣（**印給使用者看，但不等回覆**）。第一行由主線自己補——issue、AC 條數與決策留言則數是 `gh issue view` 抓的，
 `ledger.sh` 不知道 GitHub 的事；其餘**原樣貼腳本輸出**，不要改寫成別的排版：
 
 ```
-/ship · feat/#123-device-list → main · issue #123（AC 3 條，2 條未勾）
+/ship · feat/#123-device-list → main · issue #123（AC 3 條，2 條未勾；決策留言 1 則）
 
 本輪 ledger：feat/#123-device-list → main
   L1   ● 要跑（fp=a1b2c3d4e5f6）
@@ -121,7 +123,7 @@ gh issue view <N> --json body -q .body      # 解析到編號才跑；取 ## 驗
 | L15 | `npm run test:unit` | 主線自跑 |
 | L2 | `/vibe-check`（gate config） | 主線自跑 |
 | L3 | `/sdd-review` | **派 fresh subagent（sonnet）** |
-| L4 | **read-back**：派 fresh subagent 讀改動的規範檔，回答「這條規則誰會讀、何時載入、指得出消費點嗎」 | **派 fresh subagent（sonnet）** |
+| L4 | **read-back**：派 fresh subagent 讀改動的規範檔，回答「這條規則誰會讀、何時載入、指得出消費點嗎」；回報格式與檢查清單疊加 `.claude/ops/delegation-templates.md` 第 5 節審查範本（原三問不變；第一行 `判定：PASS｜BLOCKING`；model 照本表 sonnet，不跟範本的 opus）；prompt 附 Phase 0 抓到的「決策：」留言當任務宣告（同 Phase 2） | **派 fresh subagent（sonnet）** |
 | L5 | `/code-review` | Skill tool 直接呼叫 |
 
 **順序是硬約束**：L1 先單獨跑到綠，再開 L2／L3／L4／L5。型別還紅的時候跑 gate 與語意審查是浪費時間，
@@ -183,7 +185,9 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 > 讀 `.claude/skills/verify-ac/SKILL.md`，**只執行步驟 1–3**（前置檢查、取條目、逐條驗收）。
 > **不要執行步驟 4 的自動修，也不要執行步驟 5 的寫回 issue**——修由編排層統一調度，寫回等使用者確認後才做。
 > 「無法判定」照實寫，不要為了報告好看改判，也不要停下來問任何人。
+> 任務宣告附上 Phase 0 抓到的「決策：」留言（有的話），已裁決的取捨照留言認、不當缺口。
 > 回報格式：一列一條，欄位為 編號｜原文｜Pass/Fail/無法判定｜證據（`檔案:行號` 或指令輸出）｜Fail 時缺什麼。
+> 另附一段「範圍外改動：<步驟 2 超編盤點命中範圍外的檔案，或『無』>」，不塞進 AC 列。
 > 只回結論與證據位置，不要貼檔案全文；超過 30 行寫進 `.claude/tmp/ship/ac-report.md`，回報路徑加 5 行摘要。
 
 ## 3. 自動修迴圈（紅燈修到綠，上限 2 輪）
@@ -200,12 +204,15 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 | L3「建議」、L5「重用／簡化／效能」類 | **不修**，列進 Phase 4 草案 |
 | AC Fail | 派 fixer；授權邊界逐字照 `../verify-ac/SKILL.md` 步驟 4 那張表，**一字不放寬** |
 | AC「無法判定」、要動 issue 範圍外 | **不修**。範圍外命中 `.claude/ops/judgment-rubrics.md` 必停清單 → 停 |
+| L4 BLOCKING | **不自動修**（fixer 不可動 `.claude/`，見下方不可動表）。`mark L4 red "<fp>"`，**不得記 green**——ledger 只沿用 green／skipped，記錯下一輪會假綠。列進 Phase 4 草案「需你確認」區並標「未完成」：BLOCKING ＝ 未完成，確認語要明列接受的取捨才可送出 |
+| verify-ac 步驟 2 盤點出範圍外改動 | **不修**，列進 Phase 4 草案「需你確認」區。這是回溯盤點（已經改了什麼）；上一列的「要動 issue 範圍外」是前瞻判斷（修 Fail 需不需要超編），兩者不同列 |
 
 不修的那幾類共同特徵是**需要人的價值判斷、沒有客觀對錯**。自動修這類東西，就是使用者失去控制的地方。
 
 上表不是唯一判準：**`.claude/ops/judgment-rubrics.md` 第 3 節的必停清單六條在整個 Phase 3 期間全程有效**
 （要動凍結區、要動 `maintenance.md`「動前必問」清單內的檔、大幅重寫非本任務建立的既有檔**以及 vibe spec 的任何刪改**、
 不可逆或對外的動作、兩份規範互相打架、重試已達上限且換路會改變任務範圍）。上表只是把最常遇到的幾種先寫出來，不是取代它。
+Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatch.md` 第 7 節的三行格式寫進 `.claude/tmp/ship/decisions-<issue 編號>.md`（隨做隨存，session 被砍也留得住；依 issue 命名，push 失敗殘留下來也不會貼到別的 issue；多條決策同一檔、空行隔開，檔案第一行必須是「決策：」開頭），**延到 Phase 5** 讀檔發成 issue 留言，並列進 Phase 4 確認語——不在 Phase 3 中途發 `gh` 寫入命令。
 
 **修 UI 是 `/ship` 自己派 fixer 做的事，不是叫 `/vibe-check` 去做**——那隻 skill 明訂「不可主動修 `app/`」，別把它拖下水。
 
@@ -294,6 +301,8 @@ label／assignee／reviewer 由主線**預選**後填進草案（規則見 `../n
 
 ━━ 需你確認 ━━                          ← 這一區永遠置頂，不埋在內文後面
   ❓ AC#3「錯誤訊息要顯示在欄位下方」無法判定：找不到可驗的斷言。我不會勾，請你人工確認
+  ❗ L4 BLOCKING（未完成）：新規則「…」指不出消費點。要照樣送出，請寫明接受的取捨
+  ❗ 範圍外改動：README.md 命中 issue「範圍外」清單。改 issue 範圍／拆 issue／撤回，三選一
   ○ L5 建議：useDeviceList 可抽共用（品質類，我沒動）
 
 ━━ 擬分 2 個 commit ━━
@@ -314,6 +323,7 @@ label／assignee／reviewer 由主線**預選**後填進草案（規則見 `../n
   · 開 PR，並指派 Copilot 當 reviewer（它會讀整份 diff）
   · 把 issue #123 的第 1、2 條勾起來；**若有上輪勾過、這輪變 Fail 的條目，會一併取消勾**
   · 在 issue #123 留一則對外可見的驗收記錄 comment
+  · 在 issue #123 留 1 則「決策：」留言（Phase 3 你裁決過的取捨；沒有就省略這行）
 ```
 
 三件事必須做到：
@@ -368,7 +378,11 @@ gh pr view --web
 同一節還規定**上輪勾了、這輪 Fail 的要取消勾**——不是只做「把 Pass 的勾起來」。
 
 順序刻意是 **commit → push → PR → 才寫回 issue**：AC 勾選放最後，push 被拒（`../pr/SKILL.md` 步驟 6）時
-issue 上不會留下半套狀態。
+issue 上不會留下半套狀態。Phase 3 寫在 `.claude/tmp/ship/decisions-<issue 編號>.md` 的裁決也在這一步發成留言，同樣的理由。三個 issue 寫入動作順序固定：**打勾 → 驗收記錄留言 → 決策留言**——前兩步照 verify-ac 那節，第三步是：
+
+```
+gh issue comment <issue 編號> --body-file .claude/tmp/ship/decisions-<issue 編號>.md   # 該檔存在才跑；發完 rm 該檔，免得下一輪重發
+```
 
 **pre-push 紅燈時停，不進自動修迴圈**——本地 dev gate 綠、Docker prod gate 紅，屬於「假設被證偽」，
 該換路不該重試（`.claude/ops/judgment-rubrics.md` 第 4 節）。
