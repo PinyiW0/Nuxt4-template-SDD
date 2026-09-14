@@ -60,6 +60,8 @@ disable-model-invocation: true
 | 工作區乾淨、且當前分支有 `state=OPEN` 的 PR、且有未 resolved 的 review 留言 | B |
 | 其他 | A（到 PR 鏈） |
 
+**分流前先補發殘留的決策檔**：`.claude/tmp/ship/decisions-<issue 編號>.md` 存在（上一輪 Phase 5 留言失敗留下的）→ 先照 Phase 5 那條 `[ -f … ] && gh issue comment … && rm …` 補發，再判路線。路線 B 沒有任何步驟會消費這個檔，不在這裡補發就會永久殘留、決策永遠貼不到 issue。
+
 **為什麼「有未 commit 改動一律走 A」**：本 repo 開 PR 預設掛 Copilot，PR 上有沒人 resolve 的留言是常態。
 如果只看「有沒有未讀留言」就走 B，那麼「PR 開著、你又寫了一批新 code、然後打 `/ship`」會被判成 B——
 而 B **不跑 AC 驗收**、關卡 scope 只含本次改的檔，等於讓剛寫的功能沒驗 AC、沒跑完整 gate 就 push 上去。
@@ -123,7 +125,7 @@ gh issue view <N> --json body,comments --jq '.body, "---決策留言---", (.comm
 | L15 | `npm run test:unit` | 主線自跑 |
 | L2 | `/vibe-check`（gate config） | 主線自跑 |
 | L3 | `/sdd-review` | **派 fresh subagent（sonnet）** |
-| L4 | **read-back**：派 fresh subagent 讀改動的規範檔，回答「這條規則誰會讀、何時載入、指得出消費點嗎」；回報格式與檢查清單疊加 `.claude/ops/delegation-templates.md` 第 5 節審查範本（原三問不變；第一行 `判定：PASS｜BLOCKING`；model 照本表 sonnet，不跟範本的 opus）；prompt 附 Phase 0 抓到的「決策：」留言當任務宣告（同 Phase 2） | **派 fresh subagent（sonnet）** |
+| L4 | **read-back**：派 fresh subagent 讀改動的規範檔，回答「這條規則誰會讀、何時載入、指得出消費點嗎」；回報格式與檢查清單疊加 `.claude/ops/delegation-templates.md` 第 5 節審查範本（原三問不變；第一行 `判定：PASS｜BLOCKING`；model 照本表 sonnet，不跟範本的 opus）；prompt 附 Phase 0 抓到的 issue `## 範圍`、`## 驗收標準` 原文與「決策：」留言，三者合為任務宣告——Conformance／Minimality 對照它判，缺了範圍與 AC 這兩項檢查形同虛設（同 Phase 2） | **派 fresh subagent（sonnet）** |
 | L5 | `/code-review` | Skill tool 直接呼叫 |
 
 **順序是硬約束**：L1 先單獨跑到綠，再開 L2／L3／L4／L5。型別還紅的時候跑 gate 與語意審查是浪費時間，
@@ -212,7 +214,7 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 上表不是唯一判準：**`.claude/ops/judgment-rubrics.md` 第 3 節的必停清單六條在整個 Phase 3 期間全程有效**
 （要動凍結區、要動 `maintenance.md`「動前必問」清單內的檔、大幅重寫非本任務建立的既有檔**以及 vibe spec 的任何刪改**、
 不可逆或對外的動作、兩份規範互相打架、重試已達上限且換路會改變任務範圍）。上表只是把最常遇到的幾種先寫出來，不是取代它。
-Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatch.md` 第 7 節的三行格式寫進 `.claude/tmp/ship/decisions-<issue 編號>.md`（隨做隨存，session 被砍也留得住；依 issue 命名，push 失敗殘留下來也不會貼到別的 issue；多條決策同一檔、空行隔開，檔案第一行必須是「決策：」開頭），**延到 Phase 5** 讀檔發成 issue 留言，並列進 Phase 4 確認語——不在 Phase 3 中途發 `gh` 寫入命令。**Phase 0 解析不到 issue 編號的分支不建此檔**：依 `.claude/ops/model-dispatch.md` 第 7 節，沒有 issue 的決策不留言，要留痕走 `.claude/ops/maintenance.md` 第 2 節分流（ops 正反例或 memory），該決策改列進 Phase 4 草案「需你確認」區。
+Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatch.md` 第 7 節的三行格式寫進 `.claude/tmp/ship/decisions-<issue 編號>.md`（隨做隨存，session 被砍也留得住；依 issue 命名，push 失敗殘留下來也不會貼到別的 issue；多條決策同一檔、空行隔開，檔案第一行必須是「決策：」開頭），**延到 Phase 5** 讀檔發成 issue 留言，並列進 Phase 4 確認語——不在 Phase 3 中途發 `gh` 寫入命令。**Phase 0 解析不到 issue 編號的分支不建此檔**：依 `.claude/ops/model-dispatch.md` 第 7 節，沒有 issue 的決策不留言，要留痕走 `.claude/ops/maintenance.md` 第 2 節分流（ops 正反例或 memory），該決策當場寫進 `.claude/tmp/ship/decisions-noissue.md`（同樣三行格式，隨做隨存），列進 Phase 4 草案「需你確認」區；確認後在 Phase 5 由主線依 `maintenance.md` 第 2 節落地——制度規則缺角 → 補進對應 `ops/*.md` 的正反例並納入本次 commit；個人偏好 → memory——落地後刪檔。草案是對話暫存，不算持久落點。
 
 **修 UI 是 `/ship` 自己派 fixer 做的事，不是叫 `/vibe-check` 去做**——那隻 skill 明訂「不可主動修 `app/`」，別把它拖下水。
 
