@@ -60,7 +60,7 @@ disable-model-invocation: true
 | 工作區乾淨、且當前分支有 `state=OPEN` 的 PR、且有未 resolved 的 review 留言 | B |
 | 其他 | A（到 PR 鏈） |
 
-**分流前先解析 issue 編號、再補發殘留的決策檔**：路線 A／B 都先照 `../pr/SKILL.md` 步驟 2 解析 issue 編號（Phase 0 的那一步提前到這裡做，A 路線不重做）；解析到編號、且 `.claude/tmp/ship/decisions-<issue 編號>.md` 存在（上一輪 Phase 5 留言失敗留下的）→ 先照 Phase 5 那條 `[ -f … ] && gh issue comment … && rm …` 補發，再判路線；解析不到編號就跳過這步。路線 B 沒有任何步驟會消費這個檔，不在這裡補發就會永久殘留、決策永遠貼不到 issue。
+**分流前先解析 issue 編號、再補發殘留的決策檔**：路線 A／B 都先照 `../pr/SKILL.md` 步驟 2 解析 issue 編號（Phase 0 的那一步提前到這裡做，A 路線不重做）；解析到編號、且 `.claude/tmp/ship/decisions-<issue 編號>.md` 存在（上一輪 Phase 5 留言失敗留下的）→ 先照 Phase 5 那條 `if [ -f … ]; then gh issue comment … && rm …; fi` 補發，再判路線；解析不到編號就跳過這步。路線 B 沒有任何步驟會消費這個檔，不在這裡補發就會永久殘留、決策永遠貼不到 issue。
 
 **為什麼「有未 commit 改動一律走 A」**：本 repo 開 PR 預設掛 Copilot，PR 上有沒人 resolve 的留言是常態。
 如果只看「有沒有未讀留言」就走 B，那麼「PR 開著、你又寫了一批新 code、然後打 `/ship`」會被判成 B——
@@ -385,8 +385,9 @@ gh pr view --web
 issue 上不會留下半套狀態。Phase 3 寫在 `.claude/tmp/ship/decisions-<issue 編號>.md` 的裁決也在這一步發成留言，同樣的理由。三個 issue 寫入動作順序固定：**打勾 → 驗收記錄留言 → 決策留言**——前兩步照 verify-ac 那節，第三步是：
 
 ```
-[ -f .claude/tmp/ship/decisions-<issue 編號>.md ] && gh issue comment <issue 編號> --body-file .claude/tmp/ship/decisions-<issue 編號>.md && rm .claude/tmp/ship/decisions-<issue 編號>.md
-    # 檔案存在才發；留言成功（exit 0）才刪，失敗就留著下一輪重發——不可拆成獨立的 rm，那會在留言失敗時刪掉唯一的持久化副本
+if [ -f .claude/tmp/ship/decisions-<issue 編號>.md ]; then gh issue comment <issue 編號> --body-file .claude/tmp/ship/decisions-<issue 編號>.md && rm .claude/tmp/ship/decisions-<issue 編號>.md; fi
+    # 沒有檔 → 略過，結束碼 0（本輪沒有決策是正常路徑，不是失敗）；有檔才發，留言成功才刪；留言失敗 → 留著下一輪重發、結束碼非 0
+    # 不可拆成獨立的 rm，那會在留言失敗時刪掉唯一的持久化副本；也不要寫回 `[ -f … ] && …`，沒有檔時整條會回 1
 ```
 
 **pre-push 紅燈時停，不進自動修迴圈**——本地 dev gate 綠、Docker prod gate 紅，屬於「假設被證偽」，
