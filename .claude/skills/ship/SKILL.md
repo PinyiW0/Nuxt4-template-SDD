@@ -63,8 +63,8 @@ disable-model-invocation: true
 **分流前先解析 issue 編號，判完路線再處理殘留的決策檔**：路線 A／B 都先照 `../pr/SKILL.md` 步驟 2 解析 issue 編號（Phase 0 的那一步提前到這裡做，A 路線不重做）。`.claude/tmp/ship/decisions-<issue 編號>.md` 存在，代表上一輪 Phase 5 沒走完——commit、push、開 PR、打勾、驗收記錄、決策留言任一步失敗都會留下它。依路線處理：
 
 - **走 A** → 不補發。本輪 Phase 3／4 追加寫進同一檔，Phase 5 照「打勾 → 驗收記錄留言 → 決策留言」的順序一起發
-- **走 B、且當前分支有 `state=OPEN` 的 PR** → 先照 Phase 5 那條 `if [ -f … ]; then gh issue comment … && rm …; fi` 補發。路線 B 沒有任何步驟會消費這個檔，不補發就永久殘留；PR 已開代表上一輪至少走到開 PR，決策不會早於 PR 公開
-- **走 B 但沒有 OPEN PR**、或解析不到 issue 編號 → 不補發，檔案留著
+- **走 B** → 分流時不發，到 B4 才照 Phase 5 那條 `if [ -f … ]; then gh issue comment … && rm …; fi` 補發：本輪有 push 的，`git push` 成功後才發；本輪沒改動、不 push 的，當前分支有 `state=OPEN` 的 PR 且 `git log @{u}..HEAD` 為空（本地沒有還沒推上去的 commit；取不到上游也算不為空）才發。上一輪 A 可能 commit 成功、push 失敗，工作區乾淨就會被判成 B——分流時就發，決策會早於它所屬的改動公開。路線 B 沒有其他步驟會消費這個檔，B4 不發就永久殘留
+- 解析不到 issue 編號 → 不補發，檔案留著
 
 **為什麼「有未 commit 改動一律走 A」**：本 repo 開 PR 預設掛 Copilot，PR 上有沒人 resolve 的留言是常態。
 如果只看「有沒有未讀留言」就走 B，那麼「PR 開著、你又寫了一批新 code、然後打 `/ship`」會被判成 B——
@@ -409,7 +409,7 @@ if [ -f .claude/tmp/ship/decisions-<issue 編號>.md ]; then gh issue comment <i
 | B1 | 「必修」類**在 B3 草案上預先勾選，確認後才動手改**；「可選／不修」列進草案不預選 |
 | B2 | 改完照 `../pr-feedback/SKILL.md` 步驟 6 自查 diff → 跑品質關卡（scope 只含本次改的檔）→ 自動修迴圈 |
 | B3 | **唯一停點**：改了哪幾條、每條改在哪個檔、沒改的可選項、commit 分群、要不要 push |
-| B4 | 逐群 commit → `git push`（**不重開 PR**，`../pr/SKILL.md` 步驟 1 已定義「已有 OPEN PR → 只 push 更新」） |
+| B4 | 逐群 commit → `git push`（**不重開 PR**，`../pr/SKILL.md` 步驟 1 已定義「已有 OPEN PR → 只 push 更新」）→ 有殘留決策檔時照「路線判定」段補發 |
 
 **重跑範圍照這個判準**（與使用者的審查關卡地圖同一套，不自創）：
 小改動 → 只重跑 L1／L15 就進 commit；改動大 → 從 L5 `/code-review` 整段重走；沒改動 → 回報可以 merge。
