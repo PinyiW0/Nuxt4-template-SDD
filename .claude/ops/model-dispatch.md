@@ -48,16 +48,16 @@
 
 ## 4. 升降級路徑
 
-**`sonnet → opus` 這一階的觸發條件不是次數，是「同一種錯重複出現」——判準見 [judgment-rubrics.md](judgment-rubrics.md) 第 1 節，本節只給觸發後照走的路徑。**
-錯法每次不同 = 任務定義不清，先修 prompt，升級救不了爛 prompt。
+**`sonnet → opus` 這一階的觸發條件不是次數，是「這個錯法重跑會不會再犯」——判準見 [judgment-rubrics.md](judgment-rubrics.md) 第 1 節，本節只給觸發後照走的路徑。**
+一次性失誤或 prompt 沒講清楚 = 任務定義不清，先修 prompt，升級救不了爛 prompt。
 （`haiku → sonnet` 不套此判準：haiku 便宜，犯錯就升，不值得花輪次去判「同不同型」。）
 
 ```
 haiku 犯錯（任何一次）
    └→ 同任務升 sonnet（haiku 便宜，不值得重試判型；附上 haiku 的錯誤輸出）
-sonnet 同一子任務重複犯同型錯
+sonnet 失敗，錯法判為同型（能力盲點，重跑會再犯）
    └→ 帶完整失敗軌跡升 opus（每次錯在哪、試過什麼、卡在哪）
-   └→ 錯法每次不同 → 不升級，先修 prompt（判準見 judgment-rubrics 第 1 節）
+   └→ 一次性失誤或 prompt 沒講清楚 → 不升級，先修 prompt（判準見 judgment-rubrics 第 1 節）
 opus 解出、且錯誤呈現固定 pattern
    └→ 把解法寫成明確步驟，降回 sonnet 批次套用到其餘同類項
 同一件事重試上限 = 2 輪
@@ -65,6 +65,9 @@ opus 解出、且錯誤呈現固定 pattern
 ```
 
 「完整失敗軌跡」必含：原始任務、每次嘗試的做法、實際錯誤輸出（原文，不要改寫）、目前的假設。
+
+- **升級那次計入 2 輪**：第 1 輪失敗後就判型、決定第 2 輪派誰（同型 → 帶失敗軌跡升 opus；不同型 → 修 prompt 重派 sonnet），第 2 輪就是最後一輪。判型不等錯第二次——等到第二次，2 輪已用完，opus 沒有輪次可跑。`haiku → sonnet` 那一跳不計（理由同上方括號：便宜，不值得花輪次判型）
+- **派工失敗不自動換 model**：Agent tool 回錯誤或拒絕時，不換 model 重派，停下來報。使用者同意改派後，回報寫明改派前後的 model 與原因
 
 ## 5. 回報合約（subagent 端）
 
@@ -130,7 +133,11 @@ fresh subagent 的 context ＝ CLAUDE.md ＋ **你寫的 prompt**。它乾淨，
 
 - 每完成一個交付物**立即存檔**，再做下一個。不要累積到最後一次寫出
 - 中間產物（調查結論、決策理由、待辦）也要落地：長產物寫檔案（見第 5 節），不靠對話往下傳
+- **使用者裁決過的決策，要留言記到 issue**——換 session 接手的人才查得到「為什麼」。觸發（二擇一，客觀可判）：命中 [judgment-rubrics.md](judgment-rubrics.md) 第 3 節必停清單並經使用者裁決；或偏離 skill 範本的取捨（只改 `/ship` 草案內容——commit 分群、PR 標題、label——不算偏離）
+  - 由主線（不是分身）執行 `gh issue comment <N>` 一則，固定三行「決策：／理由：／捨棄的替代：」，第一行以「決策：」開頭當標記，純文字、不加粗（`/ship` Phase 0 靠這個前綴過濾，`**決策：**` 會漏抓）；同一輪多筆決策可合併成一則留言，各筆維持三行、空行隔開。`<N>` 限 issue 編號，不對 PR 留言
+  - 沒有 issue 的決策不留言；要留痕依 [maintenance.md](maintenance.md) 第 2 節分流（ops 正反例或 memory）
+  - repo 為 public 時，涉及私有專案細節只寫抽象結論
 - 交辦 subagent 時指定產物路徑，不要讓它把 30 行以上的結果塞回對話
-- 判準：如果這個 session 現在被砍掉，重開的人靠 repo 裡的檔案能不能接手？不能 = 還沒存夠
+- 判準：如果這個 session 現在被砍掉，重開的人靠 repo 裡的檔案（含 issue 留言）與 memory 能不能接手？不能 = 還沒存夠
 
 > 用詞統一為「隨做隨存」（早期文件有「隨做隨寫」的舊稱，同一件事）。
