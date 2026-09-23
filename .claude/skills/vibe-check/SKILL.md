@@ -86,6 +86,7 @@ fi
 default=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); default=${default:-main}
 base=$(git merge-base HEAD "origin/$default" 2>/dev/null || true)
 skip=$(sed -n "s/^SKIP_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1)
+force=$(sed -n "s/^FORCE_TEST_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1)
 smoke=$(sed -n "s/^SMOKE_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1)
 [ -n "$smoke" ] || { smoke='specs/(00-hydration|01-auth-guard|02-authz-scope)'; echo "  ⚠️ pre-push 沒有 SMOKE_PATTERN 那行，先用模板預設；請補上"; }
 changed=$(
@@ -93,7 +94,11 @@ changed=$(
     git ls-files -o --exclude-standard 2>/dev/null
   } | sort -u
 )
-[ -n "$skip" ] && changed=$(printf '%s\n' "$changed" | grep -vE "$skip" || true)
+# SKIP 濾掉後，命中 FORCE_TEST_PATTERN 的檔（defaultLocale zh-TW 翻譯檔）要拉回來——與 pre-push、ledger.sh 同一套判準。
+# 少了這步，只改 zh-TW.json 會被濾成空 diff 而判成定向；rules/i18n-locale-policy.md 要求它走 dev 全量。
+raw=$changed
+[ -n "$skip" ] && changed=$(printf '%s\n' "$raw" | grep -vE "$skip" || true)
+[ -n "$force" ] && changed=$( { printf '%s\n' "$changed"; printf '%s\n' "$raw" | grep -E "$force" || true; } | sed '/^$/d' | sort -u )
 # 白名單：頁、spec，以及「模組專屬元件」app/components/<seg>/…（app/pages/<seg>/ 存在才算同模組）。
 # case 必須放在函式裡、不能直接寫在 $( ) 內——macOS 的 /bin/sh 是 bash 3.2，$( ) 內的 case 會被判語法錯誤（實測）。
 whitelisted() {
@@ -117,6 +122,7 @@ fi
 - `MODE=full` → Step 3 全量指令。第一個白名單外的檔就是報告要寫的理由
 - `MODE=targeted` → Step 2（`(group)`／`[...slug]` 頁的升全量已由上方 `dyn` 那行機械處理，Step 2 不必再判）
 - diff 的取法與 `/ship` 的 `ledger.sh` 同一套 union（含未追蹤的新檔），不要只看 `git diff HEAD`
+- `FORCE_TEST_PATTERN` 也從 pre-push 抽：被 `SKIP_PATTERN` 放行的目錄裡，defaultLocale 翻譯檔要拉回 diff；它不在白名單 → 全量（`rules/i18n-locale-policy.md`）
 - 模組專屬元件的判定在上方 `case`：`app/components/<seg>/…` 且 `app/pages/<seg>/` 存在才算白名單內；頂層 `app/components/X.vue` 與找不到同名頁目錄的一律白名單外（真共用元件會影響多個模組，升全量是對的）
 
 ### Step 2：定向查法（三來源聯集，只查片段、不整檔讀）
@@ -129,7 +135,7 @@ fi
 
 對每個模組 `<seg>`：
 
-1. **route-map**：`grep -n -B2 -A8 "page: app/pages/<seg>/" spec/report/route-map.yaml`（兩段模組用 `"page: app/pages/<seg>/.*/<sub>"`）→ 該路由 `features[].file` 前兩碼 NN → `test/e2e/specs/NN-*.spec.ts`。**不要 `cat` 整份 route-map**（幾十個路由的 YAML 一次就 5K token）。route-map 常過期（下游實測 12／33 頁不在裡面），它只是輔助，來源 2 才是主來源
+1. **route-map**：`grep -n -B2 -A8 -E "page: app/pages/<seg>(/|\.vue$)" spec/report/route-map.yaml`（頂層頁在 route-map 記成 `page: app/pages/login.vue`、沒有斜線，只比對 `<seg>/` 會漏掉；`index.vue` 改查 `"page: app/pages/index\.vue$"`；兩段模組用 `-E "page: app/pages/<seg>/.*/<sub>"`）→ 該路由 `features[].file` 前兩碼 NN → `test/e2e/specs/NN-*.spec.ts`。**不要 `cat` 整份 route-map**（幾十個路由的 YAML 一次就 5K token）。route-map 常過期（下游實測 12／33 頁不在裡面），它只是輔助，來源 2 才是主來源
 2. **spec 內文**（補「列表 spec 造訪詳情頁」這種跨頁 case，route-map 對不上的）：先從 `test/e2e/helpers/fixtures.ts` 的 `Routes` 表找出值以 `/<seg>` 開頭的 key，再 `grep -lE "Routes\.<key>|goto\('/<seg>|toHaveURL\(.*<seg>|waitForURL\(.*<seg>" test/e2e/specs/*.spec.ts test/e2e/vibe/*.spec.ts`
 3. **vibe marker**：`grep -lE "Source hunk: app/(pages|components)/<seg>/" test/e2e/vibe/*.spec.ts`（`unstable/` 不算；marker 不一定在第 1 行，grep 整檔）
 
