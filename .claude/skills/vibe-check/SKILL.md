@@ -115,8 +115,9 @@ whitelisted() {
   esac
 }
 outside=$(printf '%s\n' "$changed" | while IFS= read -r f; do whitelisted "$f" || printf '%s\n' "$f"; done)
-# 路由群組 (group) 與 catch-all [...slug] 推不出模組，一樣升全量——機械檢查，不靠讀 Step 2 的提醒
-dyn=$(printf '%s\n' "$changed" | grep -E '^app/pages/.*(\(|\[\.\.\.)' || true)
+# 推不出模組的頁一律升全量——機械檢查，不靠讀 Step 2 的提醒：第一段就是動態段（app/pages/[tenantId]/…、app/pages/[id].vue，
+# 模組會算成 [tenantId]，Routes／URL 查法對不上）、路由群組 (group)、catch-all [...slug]。第二段以後的動態段由 Step 2 的取段規則處理。
+dyn=$(printf '%s\n' "$changed" | grep -E '^app/pages/[[(]|^app/pages/.*(\(|\[\.\.\.)' || true)
 if [ -n "$ere_bad" ] || [ -z "$base" ] || [ -n "$outside" ] || [ -n "$dyn" ]; then
   echo "MODE=full"; [ -z "$base" ] && echo "  算不出 merge-base"
   [ -n "$ere_bad" ] && echo "  pre-push 的 ${ere_bad} 不是合法 ERE，diff 無法可信地過濾 → 升全量；請修正 .husky/pre-push 那一行"
@@ -127,7 +128,7 @@ fi
 ```
 
 - `MODE=full` → Step 3 全量指令。第一個白名單外的檔就是報告要寫的理由
-- `MODE=targeted` → Step 2（`(group)`／`[...slug]` 頁的升全量已由上方 `dyn` 那行機械處理，Step 2 不必再判）
+- `MODE=targeted` → Step 2（第一段動態、`(group)`、`[...slug]` 頁的升全量已由上方 `dyn` 那行機械處理，Step 2 不必再判）
 - diff 的取法與 `/ship` 的 `ledger.sh` 同一套 union（含未追蹤的新檔），不要只看 `git diff HEAD`
 - `FORCE_TEST_PATTERN` 也從 pre-push 抽：被 `SKIP_PATTERN` 放行的目錄裡，defaultLocale 翻譯檔要拉回 diff；它不在白名單 → 全量（`rules/i18n-locale-policy.md`）
 - 兩個 pattern 先驗是不是合法 ERE（`ere_ok`，判準同 `ledger.sh`）：非法一律 `MODE=full`，不讓壞掉的 pattern 把 app diff 濾成空的然後報「定向」
