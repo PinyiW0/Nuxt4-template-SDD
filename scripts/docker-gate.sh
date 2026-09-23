@@ -52,16 +52,20 @@ fi
 base_url="http://127.0.0.1:${port}"
 
 echo "🐳 [3/4] 等待 server ready（${base_url}，最長 60 秒）…"
-i=0
+# 上限是「絕對期限 60 秒」，不是迴圈次數：container 接了連線卻不回應時每次 curl 會等到 --max-time，
+# 用次數當上限會被乘成好幾分鐘。單次探測只給剩餘秒數（最多 5 秒），到期就停。與 CI e2e job 同一寫法。
+# 不用 curl -f：回任何 HTTP 狀態就算 ready（沒有根頁的專案打 / 是 404，-f 會誤判成沒起來）。
+start=$(date +%s); deadline=$(( start + 60 ))
 ready=0
-while [ "$i" -lt 60 ]; do
-  # 不用 curl -f：回任何 HTTP 狀態就算 ready（沒有根頁的專案打 / 是 404，-f 會誤判成沒起來）。與 CI e2e job 同一寫法。
-  # --max-time 5：container 接了連線卻不回應時 curl 會一直等，迴圈次數就不是真正的上限；單次最多 5 秒。
-  if curl -s --max-time 5 -o /dev/null "$base_url/" 2>/dev/null; then
+while :; do
+  now=$(date +%s); rem=$(( deadline - now ))
+  [ "$rem" -gt 0 ] || break
+  [ "$rem" -gt 5 ] && rem=5
+  if curl -s --max-time "$rem" -o /dev/null "$base_url/" 2>/dev/null; then
     ready=1
     break
   fi
-  i=$((i + 1))
+  [ "$(date +%s)" -lt "$deadline" ] || break
   sleep 1
 done
 if [ "$ready" -ne 1 ]; then
