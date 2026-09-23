@@ -55,7 +55,8 @@ echo "🐳 [3/4] 等待 server ready（${base_url}，最長 60 秒）…"
 i=0
 ready=0
 while [ "$i" -lt 60 ]; do
-  if curl -fs -o /dev/null "$base_url/" 2>/dev/null; then
+  # 不用 curl -f：回任何 HTTP 狀態就算 ready（沒有根頁的專案打 / 是 404，-f 會誤判成沒起來）。與 CI e2e job 同一寫法。
+  if curl -s -o /dev/null "$base_url/" 2>/dev/null; then
     ready=1
     break
   fi
