@@ -79,7 +79,7 @@ ere_status=0
 printf '\n' | grep -E "$SMOKE_PATTERN" >/dev/null 2>&1 || ere_status=$?
 if [ "$ere_status" -eq 2 ]; then
   echo "❌ SMOKE_PATTERN 不是合法的 ERE（${SMOKE_PATTERN}），無法判定煙霧集合 → 拒絕 push。"
-  echo "   請修正 .husky/pre-push 的 SMOKE_PATTERN 那一行（/vibe-check 與 ledger.sh 讀的是同一行）。"
+  echo "   請修正 .husky/pre-push 的 SMOKE_PATTERN 那一行（/vibe-check 用 sed 抽同一行當煙霧判準；ledger.sh 只讀 SKIP／FORCE 兩行）。"
   exit 1
 fi
 
