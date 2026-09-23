@@ -136,8 +136,8 @@ fi
 對每個模組 `<seg>`：
 
 1. **route-map**：`grep -n -B2 -A8 -E "page: app/pages/<seg>(/|\.vue$)" spec/report/route-map.yaml`（頂層頁在 route-map 記成 `page: app/pages/login.vue`、沒有斜線，只比對 `<seg>/` 會漏掉；`index.vue` 改查 `"page: app/pages/index\.vue$"`；兩段模組用 `-E "page: app/pages/<seg>/.*/<sub>"`）→ 該路由 `features[].file` 前兩碼 NN → `test/e2e/specs/NN-*.spec.ts`。**不要 `cat` 整份 route-map**（幾十個路由的 YAML 一次就 5K token）。route-map 常過期（下游實測 12／33 頁不在裡面），它只是輔助，來源 2 才是主來源
-2. **spec 內文**（補「列表 spec 造訪詳情頁」這種跨頁 case，route-map 對不上的）：先從 `test/e2e/helpers/fixtures.ts` 的 `Routes` 表找出值以 `/<seg>` 開頭的 key，再 `grep -lE "Routes\.<key>|goto\('/<seg>|toHaveURL\(.*<seg>|waitForURL\(.*<seg>" test/e2e/specs/*.spec.ts test/e2e/vibe/*.spec.ts`
-3. **vibe marker**：`grep -lE "Source hunk: app/(pages|components)/<seg>/" test/e2e/vibe/*.spec.ts`（`unstable/` 不算；marker 不一定在第 1 行，grep 整檔）
+2. **spec 內文**（補「列表 spec 造訪詳情頁」這種跨頁 case，route-map 對不上的）：先從 `test/e2e/helpers/fixtures.ts` 的 `Routes` 表找出值以 `/<seg>` 開頭的 key，再 `grep -rlE --include='*.spec.ts' --exclude-dir=unstable "Routes\.<key>|goto\('/<seg>|toHaveURL\(.*<seg>|waitForURL\(.*<seg>" test/e2e/specs test/e2e/vibe`（`-r`：gate config 收的是 `specs/**`、`vibe/**`，spec 可能放子目錄，`*.spec.ts` 這種單層 glob 會漏；`--exclude-dir=unstable` 對齊 `testIgnore`）
+3. **vibe marker**：`grep -rlE --include='*.spec.ts' --exclude-dir=unstable "Source hunk: app/(pages|components)/<seg>(/|\.vue)" test/e2e/vibe`（同上遞迴、排除 `unstable/`；頂層頁的 marker 是 `app/pages/login.vue:…`、`<seg>` 後面沒有斜線，所以接受 `/` 或 `.vue`；`index.vue`（模組 `/`）改查 `"Source hunk: app/pages/index\.vue"`；marker 不一定在第 1 行，grep 整檔）
 
 再加上：本次 diff 裡的 spec 檔本身（新增的主 spec、新生成的 vibe spec）。
 
