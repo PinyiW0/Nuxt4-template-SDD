@@ -65,11 +65,13 @@ disable-model-invocation: true
    | 2 | 參數錯誤 | 停下報告，重試無用 |
    | 3 | 需人工介入（缺 `gh`／`jq`、找不到或撈到多個 reviewer bot） | 停下報告，重試無用 |
    | 其他 | 契約外的結束碼，代表腳本本身出了沒預期的狀況 | 停下報告。**不要當成 0 也不要當成可重試** |
-1b. **收 CI 結果**（全量 gate 搬到 CI 之後，這一步是唯一看得到「改 A 有沒有壞 B」的地方）：`gh pr checks <PR編號> --json name,bucket`，看 `e2e` job（production 全量）與其他 check：
+1b. **收 CI 結果**（全量 gate 搬到 CI 之後，這一步是唯一看得到「改 A 有沒有壞 B」的地方）：`gh pr checks <PR編號> --json name,bucket`，看 `e2e` job（production 全量）與其他 check。
+   **先驗錨點再看 bucket**：`gh run list --branch <branch> --workflow pull_request.yml --limit 1 --json headSha,status,conclusion`，`headSha` 要等於 `git rev-parse HEAD`——剛 push 完 Actions 還沒登記新 run 時，`gh pr checks` 會回**空陣列**或列出上一個 commit 的 check，空不等於全 pass：
 
    | `bucket` | 動作 |
    |---|---|
-   | 全部 `pass`（`skipping` 視同 pass） | 往下走 |
+   | 空結果、沒有 `e2e` 這個 check、或最新 run 的 `headSha` ≠ 目前 HEAD | 當 `pending`：本輪照常處理 review 留言，共識判定不成立 |
+   | 全部 `pass`（`skipping` 視同 pass）且 run 錨在目前 HEAD | 往下走 |
    | 有 `pending` | 本輪照常處理 review 留言；共識判定（第 5 節）在 CI 跑完前不成立 |
    | `cancel`（被 workflow 的 concurrency 取消，因為又 push 了一次） | 當「等新的 run」，不是紅燈，不計入煞車與問題指紋 |
    | `e2e` 的 `fail` | **列為本輪「必修」**，與 Copilot 留言一起走 4–9 步：讀 job log（或下載 artifact `playwright-report-gate`）找紅的 spec；修法照 `../vibe-check/SKILL.md` Step 4 分流——`specs/` 紅＝修 UI 不改 spec，`vibe/` 紅＝歸「待使用者決定」（鐵律 4）。**不重跑 CI 等它變綠**：config 在 CI 已 `retries: 1`，紅就是紅 |
@@ -129,7 +131,7 @@ disable-model-invocation: true
 
 1. Copilot review 是 `APPROVED`，或 body 明確表示沒問題（🟢 Approval recommended、No issues found），**且無新的 actionable 留言／suppressed comment，且該 review 錨在目前 HEAD**
 2. 連續兩輪 Copilot 沒有提出任何新問題（重複的舊問題不算新問題）
-3. **CI 全部 `pass`、錨在目前 HEAD**（第 1b 步的 `gh pr checks`；`pending` 就再等一輪，`cancel` 等新的 run）——review 共識但 CI 紅，不算共識，e2e 紅是必修
+3. **CI 全部 `pass`、錨在目前 HEAD**（第 1b 步：先用 `gh run list … --json headSha` 驗錨點，再看 `gh pr checks`；空結果或錨在舊 commit 都算 `pending`，再等一輪；`cancel` 等新的 run）——review 共識但 CI 紅，不算共識，e2e 紅是必修
 
 條件 2 不能省——Copilot 不保證會給 approve，可能一直停在 `COMMENTED`。
 
