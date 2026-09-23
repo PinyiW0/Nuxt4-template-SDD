@@ -237,10 +237,10 @@ doc/
 | server 安全慣例 | `.claude/hooks/server-security-guard.mjs`（PostToolUse） | 寫完 server 檔立刻檢查授權／輸入驗證 |
 | commit 訊息 | `.husky/commit-msg` + commitlint | 不符 Conventional Commits |
 | 機敏值進版控 | `.husky/pre-commit` | staged `.env*` 中 `KEY`／`SECRET`／`TOKEN`／`PASSWORD`／`CREDENTIAL` 有值 |
-| 業務合約回歸 | `.husky/pre-push`（＝ `npm run test:gate`） | 破壞 Business Invariant 的 push；只動文件／設定時自動略過 |
-| 環境會說謊 | `.github/workflows/pull_request.yml` | 本機過了但 CI 不過的（unit / build / lint / typecheck 都在 PR 上跑） |
+| 手滑推上壞掉的 app | `.husky/pre-push`（煙霧 spec，由該檔 `SMOKE_PATTERN` 定義，預設 `00-hydration`／`01-auth-guard`／`02-authz-scope`，dev server） | 整頁載不出來、auth／authz 守衛失效的 push；只動文件／設定時自動略過 |
+| 環境會說謊 | `.github/workflows/pull_request.yml` | 本機過了但 CI 不過的（unit / build / lint / typecheck ＋ **E2E gate 全量（production build）** 都在 PR 上跑） |
 
-兩道關的分工：**pre-push 防我手滑，CI 防我環境說謊。**
+兩道關的分工：**pre-push 防我手滑（煙霧），CI 防我環境說謊（全量 production）。** 本機 `/vibe-check` 預設只跑煙霧＋受影響的 spec，`/ship` 收尾跑一次 dev 全量。
 
 ### Vibe UI 守則（改 UI 必讀）
 
@@ -254,7 +254,7 @@ UI 可以自由微調——顏色、間距、layout、按鈕形式、table/card 
 
 **紅燈分流**是這裡最關鍵的一條：紅在 `test/e2e/specs/` ＝ 毀約，只能修產品、不能改測試；紅在 `test/e2e/vibe/` ＝ 行為變了，修產品或更新該 spec 都合法，由人拍板。合約保底線，紀錄保細節。
 
-三份 Playwright config：`playwright.config.ts`（主 spec）、`playwright.gate.config.ts`（守門＝主 spec＋vibe spec）、`playwright.vibe.config.ts`（只跑 vibe）。
+三份 Playwright config：`playwright.config.ts`（主 spec）、`playwright.gate.config.ts`（守門＝主 spec＋vibe spec）、`playwright.vibe.config.ts`（只跑 vibe）。本機入口預設定向（煙霧＋受影響 spec），`/vibe-check --full` 與 `/ship` 收尾跑 dev 全量，CI 跑 production 全量；分級判準在 `.claude/skills/vibe-check/SKILL.md`。
 
 ### 路徑觸發規範
 
@@ -329,7 +329,7 @@ npm run typelint       // 型別檢查（nuxi typecheck）
 npm run gen:api        // OpenAPI → API 型別（讀 spec/api/api-spec.yml）
 npm run test:unit      // Vitest 單元測試
 npm run test:e2e       // Playwright 主 E2E 合約（--headed／--ui 變體見 package.json）
-npm run test:gate      // 守門（主 spec＋vibe spec，pre-push 跑同一份）
+npm run test:gate      // 守門全量（主 spec＋vibe spec；/vibe-check --full 與 CI 跑這份，pre-push 只跑其中三支煙霧）
 npm run test:vibe      // 只跑 vibe spec
 ```
 
@@ -345,7 +345,7 @@ cd ../nuxt4-template-issue-40 && npm install
 - `.env` 是 git tracked，worktree checkout 自帶，無需手動複製
 - E2E dev server port 由 worktree 路徑自動推導（3100–3499，gate/vibe config 繼承同一 base 推導）：各 worktree 不互撞，同 worktree 重跑重用同一 server；萬一兩個 worktree 撞到同一個 port（機率 1/400），換個目錄名即換 port
 - port 隔離只管 E2E 起的 server；**手動 `npm run dev` 固定跑 3000**，多個 worktree 同時手動 dev 要自帶 port 錯開：`npm run dev -- --port 3001`
-- pre-push gate 走 Docker（`scripts/docker-gate.sh`，production build 隔離 + ephemeral port），多 session 同時 push 也不互撞；Docker 沒開時自動 fallback 本機模式並警告
+- pre-push 只跑煙霧 spec（per-worktree port 的 dev server，多 session 同時 push 不互撞）；production build 全量由 CI 跑，`scripts/docker-gate.sh` 留給 `/ship --prod-gate` 本機選配
 - 兩條線都動了 API 層時，`spec/report/route-map.yaml`（機器產的單檔 SoT）merge 必衝突：**不手動解衝突**——晚合併的分支先 rebase main，再重跑 `/feature-to-api` 重新產出
 - 收工清理：`git worktree remove ../nuxt4-template-issue-40`
 

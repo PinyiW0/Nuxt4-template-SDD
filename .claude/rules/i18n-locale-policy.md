@@ -11,7 +11,7 @@ paths:
 ## 測試語言：以 defaultLocale zh-TW 為準
 
 - E2E spec 的文字斷言一律以 defaultLocale（zh-TW）的文案為準。
-- zh-TW 翻譯檔（或未拆 i18n 前的硬編碼中文）是 spec 斷言來源，**視為程式碼**：改動必跑 gate，走一般程式碼驗證流程。
+- zh-TW 翻譯檔（或未拆 i18n 前的硬編碼中文）是 spec 斷言來源，**視為程式碼**：改動必跑（pre-push 煙霧不放行；`/vibe-check` 視為白名單外 → dev 全量；CI production 全量），走一般程式碼驗證流程。
 
 ## pre-push gate 白名單
 
@@ -27,4 +27,4 @@ paths:
 - **新增語系檔**（如 `ko.json`）：不用動白名單，整目錄放行已涵蓋。
 - **defaultLocale 換了**（不再是 zh-TW）：同步改 `.husky/pre-push` 的 `FORCE_TEST_PATTERN` 檔名，並確認 E2E 斷言文案來源跟著換。
 - **未來新增「語言切換」E2E 測試情境**：非預設語系檔屆時也會影響測試 → `SKIP_PATTERN` 中 `^i18n/locales/` 這條放行**必須整個拿掉**（`FORCE_TEST_PATTERN` 一併移除）。
-- **保守原則**：白名單只收「確定不影響測試」的路徑；判斷不了是否影響測試 → 不加白名單，照跑全套。
+- **保守原則**：白名單只收「確定不影響測試」的路徑；判斷不了是否影響測試 → 不加白名單，照跑（pre-push 煙霧、CI 全量）。
