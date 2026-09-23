@@ -140,7 +140,7 @@ fi
 
 - 頁 `app/pages/<seg>/…` → 模組 `<seg>`（頂層 `app/pages/x.vue` → `x`；`index.vue` → `/`）
 - 模組專屬元件 `app/components/<seg>/…`（Step 1 已確認 `app/pages/<seg>/` 存在）→ 同模組 `<seg>`
-- **第一段後面緊接動態段**（`app/pages/weddings/[weddingId]/rsvp/…`、`app/pages/practice/[practiceId]/pitch/…`）→ 第一段太粗（下游實測後台全擠在一段底下），模組取「第一段／第三段」＝ `weddings/rsvp`，查法裡的 URL 樣式對應寫成 `/weddings/[^/'\"]+/rsvp`
+- **第一段後面緊接動態段**（`app/pages/weddings/[weddingId]/rsvp/…`、`app/pages/practice/[practiceId]/pitch/…`）→ 第一段太粗（下游實測後台全擠在一段底下），模組取「第一段／第三段」＝ `weddings/rsvp`。這種模組下面三來源的 `<seg>` **不能照字面代入**，各自換成對應樣式：來源 1 用 `"page: app/pages/weddings/.*/rsvp"`；來源 2 的 URL 用 `weddings/[^/'\"]+/rsvp`（`goto\('/weddings/[^/'\"]+/rsvp|toHaveURL\(.*weddings/[^/'\"]+/rsvp|waitForURL\(.*weddings/[^/'\"]+/rsvp`，`Routes` key 取值以 `/weddings/` 開頭且含 `/rsvp` 的）；來源 3 的 marker 是檔案路徑、中間是 `[weddingId]` 目錄，用 `app/(pages|components)/weddings/\[[^]/]+\]/rsvp`。沒有第三段（`app/pages/practice/[practiceId].vue`）就取第一段 `practice`
 
 對每個模組 `<seg>`：
 
