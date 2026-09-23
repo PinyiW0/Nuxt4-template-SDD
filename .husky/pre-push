@@ -75,6 +75,13 @@ fi
 # SMOKE_PATTERN 是可手改的一行，打錯就是非法 ERE。grep -E 對非法 ERE 回 2，下方那行的 || true 會把 2 和「沒命中」的 1
 # 一起吞掉，變成印「沒有命中」然後 exit 0 放行——等於靜默關掉煙霧。所以先單獨驗一次，非法就 fail closed。
 # 判準是 exit code 2，不是「有沒有失敗」：合法 pattern 對空輸入回 1 是正常的（同 ledger.sh 的 ere_ok）。
+# 空字串也要擋：grep -E '' 命中所有 spec、Playwright 的空篩選等於整份 gate，煙霧會悄悄變成每次 push 跑全量；
+# 而 /vibe-check 抽到空值會改用模板預設，兩邊就不一致了。
+if [ -z "$SMOKE_PATTERN" ]; then
+  echo "❌ SMOKE_PATTERN 是空的，煙霧集合無從判定 → 拒絕 push。"
+  echo "   請在 .husky/pre-push 填回實際的煙霧檔名 regex（模板預設 'specs/(00-hydration|01-auth-guard|02-authz-scope)'）。"
+  exit 1
+fi
 ere_status=0
 printf '\n' | grep -E "$SMOKE_PATTERN" >/dev/null 2>&1 || ere_status=$?
 if [ "$ere_status" -eq 2 ]; then
