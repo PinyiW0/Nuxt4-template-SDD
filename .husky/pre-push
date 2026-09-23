@@ -97,8 +97,12 @@ fi
 
 # 煙霧 spec 由 /test e2e setup 產出（模板預設檔名見 SMOKE_PATTERN）。沒有任何檔命中 SMOKE_PATTERN
 # （setup 之前、或舊專案還沒改 SMOKE_PATTERN）→ 印警告放行；production 全量仍由 CI 守。
+# 比對對象要跟 Playwright 一樣：它把位置參數當 regex、對 spec 的「絕對路徑」比對、不分大小寫（實測：'^specs/x' 找不到、
+# '^/.*specs/x' 找得到、大寫也找得到）。所以這裡 find 用絕對路徑、grep 加 -i，同一個 pattern 在兩邊命中的檔才一致；
+# 用 ^ 錨定 specs/ 的 pattern 在兩邊都不會命中，別這樣寫。兩邊的 regex 方言不同（JS vs POSIX ERE），只用交集：
+# 分組、| 交替、字元集；\d、(?:…) 這類 JS 專屬寫法不要用。
 # 注意：目錄不存在時 find 回非 0、grep 沒命中回 1，sh -e 會觸發 errexit，故加 || true
-smoke_specs=$(find test/e2e/specs -name '*.spec.ts' 2>/dev/null | grep -E "$SMOKE_PATTERN" || true)
+smoke_specs=$(find "$PWD/test/e2e/specs" -name '*.spec.ts' 2>/dev/null | grep -iE "$SMOKE_PATTERN" || true)
 if [ -z "$smoke_specs" ]; then
   echo "⚠️  沒有 spec 檔命中 SMOKE_PATTERN（${SMOKE_PATTERN}）→ 跳過 pre-push 煙霧。"
   echo "   （跑過 /test e2e setup 後才會有；舊專案請把 SMOKE_PATTERN 改成實際的煙霧檔名。production 全量仍由 CI 的 e2e job 守。）"
