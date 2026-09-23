@@ -112,8 +112,9 @@ jobs:
           node .output/server/index.mjs > server.log 2>&1 &
           # 不用 curl -f：server 回任何 HTTP 狀態就算 ready。沒有根頁（路由從 /login 起）的專案打 / 會 404，
           # -f 會把它當成還沒起來、空等 60 秒後 job 失敗。還沒 listen 時 curl 連線被拒本身就回非 0，迴圈照常等。
+          # --max-time 5：接了連線卻不回應時 curl 會一直等，60 次迴圈就不是真正的上限；單次最多 5 秒。
           for i in $(seq 1 60); do
-            if curl -s -o /dev/null http://127.0.0.1:3000/; then
+            if curl -s --max-time 5 -o /dev/null http://127.0.0.1:3000/; then
               echo "server ready（${i}s）"
               exit 0
             fi

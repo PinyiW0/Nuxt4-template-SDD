@@ -56,7 +56,8 @@ i=0
 ready=0
 while [ "$i" -lt 60 ]; do
   # 不用 curl -f：回任何 HTTP 狀態就算 ready（沒有根頁的專案打 / 是 404，-f 會誤判成沒起來）。與 CI e2e job 同一寫法。
-  if curl -s -o /dev/null "$base_url/" 2>/dev/null; then
+  # --max-time 5：container 接了連線卻不回應時 curl 會一直等，迴圈次數就不是真正的上限；單次最多 5 秒。
+  if curl -s --max-time 5 -o /dev/null "$base_url/" 2>/dev/null; then
     ready=1
     break
   fi
