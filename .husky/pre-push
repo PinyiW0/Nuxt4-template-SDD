@@ -39,6 +39,29 @@ FORCE_TEST_PATTERN='^i18n/locales/zh-TW\.json$'
 # （例：'specs/(00-hydration|00-auth)'）。/vibe-check 用 sed 抽這一行當同一份判準，格式（單引號、一行）不可變。
 SMOKE_PATTERN='specs/(00-hydration|01-auth-guard|02-authz-scope)'
 
+# ── 設定自檢（一定放在下方「要不要跑」判定之前）──
+# .husky/ 本身在 SKIP_PATTERN 內：只改這個檔的 push 會走「跳過測試」那條路。自檢若放在那之後，
+# 把 pattern 改壞的那次 push 會直接推上去（CI 不跑 hook），之後每次 push 都靜默放行或跑錯集合。
+# 判準是 grep 的 exit code 2（非法 ERE）；合法 pattern 對空輸入回 1 是正常的（同 ledger.sh 的 ere_ok）。
+ere_ok() { rc=0; printf '' | grep -qE "$1" 2>/dev/null || rc=$?; [ "$rc" -le 1 ]; }
+# 空字串會反轉語意：grep -vE '' 把所有檔濾掉（永遠跳過測試）、grep -E '' 命中所有 spec（煙霧變整份 gate），
+# 而 /vibe-check 抽到空的 SMOKE_PATTERN 會改用模板預設，兩邊判準就不一致——一律擋下。FORCE_TEST_PATTERN 允許留空。
+for name in SKIP_PATTERN SMOKE_PATTERN; do
+  eval "val=\$$name"
+  if [ -z "$val" ]; then
+    echo "❌ ${name} 是空的 → 拒絕 push。請在 .husky/pre-push 填回實際的 regex（SMOKE_PATTERN 模板預設 'specs/(00-hydration|01-auth-guard|02-authz-scope)'）。"
+    exit 1
+  fi
+done
+for name in SKIP_PATTERN FORCE_TEST_PATTERN SMOKE_PATTERN; do
+  eval "val=\$$name"
+  if ! ere_ok "$val"; then
+    echo "❌ ${name} 不是合法的 ERE（${val}）→ 拒絕 push。"
+    echo "   請修正 .husky/pre-push 的 ${name} 那一行（/vibe-check 用 sed 抽同一份判準；ledger.sh 讀 SKIP／FORCE 兩行）。"
+    exit 1
+  fi
+done
+
 need_test=0
 
 # git 透過 stdin 傳入 <local_ref> <local_sha> <remote_ref> <remote_sha>
@@ -53,8 +76,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 
   files=$(git diff --name-only "$remote_sha" "$local_sha")
-  # 命中強制跑清單（defaultLocale 翻譯檔）→ 不看白名單，直接跑測試
-  if printf '%s\n' "$files" | grep -qE "$FORCE_TEST_PATTERN"; then
+  # 命中強制跑清單（defaultLocale 翻譯檔）→ 不看白名單，直接跑測試（留空＝沒有強制清單，不是「全部強制」）
+  if [ -n "$FORCE_TEST_PATTERN" ] && printf '%s\n' "$files" | grep -qE "$FORCE_TEST_PATTERN"; then
     need_test=1
     break
   fi
@@ -70,24 +93,6 @@ done
 if [ "$need_test" -eq 0 ]; then
   echo "✅ 本次 push 只動到非程式碼檔（.env／docs／docker／非預設語系翻譯檔等），不影響測試 → 跳過煙霧 spec。"
   exit 0
-fi
-
-# SMOKE_PATTERN 是可手改的一行，打錯就是非法 ERE。grep -E 對非法 ERE 回 2，下方那行的 || true 會把 2 和「沒命中」的 1
-# 一起吞掉，變成印「沒有命中」然後 exit 0 放行——等於靜默關掉煙霧。所以先單獨驗一次，非法就 fail closed。
-# 判準是 exit code 2，不是「有沒有失敗」：合法 pattern 對空輸入回 1 是正常的（同 ledger.sh 的 ere_ok）。
-# 空字串也要擋：grep -E '' 命中所有 spec、Playwright 的空篩選等於整份 gate，煙霧會悄悄變成每次 push 跑全量；
-# 而 /vibe-check 抽到空值會改用模板預設，兩邊就不一致了。
-if [ -z "$SMOKE_PATTERN" ]; then
-  echo "❌ SMOKE_PATTERN 是空的，煙霧集合無從判定 → 拒絕 push。"
-  echo "   請在 .husky/pre-push 填回實際的煙霧檔名 regex（模板預設 'specs/(00-hydration|01-auth-guard|02-authz-scope)'）。"
-  exit 1
-fi
-ere_status=0
-printf '\n' | grep -E "$SMOKE_PATTERN" >/dev/null 2>&1 || ere_status=$?
-if [ "$ere_status" -eq 2 ]; then
-  echo "❌ SMOKE_PATTERN 不是合法的 ERE（${SMOKE_PATTERN}），無法判定煙霧集合 → 拒絕 push。"
-  echo "   請修正 .husky/pre-push 的 SMOKE_PATTERN 那一行（/vibe-check 用 sed 抽同一行當煙霧判準；ledger.sh 只讀 SKIP／FORCE 兩行）。"
-  exit 1
 fi
 
 # 煙霧 spec 由 /test e2e setup 產出（模板預設檔名見 SMOKE_PATTERN）。沒有任何檔命中 SMOKE_PATTERN
