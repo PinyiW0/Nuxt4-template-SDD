@@ -1,9 +1,9 @@
 ---
 name: vibe-check
-description: Gate 守門 — 跑 playwright.gate.config.ts（主 spec + vibe spec）確認綠燈。紅燈時依路徑分流：specs/ 對照 flow.md invariant、vibe/ 明確告知使用者決定。Use when vibe 完想驗證業務合約與既有 vibe 行為沒踩線。
+description: Gate 守門 — 跑 playwright.gate.config.ts（主 spec + vibe spec）確認綠燈。預設定向（白名單內的改動只跑煙霧＋受影響 spec），`--full` 跑 dev 全量。紅燈時依路徑分流：specs/ 對照 flow.md invariant、vibe/ 明確告知使用者決定。Use when vibe 完想驗證業務合約與既有 vibe 行為沒踩線，或 /ship 收尾要跑 dev 全量。
 ---
 
-# Vibe Check — Gate 守門（v4）
+# Vibe Check — Gate 守門（v5：分級）
 
 ## 目的
 
@@ -13,21 +13,32 @@ description: Gate 守門 — 跑 playwright.gate.config.ts（主 spec + vibe spe
 
 主 spec 是 SSOT（Single Source of Truth），凍結，不可被任何 vibe 流程修改。vibe spec 不凍結（可由 `/vibe-e2e` 重生或使用者決定刪改），但 **/vibe-check 本身只報告、永遠不動它**。
 
-pre-push hook 跑的是同一份 gate config，但在 **Docker production build 內執行**（`scripts/docker-gate.sh`；Docker 不可用時 fallback 本機同款）——/vibe-check 綠燈 ≈ push 會過，dev/prod build 差異（SSR/prerender 等 prod-only 問題）屬極少數例外，由 Docker gate 提早抓出。
+## 分級（本檔是分級判準的 SSOT，其他 skill／rules 只引用不重列）
+
+| 級 | 跑什麼 | 誰跑 |
+|---|---|---|
+| 煙霧 | `.husky/pre-push` 的 `SMOKE_PATTERN` 那一行（模板預設 `specs/(00-hydration\|01-auth-guard\|02-authz-scope)`，setup 產出的三支固定檔名；舊專案依實際檔名改那一行） | `.husky/pre-push`；本檔預設模式一定帶 |
+| 定向 | 煙霧 ＋ 受影響的 spec（Step 2 三來源查法） | 本檔預設模式（白名單內）、review-loop／verify-ac／pr-feedback 修正輪、`/ship` 修復輪 |
+| dev 全量 | gate config 全部，本機 dev server | 本檔 `--full`；`/ship` L2（ledger 只認這級） |
+| production 全量 | gate config 全部，production build | CI `pull_request.yml` 的 `e2e` job；本機選配 `sh scripts/docker-gate.sh`（`/ship --prod-gate`） |
+
+**鐵律：只有整份 diff 都落在白名單內才定向，其餘一律全量。** 白名單 ＝ 本次 diff（merge-base 起、含未追蹤、濾掉 pre-push `SKIP_PATTERN`）**全部**落在 `app/pages/**`、`test/e2e/vibe/**`、`test/e2e/specs/**`，以及**模組專屬元件** `app/components/<seg>/**`（`app/pages/<seg>/` 目錄存在才算；下游實測元件多按模組歸屬，wedding-host 53% 的 commit 只影響單一模組）。碰到任何其他檔（頂層或非模組目錄的 `app/components`、`server/`、layouts、composables、stores、helpers、config、i18n zh-TW…）就是全量。AI 不判斷「要不要定向」，只查「白名單內的頁對哪幾支 spec」。
+
+**定向綠只代表選集，不算 gate 已驗**。commit 前跑定向即可；dev 全量由 `/ship` L2 跑一次，production 全量由 CI 跑。dev 全量與 production 全量不互相取代（hydration 守門只在 dev 生效）。
 
 ## 何時用
 
-- 每次 vibe UI 完，**第一步**先跑這個
+- 每次 vibe UI 完，**第一步**先跑這個（預設模式，一兩分鐘）
 - gate 綠燈才有資格往 `/vibe-setup`、`/vibe-e2e` 推進
-- 想單獨確認守門狀態（≈ pre-push 會不會過，執行環境差異見上方「目的」段）
+- `/ship` L2、或想單獨確認全量守門狀態 → `--full`（≈ CI 會不會過，dev／prod 差異見上表）
 
 ## 使用方式
 
 ```bash
-/vibe-check
+/vibe-check                       # 預設：白名單內 → 煙霧＋定向；白名單外 → dev 全量
+/vibe-check --full                # dev 全量（/ship L2 用這個）
+/vibe-check test/e2e/specs/07-xxx.spec.ts   # 額外指定 spec，併入定向選集
 ```
-
-無參數。永遠跑全量 gate spec。
 
 ---
 
@@ -42,6 +53,7 @@ pre-push hook 跑的是同一份 gate config，但在 **Docker production build 
 - 不可主動修 `app/` 程式碼（即使能修好違規也不行）
 - 不可主動 commit / push
 - **失敗時不可建議「改 spec 來配合 vibe」這類解法**，要建議「還原 vibe 改動」或「調整 vibe 讓它仍滿足業務 invariant」
+- **不可把定向綠報成「gate 已驗」**，報告首行必須標明範圍
 
 如果發現非破壞合約無法達成 vibe 目標，**停下來告訴使用者**，不要擅自處理。
 
@@ -49,9 +61,9 @@ pre-push hook 跑的是同一份 gate config，但在 **Docker production build 
 
 ## 流程
 
-### Step 1：跑 gate spec
+### Step 0：前置檢查（有沒有測試檔）
 
-**先確認 gate 範圍內有測試檔再跑**——Playwright 對「No tests found」回非 0，空模板直接跑裸指令會拿到 exit 1，但沒有任何可分流的失敗 spec（Step 2 的三個紅燈分支全都對不上）：
+Playwright 對「No tests found」回非 0，空模板直接跑裸指令會拿到 exit 1，但沒有任何可分流的失敗 spec：
 
 ```bash
 gate_specs=$(find test/e2e/specs test/e2e/vibe -name '*.spec.ts' -not -path '*/vibe/unstable/*' 2>/dev/null || true)
@@ -60,18 +72,101 @@ if [ -z "$gate_specs" ]; then
   echo "   （SDD 流程產出 spec 後，此 gate 才會真正守。）"
   exit 0
 fi
-npx playwright test --config playwright.gate.config.ts
 ```
 
-前置檢查與 `.husky/pre-push` 是**同一套邏輯**（該檔 `gate_specs` 段，含 `|| true` 的 errexit 處理）。兩個入口對「沒有測試檔」的判定必須一致——否則「/vibe-check 綠燈 ≈ push 會過」這個承諾在模板初始狀態就不成立。
+前置檢查與 `.husky/pre-push`、CI `e2e` job 是**同一套邏輯**（含 `|| true` 的 errexit 處理）。三個入口對「沒有測試檔」的判定必須一致。
 
 > **刻意不用 `--pass-with-no-tests`**：那會讓「config 壞掉導致收不到測試」也靜默綠燈，把守門失效偽裝成通過。前置檢查會大聲說出「沒有測試」，訊號強得多。
 
-有測試檔時：不用 fast、不用 diff 分類、不挑 module——全量跑（主 spec + vibe spec，排除 `vibe/unstable/`）。原因：gate 是守門合約，少跑一條都可能漏判；跟 pre-push 跑同一份 config（執行環境差異見「目的」段），這裡綠 ≈ push 會過。
+`$ARGUMENTS` 含 `--full` → 跳過 Step 1、2，直接到 Step 3 的全量指令。
 
-### Step 2：解析結果（依失敗 spec 路徑分流）
+### Step 1：白名單前置檢查（決定定向還是全量，不靠判斷）
 
-**無測試檔（Step 1 前置檢查已跳過，模板初始狀態的正常情形）**：
+```bash
+default=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); default=${default:-main}
+base=$(git merge-base HEAD "origin/$default" 2>/dev/null || true)
+skip=$(sed -n "s/^SKIP_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1)
+smoke=$(sed -n "s/^SMOKE_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1)
+[ -n "$smoke" ] || { smoke='specs/(00-hydration|01-auth-guard|02-authz-scope)'; echo "  ⚠️ pre-push 沒有 SMOKE_PATTERN 那行，先用模板預設；請補上"; }
+changed=$(
+  { [ -n "$base" ] && git diff "$base" --name-only 2>/dev/null
+    git ls-files -o --exclude-standard 2>/dev/null
+  } | sort -u
+)
+[ -n "$skip" ] && changed=$(printf '%s\n' "$changed" | grep -vE "$skip" || true)
+# 白名單：頁、spec，以及「模組專屬元件」app/components/<seg>/…（app/pages/<seg>/ 存在才算同模組）。
+# case 必須放在函式裡、不能直接寫在 $( ) 內——macOS 的 /bin/sh 是 bash 3.2，$( ) 內的 case 會被判語法錯誤（實測）。
+whitelisted() {
+  case "$1" in
+    ''|app/pages/*|test/e2e/vibe/*|test/e2e/specs/*) return 0 ;;
+    app/components/*/*) seg=${1#app/components/}; seg=${seg%%/*}; [ -d "app/pages/$seg" ] ;;
+    *) return 1 ;;
+  esac
+}
+outside=$(printf '%s\n' "$changed" | while IFS= read -r f; do whitelisted "$f" || printf '%s\n' "$f"; done)
+# 路由群組 (group) 與 catch-all [...slug] 推不出模組，一樣升全量——機械檢查，不靠讀 Step 2 的提醒
+dyn=$(printf '%s\n' "$changed" | grep -E '^app/pages/.*(\(|\[\.\.\.)' || true)
+if [ -z "$base" ] || [ -n "$outside" ] || [ -n "$dyn" ]; then
+  echo "MODE=full"; [ -z "$base" ] && echo "  算不出 merge-base"
+  printf '%s\n' "$outside" | sed '/^$/d; s/^/  白名單外：/'; printf '%s\n' "$dyn" | sed '/^$/d; s/^/  路由推不出模組：/'
+else
+  echo "MODE=targeted"; printf '%s\n' "$changed" | sed '/^$/d; s/^/  白名單內：/'
+fi
+```
+
+- `MODE=full` → Step 3 全量指令。第一個白名單外的檔就是報告要寫的理由
+- `MODE=targeted` → Step 2（`(group)`／`[...slug]` 頁的升全量已由上方 `dyn` 那行機械處理，Step 2 不必再判）
+- diff 的取法與 `/ship` 的 `ledger.sh` 同一套 union（含未追蹤的新檔），不要只看 `git diff HEAD`
+- 模組專屬元件的判定在上方 `case`：`app/components/<seg>/…` 且 `app/pages/<seg>/` 存在才算白名單內；頂層 `app/components/X.vue` 與找不到同名頁目錄的一律白名單外（真共用元件會影響多個模組，升全量是對的）
+
+### Step 2：定向查法（三來源聯集，只查片段、不整檔讀）
+
+先算模組：
+
+- 頁 `app/pages/<seg>/…` → 模組 `<seg>`（頂層 `app/pages/x.vue` → `x`；`index.vue` → `/`）
+- 模組專屬元件 `app/components/<seg>/…`（Step 1 已確認 `app/pages/<seg>/` 存在）→ 同模組 `<seg>`
+- **第一段後面緊接動態段**（`app/pages/weddings/[weddingId]/rsvp/…`、`app/pages/practice/[practiceId]/pitch/…`）→ 第一段太粗（下游實測後台全擠在一段底下），模組取「第一段／第三段」＝ `weddings/rsvp`，查法裡的 URL 樣式對應寫成 `/weddings/[^/'\"]+/rsvp`
+
+對每個模組 `<seg>`：
+
+1. **route-map**：`grep -n -B2 -A8 "page: app/pages/<seg>/" spec/report/route-map.yaml`（兩段模組用 `"page: app/pages/<seg>/.*/<sub>"`）→ 該路由 `features[].file` 前兩碼 NN → `test/e2e/specs/NN-*.spec.ts`。**不要 `cat` 整份 route-map**（幾十個路由的 YAML 一次就 5K token）。route-map 常過期（下游實測 12／33 頁不在裡面），它只是輔助，來源 2 才是主來源
+2. **spec 內文**（補「列表 spec 造訪詳情頁」這種跨頁 case，route-map 對不上的）：先從 `test/e2e/helpers/fixtures.ts` 的 `Routes` 表找出值以 `/<seg>` 開頭的 key，再 `grep -lE "Routes\.<key>|goto\('/<seg>|toHaveURL\(.*<seg>|waitForURL\(.*<seg>" test/e2e/specs/*.spec.ts test/e2e/vibe/*.spec.ts`
+3. **vibe marker**：`grep -lE "Source hunk: app/(pages|components)/<seg>/" test/e2e/vibe/*.spec.ts`（`unstable/` 不算；marker 不一定在第 1 行，grep 整檔）
+
+再加上：本次 diff 裡的 spec 檔本身（新增的主 spec、新生成的 vibe spec）。
+
+例外：
+
+- 三來源**全部零命中**（不論頁是新是舊）→ 只跑煙霧，報告警告「這一頁沒有任何 spec 在測」。**不升全量**——白名單已保證只動到頁面與模組專屬元件，其他模組的 spec 不會受影響，跑全量只是多等（wedding-host 實測：最近 30 個 commit 改的三個模組主 spec 覆蓋 0 支，每次卻跑 327 條）
+- 頁不在 route-map、或 route-map 登記的頁已不存在 → 只印提醒「route-map 過期，建議 `/feature-to-api` Sync」，**不影響分級**
+- `/login` 這種每支 spec 都會經過的模組，來源 2 會選中全部 → 自然等於全量，正確
+
+### Step 3：跑
+
+**定向**（一條指令、位置參數是對檔案路徑的 regex、彼此聯集；`--reporter=line` 只印失敗，通過的不刷版）：
+
+```bash
+# 每個 tool call 都是新 shell，Step 1 的 $smoke 不會活到這裡；sed 必須跟指令寫在同一條，且空值要給預設——
+# 空字串當位置參數會被 Playwright 編成恆真 regex，等於靜默跑全量、報告卻寫定向。
+smoke=$(sed -n "s/^SMOKE_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1); : "${smoke:=specs/(00-hydration|01-auth-guard|02-authz-scope)}"; \
+npx playwright test --config playwright.gate.config.ts --reporter=line \
+  "$smoke" \
+  test/e2e/specs/07-xxx.spec.ts test/e2e/vibe/interaction-xxx-toggle-1.spec.ts
+```
+
+跑完核對輸出的檔數與報告首行的「共 N 檔」一致——不一致代表 `$smoke` 空掉或 pattern 抽錯，不得照抄小選集數字。
+
+**全量**（`--full` 或 `MODE=full`；不加 `--reporter`，保留 config 的 list ＋ HTML 報告）：
+
+```bash
+npx playwright test --config playwright.gate.config.ts
+```
+
+**不用 `--last-failed`**：它與檔名篩選是 AND 不是聯集；缺 `.last-run.json` 時靜默不篩選（等於跑全量）；有檔但零失敗時 `No tests found` exit 1。要重跑上輪紅的，把檔名接在指令後面。
+
+### Step 4：解析結果（依失敗 spec 路徑分流）
+
+**無測試檔（Step 0 已跳過，模板初始狀態的正常情形）**：
 
 ```
 === Vibe Check 跳過 ===
@@ -79,7 +174,7 @@ npx playwright test --config playwright.gate.config.ts
 gate 範圍（test/e2e/specs｜vibe/*.spec.ts）尚無測試檔 → 未跑 gate。
 
 這不是失敗：SDD 流程尚未產出 spec，gate 沒有東西可守。
-pre-push 對此情形同樣放行（.husky/pre-push 前置檢查一致）。
+pre-push 與 CI e2e job 對此情形同樣放行（三處前置檢查一致）。
 
 下一步建議：
 - 要讓 gate 真正守起來 → 先跑 /test e2e spec 產出主 spec
@@ -88,19 +183,44 @@ pre-push 對此情形同樣放行（.husky/pre-push 前置檢查一致）。
 
 **不要**把這個情形報成紅燈，也**不要**為了「讓 gate 有東西跑」而去生測試檔——產 spec 是 `/test e2e` 的職責，不是 /vibe-check 的。
 
-**綠燈**：
+**報告首行固定標明範圍**，兩種寫法擇一，不可省：
 
 ```
-=== Vibe Check 通過 ===
+=== Vibe Check（定向）===
+範圍：煙霧 3 支 ＋ 定向 3 支（共 6 檔 / gate 全部 69 檔）
+選集與理由：
+  specs/07-查詢觀測站列表.spec.ts                ← route-map /stations → feature 07
+  specs/08-新增觀測站.spec.ts                    ← spec 內文 goto('/stations/new')
+  vibe/interaction-stations-toggle-1.spec.ts   ← Source hunk app/pages/stations/index.vue
+  specs/00-hydration、01-auth-guard、02-authz-scope ← 煙霧（SMOKE_PATTERN）
+⚠️ route-map 過期：app/pages/story/[weddingId].vue 不在 route-map（建議 /feature-to-api Sync；不影響分級）
+⚠️ app/pages/gallery/[weddingId]/index.vue 沒有任何 spec 在測——本次只靠煙霧守
+```
 
-主 spec：45/45 passed ✅（含 N skipped 為 spec 自身 .skip）
-vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
+```
+=== Vibe Check（全量）===
+範圍：gate 全部 69 檔。理由：--full ／ 白名單外：app/components/StationCard.vue
+```
 
-業務合約與既有 vibe 行為完整，vibe 改動沒踩線。pre-push 會過。
+**綠燈**（定向）：
+
+```
+定向 6/6 檔 passed ✅（含 N skipped 為 spec 自身 .skip）
+
+選集內的業務合約與 vibe 行為沒踩線。定向綠只代表選集：dev 全量由 /ship L2 跑，production 全量由 CI 跑。
 
 下一步建議：
 - 視 vibe 改動內容跑 /vibe-setup 做 UI 分層
 - 純 visual 改動可直接 commit
+```
+
+**綠燈**（全量）：
+
+```
+主 spec：45/45 passed ✅（含 N skipped 為 spec 自身 .skip）
+vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
+
+業務合約與既有 vibe 行為完整。dev 全量已驗，可 mark L2 green；CI 會再跑一次 production 全量。
 ```
 
 **紅燈——先看失敗的 spec 在哪個資料夾，兩種性質完全不同**：
@@ -134,7 +254,7 @@ vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
 2. ...
 
 下一步建議：
-- 請對照上方建議調整 vibe，調整後再跑 /vibe-check 驗證
+- 請對照上方建議調整 vibe，調整後再跑 /vibe-check 驗證（重跑時把紅的檔名接在指令後面）
 - 主 spec 紅燈時不要往 /vibe-setup、/vibe-e2e 推進
 ```
 
@@ -159,12 +279,13 @@ vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
 
 specs/ 與 vibe/ 同時紅時，A、B 兩區塊都要出，並提醒先處理 A（業務合約優先）。
 
-### Step 3：總結
+### Step 5：總結
 
 最後一行明確表態：
 
 - 無測試檔 → 「gate 尚無 spec 可守，已跳過（非失敗）；產出主 spec 後才會真正守」
-- 全綠 → 「業務合約與 vibe 行為守住，可繼續 /vibe-setup 或 commit（pre-push 會過）」
+- 定向全綠 → 「選集守住，可繼續 /vibe-setup 或 commit；dev 全量留給 /ship，production 全量由 CI 跑」
+- 全量全綠 → 「業務合約與 vibe 行為守住，dev 全量已驗（可 mark L2 green）」
 - specs/ 紅 → 「請對照上方建議調整 vibe，調整後再跑 /vibe-check」
 - vibe/ 紅 → 「請從上方選項選一個處理方式，我等你決定」
 
@@ -176,18 +297,19 @@ specs/ 與 vibe/ 同時紅時，A、B 兩區塊都要出，並提醒先處理 A�
 2. **失敗報告要可行動**：不只說「失敗」，要指出「對應 flow.md 哪一段」+「可能違反的 invariant」+「建議調整方向」
 3. **不過度推測**：UI 截圖能補上時要報告 Playwright 的 error context（截圖 / page snapshot），讓使用者直接看
 4. **遇到無法解決的根本衝突（如業務 invariant 與 PM 想要的 UX 互斥），停下來問使用者**，不擅自決定
-5. **保持最小職責**：不做 diff 分類、不生 spec、不改 vibe spec——產生與重生是 /vibe-e2e 的事，去留是使用者的事；/vibe-check 只跑與報告
+5. **保持最小職責**：不生 spec、不改 vibe spec——產生與重生是 /vibe-e2e 的事，去留是使用者的事；/vibe-check 只選、跑與報告
+6. **定向的判斷全在 Step 1 的 shell 與 Step 2 的 grep**，不憑印象挑 spec。升全量的條件只有 Step 1 的三種（白名單外、路由推不出模組、算不出 merge-base）；白名單內但三來源零命中 → 煙霧＋警告（Step 2 例外），不是升全量
 
 ---
 
 ## 與相關 skill 的關係
 
 ```
-/vibe-check    （這個 skill）跑 gate spec（主 + vibe），回報 pass/fail（與 pre-push 同一份 config）
+/vibe-check    （這個 skill）預設定向、--full 全量，回報 pass/fail 並標明範圍
    ↓ green 才繼續
 /vibe-setup    git diff → 分類為 visual / 互動 / 結構，產出分層報告
    ↓
-/vibe-e2e      依分層 pattern-driven 產生 vibe spec → 跑 vibe spec → 回報
+/vibe-e2e      依分層 pattern-driven 產生 vibe spec → 只跑本次新檔 → 回報
 ```
 
-三個 skill 各自獨立，使用者按順序呼叫。/vibe-check 不會自動呼叫下游，也不該被下游呼叫。
+三個 skill 各自獨立，使用者按順序呼叫。/vibe-check 不會自動呼叫下游，也不該被下游呼叫。`/ship` 以 Skill tool 帶 `--full` 呼叫本 skill 當 L2。

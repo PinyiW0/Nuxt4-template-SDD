@@ -114,7 +114,7 @@ git ls-files -o --exclude-standard                                # 未追蹤的
 
 1. 挑本輪要修的 Fail 條目，說明打算怎麼修
 2. 改檔（授權邊界見下）
-3. 跑驗證：`npm run eslint` + `npm run typelint`；動到 `app/`／`server/` 另跑 gate config（`npm run test:gate`）
+3. 跑驗證：`npm run eslint` + `npm run typelint`；動到 `app/`／`server/` 另跑**煙霧＋該條 AC 對應的 spec**（一條指令、位置參數聯集、加 `--reporter=line`，例：`npx playwright test --config playwright.gate.config.ts --reporter=line 'specs/(00-hydration|01-auth-guard|02-authz-scope)' test/e2e/specs/07-xxx.spec.ts`；spec 怎麼挑見 `.claude/skills/vibe-check/SKILL.md`「定向查法」）。全量不在這裡跑：由 push 後 CI 的 production 全量與 `/ship` L2 的 dev 全量承接
 4. 重驗該條，更新判定
 
 **授權邊界**（超出就停下來問，不自行擴權）：
