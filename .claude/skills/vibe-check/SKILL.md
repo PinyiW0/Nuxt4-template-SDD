@@ -89,6 +89,12 @@ skip=$(sed -n "s/^SKIP_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1)
 force=$(sed -n "s/^FORCE_TEST_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1)
 smoke=$(sed -n "s/^SMOKE_PATTERN='\(.*\)'\$/\1/p" .husky/pre-push | head -1)
 [ -n "$smoke" ] || { smoke='specs/(00-hydration|01-auth-guard|02-authz-scope)'; echo "  ⚠️ pre-push 沒有 SMOKE_PATTERN 那行，先用模板預設；請補上"; }
+# SKIP／FORCE 是可手改的 ERE。非法時 grep 回 2，下面的 || true 會把它變成空 diff → 誤判成定向（fail open）。
+# 同 ledger.sh 的 ere_ok：只有 exit 2 算非法（合法 pattern 對空輸入回 1 是正常的）；非法就直接升全量。
+ere_ok() { rc=0; printf '' | grep -qE "$1" 2>/dev/null || rc=$?; [ "$rc" -le 1 ]; }
+ere_bad=''
+ere_ok "$skip" || ere_bad="SKIP_PATTERN"
+{ [ -z "$force" ] || ere_ok "$force"; } || ere_bad="${ere_bad:+$ere_bad、}FORCE_TEST_PATTERN"
 changed=$(
   { [ -n "$base" ] && git diff "$base" --name-only 2>/dev/null
     git ls-files -o --exclude-standard 2>/dev/null
@@ -111,8 +117,9 @@ whitelisted() {
 outside=$(printf '%s\n' "$changed" | while IFS= read -r f; do whitelisted "$f" || printf '%s\n' "$f"; done)
 # 路由群組 (group) 與 catch-all [...slug] 推不出模組，一樣升全量——機械檢查，不靠讀 Step 2 的提醒
 dyn=$(printf '%s\n' "$changed" | grep -E '^app/pages/.*(\(|\[\.\.\.)' || true)
-if [ -z "$base" ] || [ -n "$outside" ] || [ -n "$dyn" ]; then
+if [ -n "$ere_bad" ] || [ -z "$base" ] || [ -n "$outside" ] || [ -n "$dyn" ]; then
   echo "MODE=full"; [ -z "$base" ] && echo "  算不出 merge-base"
+  [ -n "$ere_bad" ] && echo "  pre-push 的 ${ere_bad} 不是合法 ERE，diff 無法可信地過濾 → 升全量；請修正 .husky/pre-push 那一行"
   printf '%s\n' "$outside" | sed '/^$/d; s/^/  白名單外：/'; printf '%s\n' "$dyn" | sed '/^$/d; s/^/  路由推不出模組：/'
 else
   echo "MODE=targeted"; printf '%s\n' "$changed" | sed '/^$/d; s/^/  白名單內：/'
@@ -123,6 +130,7 @@ fi
 - `MODE=targeted` → Step 2（`(group)`／`[...slug]` 頁的升全量已由上方 `dyn` 那行機械處理，Step 2 不必再判）
 - diff 的取法與 `/ship` 的 `ledger.sh` 同一套 union（含未追蹤的新檔），不要只看 `git diff HEAD`
 - `FORCE_TEST_PATTERN` 也從 pre-push 抽：被 `SKIP_PATTERN` 放行的目錄裡，defaultLocale 翻譯檔要拉回 diff；它不在白名單 → 全量（`rules/i18n-locale-policy.md`）
+- 兩個 pattern 先驗是不是合法 ERE（`ere_ok`，判準同 `ledger.sh`）：非法一律 `MODE=full`，不讓壞掉的 pattern 把 app diff 濾成空的然後報「定向」
 - 模組專屬元件的判定在上方 `case`：`app/components/<seg>/…` 且 `app/pages/<seg>/` 存在才算白名單內；頂層 `app/components/X.vue` 與找不到同名頁目錄的一律白名單外（真共用元件會影響多個模組，升全量是對的）
 
 ### Step 2：定向查法（三來源聯集，只查片段、不整檔讀）
