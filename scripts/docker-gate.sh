@@ -39,7 +39,9 @@ echo "🐳 [2/4] Run container（ephemeral port，僅綁 127.0.0.1）…"
 # 沒有這個旗標每支 spec 的 beforeEach 會先炸。只在 gate 容器設，部署環境不得設。
 # 有 auth scaffold 的專案：server/plugins/00.security-guard.ts 在 production 對 REQUIRED_SECRETS fail-fast，
 # 在下方再加 -e <key>=<假值> 逐個給（假值不得等於範本的 devDefault 字串，否則一樣拒啟）。
-docker run -d --rm --name "$container" -e NUXT_E2E_RESET=true -p 127.0.0.1::3000 "$image" >/dev/null
+# NUXT_PUBLIC_API_BASE=/api：E2E_BASE_URL 模式下 playwright.config.ts 不掛 webServer，那裡 webServer.env 鎖 /api 的保險套不到
+# container；下游若把 runtimeConfig.public.apiBase 設成外部網址，測試會繞出 container 打錯的後端。與 CI e2e job 同一行。
+docker run -d --rm --name "$container" -e NUXT_E2E_RESET=true -e NUXT_PUBLIC_API_BASE=/api -p 127.0.0.1::3000 "$image" >/dev/null
 
 # 查 Docker 分配到的 host port（輸出形如 127.0.0.1:54321，可能含 IPv6 行，取第一行）
 port=$(docker port "$container" 3000/tcp | head -n1 | awk -F: '{print $NF}')
