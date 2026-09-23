@@ -72,6 +72,17 @@ if [ "$need_test" -eq 0 ]; then
   exit 0
 fi
 
+# SMOKE_PATTERN 是可手改的一行，打錯就是非法 ERE。grep -E 對非法 ERE 回 2，下方那行的 || true 會把 2 和「沒命中」的 1
+# 一起吞掉，變成印「沒有命中」然後 exit 0 放行——等於靜默關掉煙霧。所以先單獨驗一次，非法就 fail closed。
+# 判準是 exit code 2，不是「有沒有失敗」：合法 pattern 對空輸入回 1 是正常的（同 ledger.sh 的 ere_ok）。
+ere_status=0
+printf '\n' | grep -E "$SMOKE_PATTERN" >/dev/null 2>&1 || ere_status=$?
+if [ "$ere_status" -eq 2 ]; then
+  echo "❌ SMOKE_PATTERN 不是合法的 ERE（${SMOKE_PATTERN}），無法判定煙霧集合 → 拒絕 push。"
+  echo "   請修正 .husky/pre-push 的 SMOKE_PATTERN 那一行（/vibe-check 與 ledger.sh 讀的是同一行）。"
+  exit 1
+fi
+
 # 煙霧 spec 由 /test e2e setup 產出（模板預設檔名見 SMOKE_PATTERN）。沒有任何檔命中 SMOKE_PATTERN
 # （setup 之前、或舊專案還沒改 SMOKE_PATTERN）→ 印警告放行；production 全量仍由 CI 守。
 # 注意：目錄不存在時 find 回非 0、grep 沒命中回 1，sh -e 會觸發 errexit，故加 || true
