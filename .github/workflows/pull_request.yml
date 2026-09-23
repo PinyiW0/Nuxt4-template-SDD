@@ -102,6 +102,10 @@ jobs:
         if: steps.specs.outputs.has_specs == 'true'
         env:
           NUXT_E2E_RESET: 'true'
+          # E2E_BASE_URL 模式下 config 不掛 webServer，playwright.config.ts 裡 webServer.env 的 NUXT_PUBLIC_API_BASE=/api
+          # 這道保險套不到這裡起的 server，所以在此明鎖（值要與 playwright.config.ts 那一行一致）。E2E 只能打本機 Nitro mock
+          # （beforeEach 的 /api/__test__/reset 只有 mock 有）；衍生專案若在 CI 環境設了正式 API 網址，沒這行測試會打出去。
+          NUXT_PUBLIC_API_BASE: /api
           HOST: 127.0.0.1
           PORT: '3000'
         run: |
@@ -117,7 +121,8 @@ jobs:
           tail -n 50 server.log
           exit 1
 
-      # config 在 CI 自動 retries: 1——一次紅、重跑綠的測試會標成 flaky，不會讓 job 紅；flaky 看 artifact 的 HTML 報告。
+      # config 在 CI 自動 retries: 1——一次紅、重跑綠的測試會標成 flaky，不會讓 job 紅；flaky 看 artifact 的 HTML 報告
+      # （下方不分紅綠都上傳，才拿得到綠 job 裡的 flaky 紀錄）。
       # E2E_BASE_URL 存在時 config 不掛 webServer，直接打上面起好的 production server。
       - name: E2E gate (production build, full)
         if: steps.specs.outputs.has_specs == 'true'
@@ -125,10 +130,14 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:3000
         run: npm run test:gate
 
+      # 不分紅綠都上傳：flaky（一紅一綠）時 job 是綠的，只在 failure() 上傳會拿不到上面承諾的報告。
+      # 用 !cancelled() 不用 always()：被 concurrency 取消的 run 沒有必要上傳。
       - name: Upload gate report
-        if: failure() && steps.specs.outputs.has_specs == 'true'
+        if: ${{ !cancelled() && steps.specs.outputs.has_specs == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report-gate
           path: playwright-report-gate/
           retention-days: 7
+          # E2E 之前的步驟（build／起 server）先失敗時沒有報告目錄，不要為此再多一條警告
+          if-no-files-found: ignore
