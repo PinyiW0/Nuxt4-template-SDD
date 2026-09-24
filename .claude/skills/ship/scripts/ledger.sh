@@ -14,6 +14,7 @@
 #                                            L2 green 必須帶第 4 個參數 full（dev 全量），定向綠改記 targeted
 #   ledger.sh round <key>                    累加該 key 的修正輪次；超過上限回 exit 2
 #   ledger.sh fresh                          作廢整份 ledger（環境有變、想強制重跑時用）
+#   ledger.sh close                          一趟 /ship 送出完成時歸零輪次帳（停下交還時由使用者決定）
 set -eu
 
 DIR=".claude/tmp/ship"
@@ -22,6 +23,8 @@ LEDGER="$DIR/ledger.tsv"
 # 跟 ledger 放同一個檔的話，切分支或 --fresh 這種純快取操作會順手把上限一起清掉，
 # 卡在上限的迴圈只要跑一次 --fresh 就解鎖了。
 ROUNDS="$DIR/rounds.tsv"
+# 上一趟的輪次帳留一份供診斷；只有 close 會寫它，判定永遠不讀
+ROUNDS_PREV="$DIR/rounds.prev.tsv"
 
 # 這串是不是合法的 ERE。grep 的約定：0=有比對到、1=沒比對到、2=pattern 有問題。
 ere_ok() {
@@ -227,6 +230,8 @@ cmd_mark() {
 # 輪次帳。上限規則靠對話記憶撐不住（session compact 後就沒了），存進 ledger 才算數。
 # 計數刻意不依分支過濾：上限是安全閥，切分支重開一個 key 就能繞過就失去意義。
 # 分支欄位只留著供診斷（見下方寫入行），不參與判定。
+# 計數單位是「一趟 /ship」：歸零只靠 close（送出完成時呼叫；停點停下時交給使用者決定），切分支、fresh、compact 都不歸零。
+# 沒有 close 的話 rounds.tsv 只增不減，同一個工作目錄累計滿 4 輪後 /ship 的自動修永久失效（issue #154）。
 cmd_round() {
   ensure_ledger
   mkdir -p "$DIR"; [ -f "$ROUNDS" ] || : > "$ROUNDS"
@@ -257,6 +262,7 @@ case "${1:-}" in
   plan)   cmd_plan ;;
   mark)   shift; cmd_mark "${1:?layer}" "${2:?status}" "${3:-}" "${4:-}" ;;
   round)  shift; cmd_round "${1:?usage: ledger.sh round <key>}" ;;
+  close)  if [ -f "$ROUNDS" ]; then mv "$ROUNDS" "$ROUNDS_PREV"; echo "輪次帳已歸零（上一趟留在 $ROUNDS_PREV 供診斷）"; else echo "本趟沒有修正輪次，無需歸零"; fi ;;
   fresh)  rm -f "$LEDGER"; echo "ledger 已作廢，下輪全部重跑（輪次上限不受影響，那是安全閥不是快取）" ;;
   l2)     l2_should_run ;;
   *)      sed -n '2,15p' "$0"; exit 1 ;;
