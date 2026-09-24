@@ -283,6 +283,9 @@ Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatc
   （session 一被 compact 就沒了），存進 ledger 才算數——這是「隨做隨存」
 - 第 2 輪派工前：**錯法相同** → 帶完整失敗軌跡升 opus；**錯法不同** → 不升級，補驗收條件重派
 - 第 2 輪仍紅 → 停，附完整失敗軌跡。**禁止第 3 輪同法重試**
+- **送出完成才歸零**：路線 A 的 Phase 5 寫完 issue、路線 B 的 B4 補發完決策留言，最後一步跑 `sh .claude/skills/ship/scripts/ledger.sh close`（兩處的指令清單都已列入）。
+  **停點表任一列停下交還時不跑**——第 3、4 列本身就是上限觸發的停點，停下就清等於上限形同虛設；停下的回報要附一句「輪次帳未歸零；確認要重新給額度，請自己跑 `sh .claude/skills/ship/scripts/ledger.sh close`」，由使用者決定。
+  中途切分支、`--fresh`、session 被 compact 也都不跑
 
 **命中 `.claude/ops/judgment-rubrics.md` 第 4 節換路訊號就直接停，不用等第 2 輪跑完**：修 A 壞 B、假設被證偽、同錯重現、
 或發現自己在想「加 `eslint-disable`／`@ts-ignore` 讓它綠」。最後這條在編排模式下更危險——沒有人在看中間過程。
@@ -400,6 +403,12 @@ if [ -f .claude/tmp/ship/decisions-<issue 編號>.md ]; then gh issue comment <i
     # 不可拆成獨立的 rm，那會在留言失敗時刪掉唯一的持久化副本；也不要寫回 `[ -f … ] && …`，沒有檔時整條會回 1
 ```
 
+三個 issue 寫入都完成後，最後一步歸零輪次（見 Phase 3「輪次帳」）：
+
+```
+sh .claude/skills/ship/scripts/ledger.sh close
+```
+
 **pre-push 紅燈時停，不進自動修迴圈**——L2 dev 全量綠、煙霧卻紅，屬於「假設被證偽」，
 該換路不該重試（`.claude/ops/judgment-rubrics.md` 第 4 節）。PR 開了之後 CI 的 e2e job（production 全量）紅，
 交給 `/review-loop`（它把 CI 紅列為必修）或路線 B 處理。
@@ -416,7 +425,7 @@ if [ -f .claude/tmp/ship/decisions-<issue 編號>.md ]; then gh issue comment <i
 | B1 | 「必修」類**在 B3 草案上預先勾選，確認後才動手改**；「可選／不修」列進草案不預選 |
 | B2 | 改完照 `../pr-feedback/SKILL.md` 步驟 6 自查 diff → 跑品質關卡（scope 只含本次改的檔）→ 自動修迴圈 |
 | B3 | **唯一停點**：改了哪幾條、每條改在哪個檔、沒改的可選項、commit 分群、要不要 push |
-| B4 | 逐群 commit → `git push`（**不重開 PR**，`../pr/SKILL.md` 步驟 1 已定義「已有 OPEN PR → 只 push 更新」）→ 有殘留決策檔時照「路線判定」段補發 |
+| B4 | 逐群 commit → `git push`（**不重開 PR**，`../pr/SKILL.md` 步驟 1 已定義「已有 OPEN PR → 只 push 更新」）→ 有殘留決策檔時照「路線判定」段補發 → push 成功後跑 `sh .claude/skills/ship/scripts/ledger.sh close` 歸零輪次 |
 
 **重跑範圍照這個判準**（與使用者的審查關卡地圖同一套，不自創）：
 小改動 → 重跑 L1／L15，動到 `app/`／`server/` 再加「煙霧＋該 finding 對應的 spec」一條指令，就進 commit（production 全量由 push 後的 CI 跑）；改動大 → 從 L5 `/code-review` 整段重走；沒改動 → 回報可以 merge。
