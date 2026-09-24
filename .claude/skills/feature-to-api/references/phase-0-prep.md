@@ -235,7 +235,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
 
 走下方「全量模式執行步驟」，但有三個必改：
 
-- **欄位命名 camelCase**（不再 snake_case）
+- **欄位命名 camelCase**（不用 snake_case）
 - **型別命名分 Event / ListItem / Body / Detail**（見 `openapi-conventions.md` § 1）
 - **mock 端點回應模式依 openapi-conventions §3**（預設模式 A envelope；Phase 1 負責實作，這邊先在 `route-map.yaml > response_conventions` 標明判定結果；絕不自創 `{ status, data }` 包裝）
 
@@ -260,7 +260,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
    - 根據 feature 分析結果，直接建立 TypeScript 型別定義檔
    - 每個資源一個檔案（如 `sites.ts`、`auth.ts`）
    - 建立 `index.ts` 統一 re-export
-   - ⚠️ **欄位命名使用 `camelCase`**（對齊 OpenAPI 慣例，未來與 `api-spec.yml` 無痛對接；不再用 snake_case）
+   - ⚠️ **欄位命名使用 `camelCase`**（對齊 OpenAPI 慣例，未來與 `api-spec.yml` 無痛對接；不用 snake_case）
    - ⚠️ **型別命名分 Event / ListItem / Body / Detail**，見 `openapi-conventions.md` § 1
    - ⚠️ 日期欄位使用 `string`（JSON 不支援 `Date`）
    - ⚠️ **必須建在 `app/types/api/`**，Nuxt 4 的 `~` 別名解析到 `app/`

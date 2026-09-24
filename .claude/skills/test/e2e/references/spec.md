@@ -10,7 +10,7 @@
 
 ## ⚠️ v2 抽象化原則（先讀）
 
-v2 起，`.spec.ts` 從「testid 主導」改為「**business outcome 主導**」。`.flow.md` 已用 v2 風格描述 business invariants 與 Selector 策略，spec.ts **必須對齊該風格**，不可越權加 testid 斷言或硬鎖具體值。
+`.spec.ts` 以 **business outcome** 為主導，testid 只是 fallback。`.flow.md` 用同一風格描述 business invariants 與 Selector 策略，spec.ts **必須對齊該風格**，不可越權加 testid 斷言或硬鎖具體值。
 
 定位優先序：
 

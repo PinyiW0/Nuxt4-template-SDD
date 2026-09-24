@@ -11,7 +11,7 @@
 >
 > **唯二例外——刻意保留真名，因為它們是「契約本身」而非領域範例**：
 > - **envelope 契約**：`SuccessEnvelope` / `PaginatedSuccessEnvelope` / `ErrorEnvelope`。`useHttp` 的拆封行為就綁在這個形狀上（見 `openapi-conventions.md § 3`）——改名會讓範例與實際 composable 對不上。
-> - **auth 契約**：`TokenPairData` 與 `POST /api/v1/auth/login`。刻意沿用通用登入慣例、不改端點名。（`phase-1-5-client-api.md` 也用同一個端點，但該檔的領域聲明**尚未**寫明這條例外、目前仍概括地說「不是本專案的實際端點」——那句對其登入範例而言為偽，補聲明追蹤見 issue #103 §8。）
+> - **auth 契約**：`TokenPairData` 與 `POST /api/v1/auth/login`。刻意沿用通用登入慣例、不改端點名（`phase-1-5-client-api.md` 用同一個端點，並已聲明同一條例外）。
 
 ---
 

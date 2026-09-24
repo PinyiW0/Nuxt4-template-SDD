@@ -25,12 +25,7 @@ argument-hint: "[component-name]"
 
 ## 使用指引
 
-當回答 NuxtUI 相關問題時：
-
-1. 從上方文檔中查找相關組件或 API
-2. 提供具體的程式碼範例
-3. 說明組件的 props、events 和 slots
-4. 指出樣式定制選項（config、class）
+以上方文檔為準回答 NuxtUI 問題，不憑記憶的舊版 API。
 
 ---
 

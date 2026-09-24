@@ -153,7 +153,7 @@ export default defineEventHandler(async (event: H3Event) => {
 })
 ```
 
-`nuxt.config.ts` 要有私有鍵 `runtimeConfig.e2eReset: false`（模板已內建；#150 之前建立的專案要補上，否則 `useRuntimeConfig(event).e2eReset` 型別推不出來）。
+`nuxt.config.ts` 要有私有鍵 `runtimeConfig.e2eReset: false`（模板已內建；專案的 nuxt.config 缺這個鍵就補上，否則 `useRuntimeConfig(event).e2eReset` 型別推不出來）。
 型別由 Nuxt 從 nuxt.config 推導，端點內直接是 boolean，不必自己轉。
 
 > 若 `server/mock/data/index.ts` 尚無 `resetMockData()`，需新增，並支援 `{ empty?: string[] }`：

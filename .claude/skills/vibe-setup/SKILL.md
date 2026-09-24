@@ -82,7 +82,7 @@ git diff <base> -- app/pages/ app/components/ app/layouts/ \
 - **白名單內**：合法（主 spec 認得這個 testid，是合約的一部分）
 - **白名單外**：**本次 vibe 新增的**孤兒 testid 候選
 
-> **為什麼只看 diff 新增**：UI 存量已有大量 v1 cycle 1 殘留的 dead testid（v2 抽象化遷移之前產出，主 spec 不再引用）。這些是 tech debt 不是本次 vibe 的責任。每次 vibe 報告**只關心本次 vibe 引入的新孤兒**，避免報告被存量淹沒。
+> **為什麼只看 diff 新增**：UI 存量已有大量主 spec 沒引用的 dead testid。這些是 tech debt 不是本次 vibe 的責任。每次 vibe 報告**只關心本次 vibe 引入的新孤兒**，避免報告被存量淹沒。
 >
 > 若要全面盤點存量 dead testid（清理 tech debt 用），請另跑 inventory script，不要塞進 vibe-setup 報告。
 
