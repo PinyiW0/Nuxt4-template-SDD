@@ -68,12 +68,14 @@ repo_slug() {
 #   GraphQL review author      → copilot-pull-request-reviewer
 #   REST /pulls/N/reviews      → copilot-pull-request-reviewer[bot]
 #   REST /pulls/N/comments     → Copilot
-# 所以比對 login 而非硬編字串。但只用 contains("copilot") 太寬，會撈到 copilot-swe-agent
-# 這類「另一個 copilot bot」——請錯 bot 一樣回成功，然後 review 永遠不會來。
-# bot_id 與 list_reviews 一律共用下面這條判準：type 是 Bot ＋ login 命中 copilot.*review。
+# 所以比對 login 要用精確白名單（與 SKILL.md 鐵律 2 同一份），不用 contains／正則：
+# contains("copilot") 或 test("copilot.*review") 都會撈到 copilot-swe-agent(-review) 這類
+# 「另一個 copilot bot」——請錯 bot 一樣回成功，然後 review 永遠不會來。
+# bot_id 與 list_reviews 一律共用下面這條判準：type 是 Bot ＋ login 在白名單內（大小寫須完全相同）。
 # 查 review 用 last:50 而非 first:50——要的是「近期有沒有這個 bot」，而 review 數會被本工作流
 # 自己催高（每輪一則 Copilot review 加一則我方回覆），取最舊的 50 筆遲早會漏掉 bot。
-# （comments 端點的短 login "Copilot" 不適用此式，本腳本沒有用到那個端點。）
+# 白名單含 comments 端點的短 login "Copilot"，本腳本沒用到該端點，列入是為了與鐵律 2 一字不差。
+COPILOT_LOGINS='["Copilot","copilot-pull-request-reviewer","copilot-pull-request-reviewer[bot]"]'
 bot_id() {
   slug="$(repo_slug)" || exit $?
   owner="${slug%%/*}"; name="${slug##*/}"
@@ -86,8 +88,9 @@ bot_id() {
         }
       }
     }' --jq '
-      [ .data.repository.pullRequests.nodes[].reviews.nodes[].author
-        | select(.__typename == "Bot" and (.login | ascii_downcase | test("copilot.*review")))
+      '"$COPILOT_LOGINS"' as $logins
+      | [ .data.repository.pullRequests.nodes[].reviews.nodes[].author
+        | select(.__typename == "Bot" and (.login | IN($logins[])))
         | .id ] | unique | .[]')"; then
     die 1 "查 bot id 失敗（gh api graphql）。可重試。"
   fi
@@ -151,12 +154,12 @@ list_reviews() {
 
   # --paginate 會把每頁各吐一個陣列，所以要 -s 併起來。
   # since 走 --argjson 傳參，不做字串內插——內插會讓狀態檔的內容變成可執行的 jq 運算式。
-  if ! printf '%s' "$raw" | jq -s --argjson since "$since" '
+  if ! printf '%s' "$raw" | jq -s --argjson since "$since" --argjson logins "$COPILOT_LOGINS" '
         [ .[]
           | if type == "array" then . else error("GitHub API 回傳非陣列：" + tostring) end
           | .[]
           | select(.user.type == "Bot"
-                   and (.user.login | ascii_downcase | test("copilot.*review"))
+                   and (.user.login | IN($logins[]))
                    and .id > $since)
           | {id, state, submitted_at, commit_id, body} ]'; then
     die 1 "review 資料解析失敗（回應不是預期的陣列）。可重試。"
