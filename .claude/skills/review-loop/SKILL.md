@@ -66,7 +66,7 @@ disable-model-invocation: true
    | 3 | 需人工介入（缺 `gh`／`jq`、找不到或撈到多個 reviewer bot） | 停下報告，重試無用 |
    | 其他 | 契約外的結束碼，代表腳本本身出了沒預期的狀況 | 停下報告。**不要當成 0 也不要當成可重試** |
 1b. **收 CI 結果**（全量 gate 搬到 CI 之後，這一步是唯一看得到「改 A 有沒有壞 B」的地方）：`gh pr checks <PR編號> --json name,bucket`，看 `e2e` job（production 全量）與其他 check。
-   **先驗錨點再看 bucket**：`gh run list --branch <branch> --workflow pull_request.yml --limit 1 --json headSha,status,conclusion`，`headSha` 要等於 `git rev-parse HEAD`——剛 push 完 Actions 還沒登記新 run 時，`gh pr checks` 會回**空陣列**或列出上一個 commit 的 check，空不等於全 pass：
+   **先驗錨點再看 bucket**：`gh run list --branch '<branch>' --workflow pull_request.yml --limit 1 --json headSha,status,conclusion`，`headSha` 要等於 `git rev-parse HEAD`——剛 push 完 Actions 還沒登記新 run 時，`gh pr checks` 會回**空陣列**或列出上一個 commit 的 check，空不等於全 pass：
 
    | `bucket` | 動作 |
    |---|---|
@@ -78,7 +78,7 @@ disable-model-invocation: true
    | 其他 check 的 `fail`（lint／typecheck／unit） | 同上列為必修 |
 
 2. 沒有新 review 且 CI 無新 `fail` → 更新靜默計數、排下一輪、安靜結束
-3. **逐則**（不是整輪）判斷錨點：某則的 `commit_id` 不等於目前 HEAD 時，**一律先 `git fetch origin <branch>`**，再用 `git show origin/<branch>:<path>` 讀遠端實際內容確認問題是否已修掉。已修掉 → 該則只列進第 9 步的回覆清單，**不重改也不重 commit**，且**不計入煞車計數**；其餘各則照 4–7 步走。一輪常同時收到多則 review，整輪跳過會漏掉新問題
+3. **逐則**（不是整輪）判斷錨點：某則的 `commit_id` 不等於目前 HEAD 時，**一律先 `git fetch origin '<branch>'`**，再用 `git show 'origin/<branch>:<path>'` 讀遠端實際內容確認問題是否已修掉。已修掉 → 該則只列進第 9 步的回覆清單，**不重改也不重 commit**，且**不計入煞車計數**；其餘各則照 4–7 步走。一輪常同時收到多則 review，整輪跳過會漏掉新問題
 
    **fetch 不可省。** 自己剛 push 過的 `origin/<branch>` 確實是新的（git 會把該次更新記成 `update by push`，拿空 repo 就能複現），但別人或並行 session 推過、換 clone、換機器時就會過期——而這一步判錯的代價是把「還沒修」當成「已修」然後只回覆不修。fetch 一次的成本遠低於此。
 
