@@ -148,9 +148,10 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 ```
 
 **L2 一樣要記帳**。它是最貴的一層（Playwright 全量，`--prod-gate` 時還要 Docker build），
-最需要「內容沒變就別再跑一次」。跑完照樣 `mark L2 green|skipped "<L2 的 fp>"`。
-**只有 `--full`（dev 全量）的綠燈可以 `mark L2 green`**——預設 `/vibe-check` 的定向綠只代表選集，
-記進 ledger 等於把「已驗」蓋在沒驗過的內容上（分級判準：`../vibe-check/SKILL.md`）。
+最需要「內容沒變就別再跑一次」。跑完照樣記帳：`mark L2 green "<L2 的 fp>" full`（dev 全量綠）或 `mark L2 skipped "<L2 的 fp>"`。
+**只有 `--full`（dev 全量）的綠燈可以記 `green`，而且第 4 個參數必須寫 `full`**——`ledger.sh` 沒看到這個標記會拒絕記錄，
+`plan` 也只沿用帶 `full` 的 L2 綠燈。預設 `/vibe-check` 的定向綠只代表選集，要留紀錄就記 `mark L2 targeted "<L2 的 fp>"`，
+`plan` 不會沿用它（分級判準：`../vibe-check/SKILL.md`）。
 
 其餘兩個子命令的用法：
 
@@ -268,7 +269,7 @@ Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatc
 - **L2 修復輪用定向、收尾用全量**：修完先跑「煙霧＋上輪紅的檔名」一條指令（位置參數聯集、加 `--reporter=line`，例
   `npx playwright test --config playwright.gate.config.ts --reporter=line 'specs/(00-hydration|01-auth-guard|02-authz-scope)' test/e2e/specs/07-xxx.spec.ts`；
   **不用 `--last-failed`**——它與檔名篩選是 AND、缺 `.last-run.json` 時靜默跑全量），紅的修到綠；
-  然後**至少再跑一次 `/vibe-check --full`** 才能 `mark L2 green`。仍然把同一輪的待修項合併成一份任務清單一次修完，不要一條 finding 修一次、跑一次。
+  然後**至少再跑一次 `/vibe-check --full`** 才能 `mark L2 green "<fp>" full`（定向那次要記就記 `targeted`）。仍然把同一輪的待修項合併成一份任務清單一次修完，不要一條 finding 修一次、跑一次。
 
 ### 輪次帳
 

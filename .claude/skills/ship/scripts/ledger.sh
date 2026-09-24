@@ -10,7 +10,8 @@
 #   ledger.sh fp <layer>                     印出該層 scope 的內容指紋
 #   ledger.sh snapshot                       一次印出所有層的指紋（跑檢查前先存起來）
 #   ledger.sh plan                           印出本輪各層該跑或可沿用
-#   ledger.sh mark <layer> <status> <fp>     記錄結果。fp 必填，且必須是【跑之前】取的快照
+#   ledger.sh mark <layer> <status> <fp> [full]  記錄結果。fp 必填，且必須是【跑之前】取的快照；
+#                                            L2 green 必須帶第 4 個參數 full（dev 全量），定向綠改記 targeted
 #   ledger.sh round <key>                    累加該 key 的修正輪次；超過上限回 exit 2
 #   ledger.sh fresh                          作廢整份 ledger（環境有變、想強制重跑時用）
 set -eu
@@ -174,10 +175,16 @@ cmd_plan() {
     printf '  L2   ⊘ 略過（判準取自 .husky/pre-push）\n'
   else
     l2fp="$(scope_fp L2)"
-    l2rec=$(awk -F'\t' '$1=="L2"{print $2"\t"$3}' "$LEDGER" | tail -1)
+    # 第 5 欄是 mark 的第 4 個參數。L2 的 green 只在它等於 full（dev 全量）時才沿用：
+    # 定向綠（targeted）只代表選集，fp 相同也不算 gate 已驗，一律要跑。
+    l2rec=$(awk -F'\t' '$1=="L2"{print $2"\t"$3"\t"$5}' "$LEDGER" | tail -1)
     l2st=$(printf '%s' "$l2rec" | cut -f1)
-    if { [ "$l2st" = green ] || [ "$l2st" = skipped ]; } && [ "$(printf '%s' "$l2rec" | cut -f2)" = "$l2fp" ]; then
+    l2old=$(printf '%s' "$l2rec" | cut -f2)
+    l2how=$(printf '%s' "$l2rec" | cut -f3)
+    if [ "$l2old" = "$l2fp" ] && { [ "$l2st" = skipped ] || { [ "$l2st" = green ] && [ "$l2how" = full ]; }; }; then
       printf '  L2   ✓ 沿用上輪結果：%s（內容未變，fp=%s）\n' "$l2st" "$l2fp"
+    elif [ "$l2old" = "$l2fp" ] && [ "$l2st" = targeted ]; then
+      printf '  L2   ● 要跑（上輪只跑定向、尚未 dev 全量；fp=%s）\n' "$l2fp"
     else
       printf '  L2   ● 要跑（fp=%s；diff 未被 pre-push SKIP_PATTERN 全數濾掉）\n' "$l2fp"
     fi
@@ -198,6 +205,18 @@ cmd_mark() {
       echo "指紋要在跑那一層【之前】取，不能事後補算——併行的 fixer 可能已經改過檔，"
       echo "事後算會讓綠燈蓋在從沒被檢查過的內容上。"
       echo "正確用法：FP=\$(ledger.sh fp L1) && npm run eslint && ledger.sh mark L1 green \"\$FP\""
+    } >&2
+    exit 1
+  fi
+  # L2 的綠燈只認 dev 全量（/vibe-check --full）。定向綠（煙霧＋選集）只代表選集，
+  # 記成 green 會讓 plan 沿用、/ship 跳過必跑的全量——所以 green 要由呼叫端明說是 full，
+  # 定向跑完要留紀錄就記 targeted，plan 永遠不沿用它。
+  if [ "$layer" = L2 ] && [ "$status" = green ] && [ "$reason" != full ]; then
+    {
+      echo "拒絕記錄：L2 green 必須標明是 dev 全量。"
+      echo "定向綠（煙霧＋選集）不算 gate 已驗，記成 green 會讓 plan 沿用、/ship 跳過必跑的 /vibe-check --full。"
+      echo "正確用法：ledger.sh mark L2 green \"\$FP\" full     # /vibe-check --full 綠燈"
+      echo "          ledger.sh mark L2 targeted \"\$FP\"      # 定向綠：只留紀錄，plan 不沿用"
     } >&2
     exit 1
   fi
@@ -240,5 +259,5 @@ case "${1:-}" in
   round)  shift; cmd_round "${1:?usage: ledger.sh round <key>}" ;;
   fresh)  rm -f "$LEDGER"; echo "ledger 已作廢，下輪全部重跑（輪次上限不受影響，那是安全閥不是快取）" ;;
   l2)     l2_should_run ;;
-  *)      sed -n '2,14p' "$0"; exit 1 ;;
+  *)      sed -n '2,15p' "$0"; exit 1 ;;
 esac
