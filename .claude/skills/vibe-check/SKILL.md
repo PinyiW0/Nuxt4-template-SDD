@@ -20,7 +20,7 @@ description: Gate 守門 — 跑 playwright.gate.config.ts（主 spec + vibe spe
 | 煙霧 | `.husky/pre-push` 的 `SMOKE_PATTERN` 那一行（模板預設 `specs/(00-hydration\|01-auth-guard\|02-authz-scope)`，setup 產出的三支固定檔名；舊專案依實際檔名改那一行） | `.husky/pre-push`；本檔預設模式一定帶 |
 | 定向 | 煙霧 ＋ 受影響的 spec（Step 2 三來源查法） | 本檔預設模式（白名單內）、review-loop／verify-ac／pr-feedback 修正輪、`/ship` 修復輪 |
 | dev 全量 | gate config 全部，本機 dev server | 本檔 `--full`；`/ship` L2（ledger 只認這級） |
-| production 全量 | gate config 全部，production build | CI `pull_request.yml` 的 `e2e` job；本機選配 `sh scripts/docker-gate.sh`（`/ship --prod-gate`） |
+| production 全量 | gate config 全部，production build | CI `pull_request.yml` 的 `e2e` job（build 一次、4 shard 平行跑）；本機選配 `sh scripts/docker-gate.sh`（`/ship --prod-gate`） |
 
 **鐵律：只有整份 diff 都落在白名單內才定向，其餘一律全量。** 白名單 ＝ 本次 diff（merge-base 起、含未追蹤、濾掉 pre-push `SKIP_PATTERN`）**全部**落在 `app/pages/**`、`test/e2e/vibe/**`、`test/e2e/specs/**`，以及**模組專屬元件** `app/components/<seg>/**`（`app/pages/<seg>/` 目錄存在才算；下游實測元件多按模組歸屬，wedding-host 53% 的 commit 只影響單一模組）。碰到任何其他檔（頂層或非模組目錄的 `app/components`、`server/`、layouts、composables、stores、helpers、config、i18n zh-TW…）就是全量。AI 不判斷「要不要定向」，只查「白名單內的頁對哪幾支 spec」。
 
@@ -74,7 +74,7 @@ if [ -z "$gate_specs" ]; then
 fi
 ```
 
-前置檢查與 `.husky/pre-push`、CI `e2e` job 是**同一套邏輯**（含 `|| true` 的 errexit 處理）。三個入口對「沒有測試檔」的判定必須一致。
+前置檢查與 `.husky/pre-push`、CI `build-e2e` job 是**同一套邏輯**（含 `|| true` 的 errexit 處理）。三個入口對「沒有測試檔」的判定必須一致。
 
 > **刻意不用 `--pass-with-no-tests`**：那會讓「config 壞掉導致收不到測試」也靜默綠燈，把守門失效偽裝成通過。前置檢查會大聲說出「沒有測試」，訊號強得多。
 
@@ -189,7 +189,7 @@ npx playwright test --config playwright.gate.config.ts
 gate 範圍（test/e2e/specs｜vibe/*.spec.ts）尚無測試檔 → 未跑 gate。
 
 這不是失敗：SDD 流程尚未產出 spec，gate 沒有東西可守。
-pre-push 與 CI e2e job 對此情形同樣放行（三處前置檢查一致）。
+pre-push 與 CI `build-e2e` job 對此情形同樣放行（三處前置檢查一致）。
 
 下一步建議：
 - 要讓 gate 真正守起來 → 先跑 /test e2e spec 產出主 spec
