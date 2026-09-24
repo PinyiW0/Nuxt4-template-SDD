@@ -12,6 +12,12 @@
 // 為什麼用 hook 不用 rules/frozen-paths.md：paths 觸發規則在 subagent 內不注入
 //（2026-07-06 實測），只有 hook 對主對話與所有 subagent 都生效。
 //
+// 維護規則：發現新繞道就在下方按日期補一段（繞道方式＋修法），修補後保留紀錄不刪；
+// 回歸測試見 test/unit/frozen-paths-guard.spec.ts。rules/frozen-paths.md 只講政策，不重抄這裡。
+//
+// 2026-08-24（issue #129）：`perl -pi`／`ruby -i` 等就地改檔工具不在寫入判斷內（原判斷寫死 sed），
+// 可繞過 guard 改凍結區既有檔。修法：INPLACE_TOOLS／INPLACE_FLAG 通用判斷涵蓋 sed／perl／ruby／gsed。
+//
 // 2026-09-08（issue #137）：補直譯器（python/node/ruby/perl/php/deno/bun/tsx/ts-node/vite-node）
 // 繞道——上面的逐段判斷以 `\n` 切段，heredoc 把「直譯器在首行、寫入 API 在後續行」拆成
 // 兩段各自看都不像寫入，會漏放（且漏放不經過 tryConsumeSentinel，sentinel 不會被消耗）。
@@ -30,7 +36,10 @@
 // 對抗審查二輪回饋（同日）：切段不認引號（`sed -i '' 's/a/b/;s/c/d/' <凍結檔>` 被 `;`
 // 切散）、`<<` 位元左移被當 heredoc、heredoc 內文的散字被當寫入動詞、`,'w')` 形狀誤攔。
 // 修法：切段時忽略引號內的分隔符；heredoc 終止符必須緊接 `<<`；動詞只認「指令位置」的 token；
-// open 類 detect 加上「第一引數是路徑樣或識別字」的語境條件。
+// open 類 detect 加上「第一引數是路徑樣或識別字」的語境條件。同輪另補：open() 的 mode 後接
+// `encoding=` 等引數時判不出寫入（mode 後允許 `[,)]`）；renameSync／rmdirSync／fs.truncate／os.symlink
+// 等 API 漏列（補齊清單；rename／move 兩個引數都當目標，copy 只算目的地）；mode 字元類用無界量詞
+// 會 ReDoS（改有界量詞，80KB 惡意輸入實測 80–120ms）。
 //
 // 對抗審查三輪回饋（同日）：`open('$p','w')`（shell 變數包在引號內）被當字面值抓走而漏放；
 // 反過來，API 名只是被「提及」（grep 樣式 `"createWriteStream("` 未閉合引號、commit 訊息裡的
@@ -44,6 +53,8 @@
 // 的 tee 不在指令位置。修法：內文歸「含 << 開啟符的那一段」（heredocTerminators 與 splitSegments
 // 同一套引號感知）；`<<-?\s*` 放寬空白（終止符仍限識別字開頭，`1 << 8` 不受影響）；Path.open 的
 // mode 改共用 MODE；單一 `&` 也當分隔符（`>&`／`<&`／`&>`／`&>>` 這類 fd 重導向除外）。
+// 另排除 here-string `<<<`（不算 heredoc 開啟符）。四案由 it.fails 轉回正常 it，見
+// test/unit/frozen-paths-guard.spec.ts。
 //
 // 2026-09-11（PR #141 Copilot review 後續輪，使用者裁決後修）：①MODE 缺 't'，Python 的
 // 'wt'／'at' 文字寫入模式漏放 ②OPEN_ARGS 上限 120 太小，第一引數稍長的合法運算式會讓整個
@@ -83,12 +94,13 @@
 //   7. 引號內含 shell 分隔符時只認成對的單／雙引號（涵蓋常見 sed／perl 形式）；跳脫引號
 //      （`\'`）、`$'...'`、巢狀引號等變體仍可能被誤切段
 //   8. `vim -es`／`emacs --batch`／`awk -i inplace` 這類編輯器不在 WRITE_VERBS／INPLACE_TOOLS 內
-//   9. flood 命中時擋出來的是「指令原文裡比中凍結路徑的 token」，可能是目錄而不是檔案；
-//      要走 sentinel 授權時，files 要照 hook 訊息列出的字串填（是目錄就填目錄字串）
+//   9. flood 命中時擋出來的是「指令原文裡比中凍結路徑的 token」，可能是目錄或 glob 字串而不是檔案；
+//      要走 sentinel 授權時，files 要照 hook 訊息列出的字串填（是目錄或 glob 字串就照那個字串填）
 //  10. `tool_input.command` 不是字串（缺欄位或型別不對）時直接放行
 //  11. fail-open 設計：hook 內部 throw 時 node 以 exit 1 結束，Claude Code 視同非阻斷
+//      （寧可放行，不讓鎖壞掉癱瘓所有編輯）
 //  12. 含 `$` 的引號字串只在 open() 系列的 capture 被排除；renameSync／writeFileSync／shutil.* 等
-//      其他 API 的 capture 仍把 '$p' 當字面值路徑，`p=<凍結檔>; node -e "…renameSync('$p',…)"` 會漏放
+//      其他 API 的 capture 仍把 '$p' 當字面值路徑，`p=<凍結檔>; node -e "…renameSync('$p',…)"` 會漏放（2026-09-08 回歸實測）
 //  13. heredoc 數字終止符（`<<1`）只在緊接 `<<`（無空白）時才被認出；`<< 1`（`<<` 與數字終止符
 //      間有空白）目前仍判不出來，是刻意窄化——放寬空白會讓 `1 << 8` 這種位元左移誤判成 heredoc
 //
@@ -344,7 +356,7 @@ function targetExists(rel) {
 // 識別字終止符允許 `<<` 後有空白（如 `<< EOF`，group 3）。
 // 數字終止符不比對「`<<` 後有空白」是刻意的——這樣 `1 << 8` 這種位元左移（有空白）
 // 才不會被誤判成 heredoc；`<< 1`（數字終止符前有空白）目前仍判不出來，是已知殘留限制
-// （見 rules/frozen-paths.md 已知極限清單）。
+// （見本檔檔頭「已知極限」第 13 條）。
 const HEREDOC_OPEN = /(?<!<)<<-?(?:(\d+)|\s*(['"]?)([A-Za-z_]\w*)\2)/y
 
 // 引號感知的 heredoc 開啟符掃描：回傳 text 內引號外每個 `<<EOF` 的終止符（依出現順序）。

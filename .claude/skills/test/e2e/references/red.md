@@ -42,7 +42,7 @@ test/e2e/specs/{NN}-{name}.spec.ts
 npx playwright test test/e2e/specs/{NN}-{name}.spec.ts 2>&1
 ```
 
-> 等完整執行結果出來再分析——半途讀到的輸出會把還沒跑完的測試誤判成失敗。
+> 等 Playwright 跑完再分析，不要中途中斷或逾時放棄——半途讀到的輸出會把還沒跑完的測試誤判成失敗。
 
 ### Step 3：分析測試結果
 

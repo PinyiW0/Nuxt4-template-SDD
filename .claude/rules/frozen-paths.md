@@ -29,6 +29,6 @@ paths:
 
 > 唯一例外：使用者明確指示走「spec 變更迭代流」（見 `.claude/CLAUDE.md` SDD 段），此時由對應 skill 依流程更新，仍需使用者逐步確認。
 
-## 繞道修補紀錄與已知極限
+## hook 的覆蓋面與極限
 
-hook 的覆蓋面、歷次繞道修補與擋不住的手法，記在 `.claude/hooks/frozen-paths-guard.mjs` 檔頭註解（回歸測試見 `test/unit/frozen-paths-guard.spec.ts`）。改 hook 時在那裡補紀錄。hook 是純文字靜態解析，擋的是「順手改到凍結檔」，不是刻意繞道——不要把它當唯一防線。
+hook 的覆蓋面、歷次繞道修補與擋不住的手法，記在 `.claude/hooks/frozen-paths-guard.mjs` 檔頭註解。hook 是純文字靜態解析，擋的是「順手改到凍結檔」，不是刻意繞道——不要把它當唯一防線。

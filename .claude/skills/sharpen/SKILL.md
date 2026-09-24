@@ -20,7 +20,7 @@ $ARGUMENTS
 <rules>
 **執行規則**：
 
-看到 `<action>AskUserQuestion({...})</action>` 時，用這些參數呼叫 AskUserQuestion 工具（不是把問題印成文字），等使用者回答後執行「回答後處理」。
+看到 `<action>AskUserQuestion({...})</action>` 時，以 `<action>` 內的物件當參數呼叫 AskUserQuestion 工具（不是把問題印成文字），等使用者回答後執行「回答後處理」。
 
 本 skill 全部文件（含 references/）中的 `{…}` 是待填佔位符，執行時以實際內容取代。
 </rules>
