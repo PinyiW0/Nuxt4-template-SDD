@@ -3,7 +3,7 @@ name: vibe-e2e
 description: Vibe E2E 產生與執行 — 依當下 git diff 對互動/結構 hunk 套 pattern 模板自動產生 test/e2e/vibe/*.spec.ts，並用 playwright.vibe.config.ts 跑 vibe spec。Use when /vibe-check 綠燈、想驗證 vibe 新增的互動或結構行為有沒有破。
 ---
 
-# Vibe E2E — 產生並執行 vibe spec（v2）
+# Vibe E2E — 產生並執行 vibe spec
 
 ## 目的
 

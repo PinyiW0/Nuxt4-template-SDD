@@ -242,7 +242,7 @@ vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
 
 #### A. `test/e2e/specs/` 紅燈 = 破壞 Business Invariant
 
-1. 解析失敗 test 名稱（如 `01-accounts.spec.ts › 規則：顯示帳號列表（v2） › 顯示帳號列表`）
+1. 解析失敗 test 名稱（如 `01-accounts.spec.ts › 規則：顯示帳號列表 › 顯示帳號列表`）
 2. 對應到 `spec/e2e-flows/{N}-{module}.flow.md` 的 `## Flow: {scenarioName}` 區段
 3. 讀該 flow 段的 `Business Invariants` 與 `Verification 策略`，找出可能違反的 invariant
 4. 用以下格式報告：
@@ -254,7 +254,7 @@ vibe spec：6/6 passed ✅（unstable/ 不計，守門排除）
 
 失敗清單：
 
-1. 01-accounts.spec.ts › 規則：顯示帳號列表（v2） › 顯示帳號列表
+1. 01-accounts.spec.ts › 規則：顯示帳號列表 › 顯示帳號列表
    失敗訊息：findAccountEntity(/observer_wang/) 找不到 element
    對應 flow：spec/e2e-flows/01-accounts.flow.md → Flow: 顯示帳號列表
    可能違反的 invariant：

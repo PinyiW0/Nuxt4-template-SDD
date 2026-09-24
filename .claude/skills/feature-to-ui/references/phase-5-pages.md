@@ -46,7 +46,7 @@ Sync 模式額外讀取：
 執行 /nuxt-ui 載入組件文檔（若尚未載入）
 ```
 
-> **設計理念**：Phase 5 的目標是「讓 .spec.ts 通過」。v2 spec 以**語意 locator 為主**（`getByRole` + accessible name、`getByText`、`getByLabel`、`findEntity`），`getByTestId` 僅為 flow 授權的 fallback。
+> **設計理念**：Phase 5 的目標是「讓 .spec.ts 通過」。spec 以**語意 locator 為主**（`getByRole` + accessible name、`getByText`、`getByLabel`、`findEntity`），`getByTestId` 僅為 flow 授權的 fallback。
 > 所以 UI 要提供的首先是**語意 anchor**（role、accessible name、label、可見文字）；spec 用到 `getByTestId` 之處，`data-testid` 直接從 spec 複製，不存在「兩個版本不一致」的問題。
 
 ---
