@@ -35,7 +35,22 @@ npx playwright install chromium
 模板重點（測試環境隔離）：
 - **per-worktree 確定性 port**：由 config 所在目錄 hash 出 3100–3499 的 port——同 worktree 每次同 port（`reuseExistingServer` 可安全重用），不同 worktree 不同 port（多 session 並行不互撞）。**不要寫死 port**
 - **`E2E_BASE_URL` 外部 server 模式**：存在時整個不掛 webServer（CI 的 e2e job、`scripts/docker-gate.sh` 等外部起好的 production server 直接打該 URL）
-- **webServer.env 強制 `NUXT_PUBLIC_API_BASE=/api`**：避免 `.env` 的絕對 URL 讓瀏覽器打錯 port
+- **webServer.env 強制 API base 變數為 `/api`**：避免 `.env` 的絕對 URL 讓瀏覽器打錯 port，或讓 E2E 打到真後端
+
+**API base 變數名要從專案推導，不照抄**。先讀 `nuxt.config.ts` 的 `runtimeConfig.public`，找出存 API 網址的那個鍵（`useHttp` 或 `$fetch` 的 `baseURL` 讀的那個）。再依 Nuxt 慣例換成環境變數名：加 `NUXT_PUBLIC_` 前綴，駝峰拆成底線、全大寫。
+
+| `runtimeConfig.public` 的鍵 | 環境變數名 |
+|------|------|
+| `apiBase`（本模板） | `NUXT_PUBLIC_API_BASE` |
+| `baseApiUrl` | `NUXT_PUBLIC_BASE_API_URL` |
+
+下方範本的 `<API_BASE_ENV>` 換成推導出的名字。找不到這種鍵、或有多個候選時，停下來問使用者，不要猜。
+
+同一個變數名還寫在另外兩處，要跟著換成同一個名字（這兩處是 `E2E_BASE_URL` 模式的保險，那時不掛 webServer，上面的 env 套不到）：
+- `scripts/docker-gate.sh`：`docker run` 那行的 `-e NUXT_PUBLIC_API_BASE=/api`
+- `.github/workflows/pull_request.yml`：`Start production server` step 的 `env:` 裡的 `NUXT_PUBLIC_API_BASE: /api`
+
+三處名字不一致時，被漏掉的那條路徑會照 `.env` 打出去。
 
 ```typescript
 import { createHash } from 'node:crypto'
@@ -91,7 +106,8 @@ export default defineConfig({
           reuseExistingServer: !process.env.CI,
           timeout: 120000,
           // 測試時強制 API 走同源相對路徑：.env 若設了絕對 URL（固定 port）會讓瀏覽器打錯 server
-          env: { NUXT_PUBLIC_API_BASE: '/api' },
+          // <API_BASE_ENV> 換成從 runtimeConfig.public 推導的變數名（本模板為 NUXT_PUBLIC_API_BASE）
+          env: { <API_BASE_ENV>: '/api' },
         },
       }),
 })
