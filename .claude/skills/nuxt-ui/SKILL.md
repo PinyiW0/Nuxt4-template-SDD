@@ -25,7 +25,12 @@ argument-hint: "[component-name]"
 
 ## 使用指引
 
-回答 NuxtUI 問題時，API 用法以上方文檔為準，不要憑記憶（記憶裡多半是舊版 API）。
+回答 NuxtUI 問題時，API 用法以上方文檔為準，不憑記憶。回答包含：
+
+1. 從上方文檔中查找相關組件或 API
+2. 提供具體的程式碼範例
+3. 說明組件的 props、events 和 slots
+4. 指出樣式定制選項（config、class）
 
 ---
 
