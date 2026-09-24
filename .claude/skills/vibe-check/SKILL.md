@@ -96,7 +96,7 @@ ere_bad=''
 ere_ok "$skip" || ere_bad="SKIP_PATTERN"
 { [ -z "$force" ] || ere_ok "$force"; } || ere_bad="${ere_bad:+$ere_bad、}FORCE_TEST_PATTERN"
 changed=$(
-  { [ -n "$base" ] && git diff "$base" --name-only 2>/dev/null
+  { [ -n "$base" ] && git diff --no-renames "$base" --name-only 2>/dev/null
     git ls-files -o --exclude-standard 2>/dev/null
   } | sort -u
 )

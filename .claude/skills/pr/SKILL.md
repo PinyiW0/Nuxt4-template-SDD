@@ -123,12 +123,14 @@ checkbox 跨 session、跨 worktree、換人執行都查得到，不必靠對話
 - <對應本分支 commits 的重點邏輯改動>
 
 ## 測試
-- <如何驗證；本專案 CI 自動跑 build + eslint + typecheck + unit test + sdd-review + E2E gate 全量（production build，`e2e` job）>
+- <如何驗證；CI 項目只列實際會跑的，規則見下方>
 
 Closes #<編號>
 ```
 
 > 末行 `Closes #<編號>` 僅在分支名解析得到 issue 編號時加；沒有就拿掉。
+>
+> **「測試」段的 CI 項目只寫實際會跑的**：先 `ls .github/workflows/`，只列存在的 workflow 真的會跑的檢查，不照抄固定清單。有 `pull_request.yml` 才寫 build／eslint／typecheck／unit test／E2E gate。有 `sdd-review.yml`，而且本 PR 改到 `app/`、`server/`（該 workflow 的 `paths` 觸發條件），才寫 sdd-review。沒有 workflow 就不提 CI。
 
 ### 4. 內文精簡易讀守則（重點）
 
@@ -167,7 +169,7 @@ Pull Request，提升整體開發體驗與工作流程效率。
 - 進階：reviewer/label 選填、建完開瀏覽器
 
 ## 測試
-CI 自動跑 build + eslint + typecheck + unit test + E2E gate 全量（production build）+ sdd-review。
+CI 自動跑 build + eslint + typecheck + unit test + E2E gate 全量（production build）。
 
 Closes #2
 ```
@@ -215,7 +217,7 @@ gh pr view --web                   # 開瀏覽器
 
 ### 7. 收尾
 
-回報 PR URL。若為本模板衍生專案，另提醒一句：PR 會觸發 CI —— `pull_request.yml` 跑 build + eslint + typecheck + unit test + E2E gate 全量（production build，`e2e` job）；若改到 `app/`、`server/` 還會跑 `sdd-review.yml` 的 AI 語意審查。非模板 repo（無這些 workflow）就不提。
+回報 PR URL。若為本模板衍生專案，另提醒一句 PR 會觸發哪些 CI，只提 `.github/workflows/` 實際存在的：有 `pull_request.yml` → build + eslint + typecheck + unit test + E2E gate 全量（production build，`e2e` job）；有 `sdd-review.yml` 且改到 `app/`、`server/` → 還會跑 AI 語意審查。兩個都沒有就不提。
 
 ## 注意
 

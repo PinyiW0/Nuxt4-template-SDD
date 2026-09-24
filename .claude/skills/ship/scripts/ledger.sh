@@ -89,8 +89,10 @@ scope_fp() {
   [ -n "$pattern" ] || { echo "EMPTY"; return 0; }
   base="$(base_rev)"
   [ "$base" = NOBASE ] && { echo NOBASE; return 0; }
+  # --no-renames：git 預設開 rename detection，改名只列新路徑。scope 內的檔搬到 scope 外時
+  # 舊路徑會漏掉，該層沿用舊綠燈。關掉後改名拆成「刪舊＋加新」，兩條路徑都進指紋。
   files=$(
-    { git diff "$base" --name-only 2>/dev/null || true
+    { git diff "$base" --name-only --no-renames 2>/dev/null || true
       git ls-files -o --exclude-standard 2>/dev/null || true
     } | sort -u | grep -E "$pattern" 2>/dev/null || true
   )
@@ -116,8 +118,9 @@ l2_should_run() {
   [ "$base" = NOBASE ] && { echo yes; return 0; }
   # 必須與 scope_fp 用同一套 union：未追蹤的新檔（/feature-to-ui 剛產出、還沒 git add 的頁面）
   # 只看 git diff 是看不到的，會讓 gate 被靜默略過，然後在 push 時才炸 —— 那正是要消滅的情況。
+  # --no-renames 也要一致（理由見 scope_fp）：改名的舊路徑可能正好命中 FORCE_TEST_PATTERN。
   changed=$(
-    { git diff "$base" --name-only 2>/dev/null || true
+    { git diff "$base" --name-only --no-renames 2>/dev/null || true
       git ls-files -o --exclude-standard 2>/dev/null || true
     } | sort -u
   )

@@ -60,18 +60,18 @@
 規格：<模組內每個頁面對應的 test/e2e/specs/{NN}-{name}.spec.ts>，依 phase-5-pages.md 的必讀規範清單逐頁實作。
 遵循：decision-tiers.md 三級表；ops/judgment-rubrics.md 第 3 節；rules.md [P5] 段；frontend-security.md；page-builder.md；spec/report/contract-facts.md（Step 0 合約事實：envelope 形狀、ID pattern、登入方式、種子總表、testid 慣例來源，直接引用不重查）。
 禁止：修改凍結區；新增跨模組共用檔（見 decision-tiers.md 第三級，命中就停下來問）；假設其他模組已完成；逐頁停下等確認（見上方「確認點的仲裁」，改成模組級回報）。
-驗收條件：每頁做完立刻跑該頁對應 spec 到綠才算完成該頁，完成後不停下、直接做下一頁；模組內所有頁面做完後，跑一次涵蓋本模組全部 spec 的指令（npx playwright test <本模組 spec 清單>）全綠才回報。
-回報格式：改了哪些檔（檔案:行號）、每頁的 spec 執行結果對照表、worktree 路徑與分支名（供匯流步驟使用）。
+驗收條件：每頁做完立刻跑該頁對應 spec 到綠才算完成該頁，完成後不停下、直接做下一頁；模組內所有頁面做完後，跑一次涵蓋本模組全部 spec 的指令（npx playwright test <本模組 spec 清單>）全綠後，把本模組全部改動 commit 到本 worktree 的分支，`git status --porcelain` 輸出為空才回報（匯流時主線會 `git worktree remove`，有未提交改動會被拒）。
+回報格式：改了哪些檔（檔案:行號）、每頁的 spec 執行結果對照表、worktree 路徑與分支名、最後一個 commit 的 sha 與 `git status --porcelain` 為空的確認（供匯流步驟使用）。
 ```
 
 （共通回報尾段見 [ops/delegation-templates.md](../../../ops/delegation-templates.md) 開頭「共通尾段」，逐字貼進每個分身的 prompt。）
 
 ## 六、匯流
 
-1. 收集每個分身回報的 worktree 路徑與分支名
+1. 收集每個分身回報的 worktree 路徑、分支名與 commit sha（交辦已要求分身先 commit）
 2. 主線（commander 所在分支）**逐一**處理每個分身的分支，一次一個，在**主線 worktree**執行。先移除該分身的 worktree——分支還被那邊 checkout 著時，主線 `git checkout` 會被拒（branch already used by worktree）：
    ```bash
-   git worktree remove <分身 worktree 路徑>   # 分身有改動未 commit 會被拒，先確認它已 commit
+   git worktree remove <分身 worktree 路徑>   # 有未 commit 改動會被拒；被拒代表分身沒照交辦 commit，停下回報
    git checkout <分身分支>
    git rebase <主線分支>
    git checkout <主線分支>
