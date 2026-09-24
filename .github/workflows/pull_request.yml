@@ -48,23 +48,19 @@ jobs:
         run: npm run test:unit
 
   # E2E gate 全量（production build）——分級（SSOT：.claude/skills/vibe-check/SKILL.md）裡最慢的一級只在這裡跑：
-  # 本機 pre-push 只跑煙霧、/vibe-check 預設定向，「改 A 有沒有壞 B」的完整回歸靠這個 job。
+  # 本機 pre-push 只跑煙霧、/vibe-check 預設定向，「改 A 有沒有壞 B」的完整回歸靠這三個 job。
   # 與本機 /ship L2 的 dev 全量互不取代：hydration 守門 fixture 只在 dev 生效，production build 會 strip 警告。
+  # 拆法：build-e2e 建置一次上傳 .output → e2e 4 個 shard 各自下載、各起一台 server 平行跑 → merge-e2e-report 合併報告。
+  # 每個 shard 自己一台 server：mock 是單一 process 記憶體、reset 端點全域，同一台 server 上平行跑會互踩。
   # needs: build → lint／typecheck／unit 紅就不燒 E2E 分鐘。build job 的 generate 驗的是靜態部署產物，
   # 這裡自己 npm run build 是因為 mock API 需要 Nitro server，generate 產不出——兩次建置是刻意的。
-  e2e:
+  build-e2e:
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      has_specs: ${{ steps.specs.outputs.has_specs }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: Use Node.js 22.22.0
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22.22.0
-          cache: npm
-
-      - name: Install
-        run: npm ci
 
       # 前置檢查與 .husky/pre-push、/vibe-check 同一套邏輯：gate 範圍沒有 spec 檔（模板初始狀態）就放行。
       # 刻意不用 --pass-with-no-tests——那會讓「config 壞掉收不到測試」也靜默綠燈。
@@ -79,27 +75,85 @@ jobs:
             echo "has_specs=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Cache Playwright browsers
+      - name: Use Node.js 22.22.0
         if: steps.specs.outputs.has_specs == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      - name: Install
+        if: steps.specs.outputs.has_specs == 'true'
+        run: npm ci
+
+      - name: Build (production)
+        if: steps.specs.outputs.has_specs == 'true'
+        run: npm run build
+
+      # include-hidden-files：.output 是點開頭目錄，upload-artifact v4.4 起預設排除，不開會上傳空的
+      - name: Upload build output
+        if: steps.specs.outputs.has_specs == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-output
+          path: .output/
+          include-hidden-files: true
+          retention-days: 1
+
+  # shard 數固定 4；下游依 spec 規模自行改 matrix 與 --shard 的分母（兩處要一致）。
+  # fail-fast: false：一個 shard 紅不要取消其他 shard，才拿得到完整紅燈清單。
+  e2e:
+    needs: build-e2e
+    name: e2e (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: No gate specs
+        if: needs.build-e2e.outputs.has_specs != 'true'
+        run: echo "⚠️  無 spec：尚無 gate 測試檔 → shard ${{ matrix.shard }}/4 跳過。"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: needs.build-e2e.outputs.has_specs == 'true'
+
+      - name: Use Node.js 22.22.0
+        if: needs.build-e2e.outputs.has_specs == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      # 仍要 npm ci：Playwright 與 spec 的 import 來自 node_modules；.output 本身自帶執行期依賴
+      - name: Install
+        if: needs.build-e2e.outputs.has_specs == 'true'
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        if: needs.build-e2e.outputs.has_specs == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browsers
-        if: steps.specs.outputs.has_specs == 'true'
+        if: needs.build-e2e.outputs.has_specs == 'true'
         run: npx playwright install --with-deps chromium
 
-      - name: Build (production)
-        if: steps.specs.outputs.has_specs == 'true'
-        run: npm run build
+      - name: Download build output
+        if: needs.build-e2e.outputs.has_specs == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: e2e-output
+          path: .output/
 
       # NUXT_E2E_RESET=true：production build 下 reset 端點預設 404，沒有它每支 spec 的 beforeEach 先炸。
       # 只在 CI 設，部署環境不得設（見 nuxt.config.ts runtimeConfig.e2eReset 的註解）。
       # 有 auth scaffold 的專案：在這個 env 補 REQUIRED_SECRETS 的假值（不得等於範本 devDefault，security-guard 會拒啟；
       # mock 後端不驗真值，用 workflow env 即可。不要提交 .env.e2e——.husky/pre-commit 會擋有值的 SECRET／KEY 鍵）。
       - name: Start production server
-        if: steps.specs.outputs.has_specs == 'true'
+        if: needs.build-e2e.outputs.has_specs == 'true'
         env:
           NUXT_E2E_RESET: 'true'
           # E2E_BASE_URL 模式下 config 不掛 webServer，playwright.config.ts 裡 webServer.env 的 NUXT_PUBLIC_API_BASE=/api
@@ -130,23 +184,68 @@ jobs:
           tail -n 50 server.log
           exit 1
 
-      # config 在 CI 自動 retries: 1——一次紅、重跑綠的測試會標成 flaky，不會讓 job 紅；flaky 看 artifact 的 HTML 報告
-      # （下方不分紅綠都上傳，才拿得到綠 job 裡的 flaky 紀錄）。
+      # config 在 CI 自動 retries: 1——一次紅、重跑綠的測試會標成 flaky，不會讓 job 紅；flaky 看合併後的 HTML 報告。
       # E2E_BASE_URL 存在時 config 不掛 webServer，直接打上面起好的 production server。
-      - name: E2E gate (production build, full)
-        if: steps.specs.outputs.has_specs == 'true'
+      # --reporter 覆蓋 config 的 list＋html：blob 給 merge-e2e-report 合併，list 留在 job log 看紅燈。
+      # 分到 0 條測試的 shard（spec 數少於 4）Playwright 照常 exit 0（實測 1.58.2）。
+      - name: E2E gate (production build, shard ${{ matrix.shard }}/4)
+        if: needs.build-e2e.outputs.has_specs == 'true'
         env:
           E2E_BASE_URL: http://127.0.0.1:3000
-        run: npm run test:gate
+        run: npm run test:gate -- --shard=${{ matrix.shard }}/4 --reporter=blob,list
 
-      # 不分紅綠都上傳：flaky（一紅一綠）時 job 是綠的，只在 failure() 上傳會拿不到上面承諾的報告。
+      # 不分紅綠都上傳：flaky（一紅一綠）時 job 是綠的，只在 failure() 上傳會拿不到 flaky 紀錄。
       # 用 !cancelled() 不用 always()：被 concurrency 取消的 run 沒有必要上傳。
+      - name: Upload blob report
+        if: ${{ !cancelled() && needs.build-e2e.outputs.has_specs == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+          retention-days: 1
+          # E2E 之前的步驟（下載／起 server）先失敗時沒有 blob，不要為此再多一條警告
+          if-no-files-found: ignore
+
+  # 4 份 blob 合併成一份 HTML，artifact 名稱沿用 playwright-report-gate（/review-loop 讀這個名字）。
+  # shard 紅也要跑（!cancelled()），紅燈時才最需要報告。
+  merge-e2e-report:
+    needs: [build-e2e, e2e]
+    if: ${{ !cancelled() && needs.build-e2e.outputs.has_specs == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Use Node.js 22.22.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Download blob reports
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: blob-report-*
+          path: all-blob-reports/
+          merge-multiple: true
+
+      # 所有 shard 都在跑測試前就失敗時沒有 blob：略過合併，紅燈原因看各 shard 的 job log
+      - name: Merge reports
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-gate
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          if ! ls all-blob-reports/*.zip >/dev/null 2>&1; then
+            echo "⚠️  沒有任何 shard 產出 blob → 略過合併。"
+            exit 0
+          fi
+          npx playwright merge-reports --reporter html all-blob-reports
+
       - name: Upload gate report
-        if: ${{ !cancelled() && steps.specs.outputs.has_specs == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report-gate
           path: playwright-report-gate/
           retention-days: 7
-          # E2E 之前的步驟（build／起 server）先失敗時沒有報告目錄，不要為此再多一條警告
           if-no-files-found: ignore

@@ -238,7 +238,7 @@ doc/
 | commit 訊息 | `.husky/commit-msg` + commitlint | 不符 Conventional Commits |
 | 機敏值進版控 | `.husky/pre-commit` | staged `.env*` 中 `KEY`／`SECRET`／`TOKEN`／`PASSWORD`／`CREDENTIAL` 有值 |
 | 手滑推上壞掉的 app | `.husky/pre-push`（煙霧 spec，由該檔 `SMOKE_PATTERN` 定義，預設 `00-hydration`／`01-auth-guard`／`02-authz-scope`，dev server） | 整頁載不出來、auth／authz 守衛失效的 push；只動文件／設定時自動略過 |
-| 環境會說謊 | `.github/workflows/pull_request.yml` | 本機過了但 CI 不過的（unit / build / lint / typecheck ＋ **E2E gate 全量（production build）** 都在 PR 上跑） |
+| 環境會說謊 | `.github/workflows/pull_request.yml` | 本機過了但 CI 不過的（unit / build / lint / typecheck ＋ **E2E gate 全量（production build，4 shard 平行）** 都在 PR 上跑） |
 
 兩道關的分工：**pre-push 防我手滑（煙霧），CI 防我環境說謊（全量 production）。** 本機 `/vibe-check` 預設只跑煙霧＋受影響的 spec，`/ship` 收尾跑一次 dev 全量。
 
