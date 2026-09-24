@@ -83,6 +83,14 @@
 // （commandVerbs 同一套判準）、只看 heredoc 開啟行；npx／pnpx／bunx 補進 COMMAND_PREFIX 讓
 // `npx tsx -e` 的 tsx 仍算指令位置。寫入 API 的比對維持整條指令掃。
 //
+// 2026-09-24（issue #154，下游 jwl-2026-frontend 同步時 /code-review 發現）：上面 PR #141 收尾把
+// 直譯器偵測收斂到指令位置後，`timeout 10 rm`、`nice rm`、`exec rm`、`! rm`、`stdbuf -o0 tee` 加凍結檔
+// 全部漏放——前綴不在 COMMAND_PREFIX，後面的動詞判不成指令位置。修法：timeout／nice／exec／stdbuf 補進 COMMAND_PREFIX，`!` 由 isCommandPosition 遞迴判斷：`!` 本身在指令位置時
+// 其後才算指令位置（放進 COMMAND_PREFIX 會把 `find … ! -name tee` 誤擋，只認段首又漏放 `time ! rm`）；
+// 只對單一 wrapper 吃值的旗標（nice -n、timeout -s、stdbuf -o…）另列 WRAPPER_OWN_VALUE_FLAGS，
+// 不併進共用表（sudo 的 -n／-s／-i 不吃值，併進去反而漏放 `sudo -n rm`）；timeout 的時限位置參數
+// 由 WRAPPER_POSITIONALS 跳過。
+//
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
 //   2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
@@ -126,6 +134,11 @@
 //  23. 直譯器偵測只認指令位置後，仍有一種殘留誤擋：grep 樣式裡放了引號閉合的完整寫檔呼叫
 //      （`grep -rn "writeFileSync('<凍結檔>','x')" . && node -v`），同一行又真的跑直譯器——寫入 API
 //      刻意對整條指令掃（跨行 `python3 -c "` 要靠這個），這種形狀就分不出樣式與呼叫
+//  24. COMMAND_PREFIX 未收的其他 wrapper（ionice、taskset、chrt、setsid、unbuffer、caffeinate 等）：
+//      `ionice -c3 rm <凍結檔>` 仍漏放；只收 AI 實際常用的前綴，不求窮舉（issue #154）
+//  25. 字串或參數裡提到「前綴＋寫入動詞＋凍結路徑」會誤擋（`git commit -m "nice rm <凍結檔>"`）：前綴判定只看
+//      前一個詞，不檢查前綴本身在指令位置；sudo／env 早就如此，#154 加入新前綴後機率變高。只多擋不漏放，
+//      根治會牽動 find -exec、bash -c 的判斷，另案處理（PR #160 review）
 // 這些只能靠 Bash 權限策略或人審補位。
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { normalize, relative, resolve } from 'node:path'
@@ -141,7 +154,9 @@ const WRITE_VERBS = new Set(['tee', 'cp', 'mv', 'rm', 'ln', 'truncate', 'dd', 'p
 // `find … -exec rm {} \;`、`bash -c "rm <凍結檔>"` 這類寫法因為動詞不在第一位而漏放。
 // npx／pnpx／bunx 是套件執行器：直譯器偵測改成只認指令位置後，`npx tsx -e …` 的 tsx 要靠
 // 這裡才會被算進指令位置（PR #141 review）。
-const COMMAND_PREFIX = new Set(['sudo', 'env', 'time', 'command', 'nohup', 'xargs', 'npx', 'pnpx', 'bunx', 'then', 'do', 'else', '-exec', '-execdir', '-c'])
+// timeout／nice／exec／stdbuf 是 AI 自己跑指令時常加的前綴，#141 把動詞判定收斂到指令位置後
+// 它們不在此表，`timeout 10 rm <凍結檔>` 這類寫法整段漏放（issue #154）。`!` 不放這裡，見 isCommandPosition。
+const COMMAND_PREFIX = new Set(['sudo', 'env', 'time', 'command', 'nohup', 'xargs', 'npx', 'pnpx', 'bunx', 'then', 'do', 'else', '-exec', '-execdir', '-c', 'timeout', 'nice', 'exec', 'stdbuf'])
 // git 會改寫工作區檔案的子指令（git add/diff/log 等唯讀或只動 index 的不算）
 const GIT_WRITE_SUBCMDS = new Set(['checkout', 'restore', 'apply', 'mv', 'rm', 'clean', 'stash'])
 // 支援 -i／--in-place 就地改檔的串流編輯器與直譯器：帶 in-place 旗標時視為寫入。
@@ -475,14 +490,33 @@ function tokenize(text) {
 // review）；`xargs -I {} rm <凍結檔>` 同理，`-I` 的替換字串 `{}` 被誤判成子指令，`rm` 判不出來
 // （PR #141 review，round 13）。只收斂 sudo／env／xargs 實際會用到的旗標，不求窮舉每個工具。
 const WRAPPER_VALUE_FLAGS = new Set(['-u', '--user', '-g', '--group', '-C', '--chdir', '-R', '--chroot', '-I', '--replace'])
+// 只對特定 wrapper 吃值的旗標：`-n`／`-s`／`-i` 在 sudo 是不吃值的開關（`sudo -n rm`），
+// 放進共用表會把真正的子指令當成值跳掉，所以按 wrapper 分開（issue #154）。
+const WRAPPER_OWN_VALUE_FLAGS = {
+  timeout: new Set(['-s', '--signal', '-k', '--kill-after']),
+  nice: new Set(['-n', '--adjustment']),
+  stdbuf: new Set(['-i', '-o', '-e', '--input', '--output', '--error']),
+  exec: new Set(['-a']),
+}
+// 旗標之後、子指令之前還有固定位置參數的 wrapper：`timeout 10 rm` 的 10 是時限，不是子指令
+const WRAPPER_POSITIONALS = { timeout: 1 }
 
-// 從 wrapper 後一個 token 開始，跳過旗標（吃值旗標額外多跳一個 token 當它的值），
-// 回傳第一個非旗標 token 的索引（可能等於 words.length，代表找不到）。
-function skipWrapperFlags(words, start) {
+// 從 wrapper 後一個 token 開始，跳過旗標（吃值旗標額外多跳一個 token 當它的值）與固定位置參數，
+// 回傳子指令 token 的索引（可能等於 words.length，代表找不到）。
+function skipWrapperFlags(words, start, wrapper) {
+  const ownFlags = WRAPPER_OWN_VALUE_FLAGS[wrapper]
   let i = start
   while (i < words.length && words[i].startsWith('-'))
-    i += WRAPPER_VALUE_FLAGS.has(words[i]) ? 2 : 1
-  return i
+    i += WRAPPER_VALUE_FLAGS.has(words[i]) || ownFlags?.has(words[i]) ? 2 : 1
+  return i + (WRAPPER_POSITIONALS[wrapper] ?? 0)
+}
+
+// `!`（pipeline 取反）本身在指令位置時，其後的 token 也是指令位置：`! rm`、`time ! rm`、`then ! rm`。
+// 不把 `!` 放進 COMMAND_PREFIX：那會觸發跳旗標邏輯，把 `find … ! -name tee` 的 tee 誤判成子指令（issue #154）。
+function isCommandPosition(words, i) {
+  if (i === 0) return true
+  const prev = words[i - 1]
+  return COMMAND_PREFIX.has(prev) || /^\w+=/.test(prev) || (prev === '!' && isCommandPosition(words, i - 1))
 }
 
 // 只有「指令位置」的 token 才算動詞：段落第一個 token，或 sudo／xargs／find -exec 等前綴
@@ -490,10 +524,10 @@ function skipWrapperFlags(words, start) {
 function commandVerbs(words) {
   const verbs = []
   for (let i = 0; i < words.length; i++) {
-    if (i === 0 || COMMAND_PREFIX.has(words[i - 1]) || /^\w+=/.test(words[i - 1]))
+    if (isCommandPosition(words, i))
       verbs.push(baseName(words[i]))
     if (COMMAND_PREFIX.has(words[i])) {
-      const subcmdIndex = skipWrapperFlags(words, i + 1)
+      const subcmdIndex = skipWrapperFlags(words, i + 1, words[i])
       if (subcmdIndex < words.length && subcmdIndex !== i + 1)
         verbs.push(baseName(words[subcmdIndex]))
     }

@@ -999,3 +999,44 @@ describe('frozen-paths-guard：wrapper 吃值旗標後的子指令位置（sudo�
     expect(result.status).toBe(0)
   })
 })
+
+describe('frozen-paths-guard：timeout／nice／exec／stdbuf／! 前綴（issue #154）', () => {
+  it.each([
+    ['timeout 10 rm', `timeout 10 rm ${FROZEN_FILE}`],
+    ['timeout -s KILL 10 rm（-s 吃值＋時限位置參數）', `timeout -s KILL 10 rm ${FROZEN_FILE}`],
+    ['nice rm', `nice rm ${FROZEN_FILE}`],
+    ['nice -n 5 rm（-n 吃值）', `nice -n 5 rm ${FROZEN_FILE}`],
+    ['exec rm', `exec rm ${FROZEN_FILE}`],
+    ['! rm', `! rm ${FROZEN_FILE}`],
+    ['time ! rm（前綴後的 !）', `time ! rm ${FROZEN_FILE}`],
+    ['then ! rm（控制結構內的 !）', `if true; then ! rm ${FROZEN_FILE}; fi`],
+    ['stdbuf -o0 tee', `echo y | stdbuf -o0 tee ${FROZEN_FILE}`],
+    ['stdbuf -o 0 tee（-o 吃值）', `echo y | stdbuf -o 0 tee ${FROZEN_FILE}`],
+  ])('%s 既有凍結檔 → 擋下', (_label, command) => {
+    const result = runGuard(command)
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['timeout 10 cat', `timeout 10 cat ${FROZEN_FILE}`],
+    ['nice grep', `nice grep x ${FROZEN_FILE}`],
+    ['stdbuf -o0 cat', `stdbuf -o0 cat ${FROZEN_FILE}`],
+  ])('%s 既有凍結檔（唯讀） → 放行', (_label, command) => {
+    const result = runGuard(command)
+    expect(result.status).toBe(0)
+  })
+
+  it.each([
+    ['find ! -name tee', `find ${FROZEN_FILE} ! -name tee -print`],
+    ['[ ! -f ]', `[ ! -f ${FROZEN_FILE} ] && echo x`],
+    ['! grep', `! grep -q x ${FROZEN_FILE}`],
+  ])('%s 既有凍結檔（! 不是寫入） → 放行', (_label, command) => {
+    const result = runGuard(command)
+    expect(result.status).toBe(0)
+  })
+
+  it('sudo -n rm 既有凍結檔（-n 在 sudo 不吃值，不可沿用 nice 的吃值表） → 擋下', () => {
+    const result = runGuard(`sudo -n rm ${FROZEN_FILE}`)
+    expect(result.status).toBe(2)
+  })
+})
