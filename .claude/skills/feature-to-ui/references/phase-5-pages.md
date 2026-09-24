@@ -46,7 +46,7 @@ Sync 模式額外讀取：
 執行 /nuxt-ui 載入組件文檔（若尚未載入）
 ```
 
-> **設計理念**：Phase 5 的目標是「讓 .spec.ts 通過」。v2 spec 以**語意 locator 為主**（`getByRole` + accessible name、`getByText`、`getByLabel`、`findEntity`），`getByTestId` 僅為 flow 授權的 fallback。
+> **設計理念**：Phase 5 的目標是「讓 .spec.ts 通過」。spec 以**語意 locator 為主**（`getByRole` + accessible name、`getByText`、`getByLabel`、`findEntity`），`getByTestId` 僅為 flow 授權的 fallback。
 > 所以 UI 要提供的首先是**語意 anchor**（role、accessible name、label、可見文字）；spec 用到 `getByTestId` 之處，`data-testid` 直接從 spec 複製，不存在「兩個版本不一致」的問題。
 
 ---
@@ -122,7 +122,7 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
    > 「頁面 UI」類型必須列出**具體要移除的程式碼項目**（import、ref、函式、模板區塊），不可只寫「移除排序功能」。
 
 4. **用戶確認後執行刪除**：
-   - **頁面 UI**（⚠️ 必須執行，不可跳過）：
+   - **頁面 UI**：
      - 讀取頁面 `.vue` 原始碼
      - 逐一移除步驟 2 列出的 import、變數、函式、template 區塊（使用 Edit）
      - 若移除 `<Draggable>` 等元件，需替換為等效的靜態元素（如 `<tbody>` + `v-for`）
@@ -151,7 +151,7 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
    - 掃描 `toContainText()`, `toHaveCount()`, `getByText()` → 了解斷言預期和錯誤訊息
    - 掃描 `waitForApiCall` / `waitForRequest` → 頁面必須實際發出的 API 呼叫（method + 路徑 pattern）
    - 掃描 `test.skip()` 註釋 → 了解哪些情境無需 UI 實作
-2. **⚠️ 強制前置讀取（每個功能都必須執行！）**
+2. **前置讀取（每個功能）**
    - **掃描 API 結構**：`glob server/api/**/*.ts`
    - **讀取該頁面用到的 API endpoint 原始碼**：確認回傳格式、query/body 參數
    - **讀取該頁面用到的 `types/api/` 型別定義**：頁面必須 import 使用，禁止定義 local interface
@@ -182,23 +182,23 @@ Phase 5 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
    - **逐一檢查步驟 3 對照表，確保每個 Scenario 都有對應的 UI 實作**
    - **⚠️ build 模式（fallback 防漏）：檢查 Layout 導航是否已包含此路由**。Phase 3 應已處理導航同步，此處僅做最終確認。讀取 `app/layouts/default.vue`，確認 `navigation` 陣列是否有此頁面的連結。若無 → 加入導航項目（label、icon、to）
    - 若 spec 資訊不足以判定驗證邊界值（如「字長 1-50」），再查閱 `.dsl.feature` 的 Rule
-5. **⚠️ 功能覆蓋驗證（必須執行！）**
+5. **功能覆蓋驗證**
    - 拿步驟 3 的對照表，逐列標記 OK 或 FAIL
    - 若有任何 FAIL → 補做後重新驗證
    - 檢查 Mock 資料量是否 ≥ 11 筆，不足則補建
-6. **⚠️ 規範合規檢查（必須執行！）**
+6. **規範合規檢查**
    - spec 要求的語意 anchor（role + accessible name、label、可見文字）是否全數提供
    - fallback testid 是否逐字對應 spec 的 `getByTestId()` 呼叫（不多加、不漏）
    - 型別是否從 `types/api/` import（禁止定義 local interface）
    - 深淺模式是否正常（禁止寫死顏色值）
    - 頁面主資料是否 `lazy: true` ＋ `status === 'pending'` 渲染 skeleton 佔位（見 [page-builder.md](page-builder.md) > 載入佔位）
 7. **若步驟 5-6 發現缺漏 → 修復後重新驗證**
-8. **⚠️ 程式碼品質檢查（必須執行）**
+8. **程式碼品質檢查**
    - 對本次新增或修改的檔案跑品質檢查四連（指令順序與禁忌見 [rules.md](rules.md)「程式碼品質檢查規範 `[P5]`」——該段為權威版本）
    - 有錯誤 → 修復後重新執行，直到全部通過
    - **全部通過才可進入下一步**
 9. **向用戶確認（必須使用下方結構化格式，包含步驟 3 的對照表）**
-10. **⚠️ 輸出確認格式後立即停止回應，等待用戶回覆後才處理下一個頁面**
+10. 輸出確認格式後停止回應（見本檔開頭「核心規則：一次只做一個頁面」）
 
 ## 每個功能必讀資源 Checklist
 
@@ -252,7 +252,7 @@ Scenario 覆蓋：
 
 > ⚠️ **最後一個頁面確認時**：將結尾替換為「Phase 5 全部完成。下一步：`/test e2e green auto`」
 >
-> ⚠️ **輸出以上確認格式後，必須立即停止回應。禁止在同一次回應中繼續處理下一個頁面。**
+> 輸出以上確認格式後停止回應（見本檔開頭「核心規則：一次只做一個頁面」）。
 
 ## 頁面實作範本
 
@@ -277,7 +277,7 @@ Scenario 覆蓋：
    - 找不到 → **自動升級為 rebuild**，向用戶說明原因
    - 常見定位目標：`const schema = z.object`、`function openCreate`、`<UFormField label=`、`data-testid=`
 6. **逐項 Edit**（使用 Edit tool，不 Write 整個檔案）
-7. **⚠️ 程式碼品質檢查（必須執行）**
+7. **程式碼品質檢查**
    - 對本次修改的檔案跑品質檢查四連（指令順序與禁忌見 [rules.md](rules.md)「程式碼品質檢查規範 `[P5]`」）
    - 有錯誤 → 修復後重新執行，直到全部通過
 8. **完成後確認**（一次確認即可）
@@ -309,7 +309,7 @@ Scenario 覆蓋：
 
    > ⚠️ **最後一個頁面確認時**：將結尾替換為「Phase 5 全部完成。下一步：`/test e2e green auto`」
    >
-   > ⚠️ **輸出以上確認格式後，必須立即停止回應。禁止在同一次回應中繼續處理下一個頁面。**
+   > 輸出以上確認格式後停止回應（見本檔開頭「核心規則：一次只做一個頁面」）。
 
 8. **功能覆蓋驗證**（含未變更 feature 的 Scenario 確認，確保 patch 沒有破壞既有功能）
 

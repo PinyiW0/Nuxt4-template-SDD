@@ -42,7 +42,7 @@ Phase 3 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 5. **⚠️ 如果本 Phase 有建立任何 layout，則更新 app.vue**（見下方說明）
 6. **輸出完成摘要**（告知用戶下一步指令，不用「要我繼續嗎？」的問法）
 
-## ⚠️ 條件式 app.vue 設定（極度重要！）
+## 條件式 app.vue 設定
 
 **判斷邏輯**：如果 Phase 3 建立了任何 layout 檔案（`app/layouts/*.vue`），則**必須**同步更新 `app.vue` 加入 `<NuxtLayout>` + `<UApp>`。
 

@@ -214,8 +214,9 @@ export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```typescript
 // server/mock/data/users.ts
 export const mockUsers = [
-  { accountId: 'acc-001', account: 'admin', password: 'admin888', name: '系統管理員', roles: ['super_admin'], deletedAt: null },
-  { accountId: 'acc-002', account: 'observer1', password: 'pass123', name: '王思婷', roles: ['observer'], deletedAt: null },
+  // 角色值為假想（workspace_owner / member）；實際用 route-map.rbac.roles 萃取出的角色詞
+  { accountId: 'acc-001', account: 'owner1', password: 'pass1234', name: '工作區擁有者', roles: ['workspace_owner'], deletedAt: null },
+  { accountId: 'acc-002', account: 'member1', password: 'pass1234', name: '一般成員', roles: ['member'], deletedAt: null },
 ]
 ```
 
@@ -411,7 +412,7 @@ setResponseStatus(event, 204)
 - **② 擁有權過濾**（`rbac.ownership` 的列表端點）——`getMockCurrentUser(event)` 取角色，`restricted_roles` 內的角色只回自己 `owner_field` 的資料；全權角色不過濾。
 - **③ 單筆 object 歸屬**（`rbac.object_ownership` 的 `/{id}` 端點，OWASP **BOLA / API #1**）——順序鐵律：**先查到 object → 再驗歸屬（`requireOwnership(event, owner, restrictedRoles)`）→ 才動作**；受限角色帶他人 id → 403。先動作或只比對 id 不查 owner，就是 OWASP #1 漏洞。
 
-> ⚠️ 三個 util 皆由 `server/mock/auth-context.ts` 提供（rbac-scaffold §3a），**需傳入 `event`** 才能從 Authorization header 反查角色——舊版無參數的寫法已失效。
+> ⚠️ 三個 util 皆由 `server/mock/auth-context.ts` 提供（rbac-scaffold §3a），**需傳入 `event`** 才能從 Authorization header 反查角色。
 > ⚠️ 守門 / 過濾後直接回結果；E2E 斷言基於「該登入角色實際拿到的資料量」（見 spec.md 的多角色推算）。
 
 ## Auth Store 範例

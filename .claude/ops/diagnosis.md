@@ -7,7 +7,7 @@
 
 **證據**：
 - 專案 `.claude/CLAUDE.md` 曾達 123 行全內容型，每 session 全文常載
-- 全域 `~/.claude/CLAUDE.md` 引用 `~/.claude/rules/vue.md`、`nuxt.md`、`vitest.md`——三檔皆不存在（2026-07-05 實測）。指向空氣的規則等於沒寫，而且沒有任何機制會發現
+- 全域 `~/.claude/CLAUDE.md` 曾引用不存在的 rules 檔（2026-07-05 盤點時；現已補齊）。指向空氣的規則等於沒寫，而且沒有任何機制會發現
 - UserPromptSubmit hook（internal-research-rag）每個 prompt 注入 2–3 個 chunk，經常與任務無關（實測：UIUX 討論被注入無關領域的研究文件與採購試算表）
 
 **修法（可直接執行）**：
@@ -42,4 +42,4 @@
 
 - **skill 觸發是機率式的**：description 寫得再好也可能不觸發。硬性流程不要依賴 auto-trigger，用 `disable-model-invocation: true` + 明確 `/指令` 呼叫
 - **macOS sh 的 CJK 陷阱**：雙引號字串內變數後緊接全形字元會把多位元組字元誤併入變數名，`set -u` 下炸 unbound variable，一律用 `${var}` 定界（教訓原文在使用者層記憶，不隨 repo）
-- **全域 CLAUDE.md 的死連結**是使用者層問題，本專案制度管不到——已在交接信（[letter-to-future.md](letter-to-future.md)）提醒使用者手動處理
+- **全域 CLAUDE.md 的連結**是使用者層問題，本專案制度管不到——發現失效時提醒使用者處理（見 [letter-to-future.md](letter-to-future.md)）

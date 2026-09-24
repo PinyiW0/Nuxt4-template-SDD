@@ -213,9 +213,7 @@ export const mockUsers = [
 
 > ⚠️ **此種子與 [phase-1-mock-api.md](phase-1-mock-api.md)「Mock 資料範例」是同一個檔（`server/mock/data/users.ts`）的兩處示意**——那裡示範「登入要什麼欄位」、這裡示範「rbac 要多角色」。
 >
-> **目前兩處的角色值不一致**：本檔已中性化為 `workspace_owner` / `member`，`phase-1-mock-api.md` 仍是 流星觀測 spec 的實際角色（尚未中性化，收斂追蹤見 issue #103 §7）。
->
-> **優先序無歧義：多角色種子以本檔 §3a 為準**——`phase-1-mock-api.md` 的「角色守門範例」段已明訂「完整範本（含多角色種子）見 rbac-scaffold.md §3a，**以該檔為唯一權威版本，勿在此複製**」。那邊「Mock 資料範例」的角色字面值屬已知待修的殘留複製品，**不要照抄**。
+> **優先序無歧義：多角色種子以本檔 §3a 為準**——`phase-1-mock-api.md` 的「角色守門範例」段已明訂「完整範本（含多角色種子）見 rbac-scaffold.md §3a，**以該檔為唯一權威版本，勿在此複製**」。那邊「Mock 資料範例」的角色值與本檔一致（皆為假想值）。
 
 ```ts
 // server/api/v1/members/index.get.ts —— 受限端點：首行 requireRole 即擋

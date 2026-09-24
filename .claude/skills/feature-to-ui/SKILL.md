@@ -133,7 +133,7 @@ flowchart LR
 - `test/e2e/specs/*.spec.ts` - **Phase 5 的唯一 UI 合約**（locator、互動模式、斷言預期全在這裡），也是 testid 的唯一來源
 - Phase 2 **不需要 testid 來源**——骨架只給語意結構（`<main>` + `<h1>`），testid 一律留到 Phase 5 依 spec 逐字複製
 
-> ⚠️ Phase 5 的 locator 合約以 v2 語意優先：spec 的 `getByRole`/`getByLabel`/`getByText` 對應 UI 要提供的 **accessible name / label / 可見文字**；
+> ⚠️ Phase 5 的 locator 合約以語意優先：spec 的 `getByRole`/`getByLabel`/`getByText` 對應 UI 要提供的 **accessible name / label / 可見文字**；
 > spec 用到 `getByTestId` 之處 testid **逐字複製**、spec 沒用到就不加。不讀 `.flow.md`，消除版本不同步的問題。
 
 ### 專案設定

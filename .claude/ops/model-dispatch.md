@@ -42,7 +42,7 @@
 | 對抗審查、架構設計、複雜除錯 | `opus` | 需要找出「沒說出口的問題」 |
 | （不派） | `fable` | **不派給 subagent**。額度稀缺，只留主線判斷 |
 
-> 完整模型 ID 供參（2026-08-20 session 內查證的環境宣告；各 session 宣告清單不同，使用時以當前 session 環境為準）：fable=`claude-fable-5`、opus=`claude-opus-5`（部分 session 宣告含 `[1m]` 長 context 後綴）、sonnet=`claude-sonnet-5`、haiku=`claude-haiku-4-5-20251001`。
+> 完整模型 ID 不寫死：以當前 session 環境宣告為準（每次模型改版都會變）。
 > 成本相對階序 haiku < sonnet < opus < fable；絕對比例未確認，勿自行編造。
 > subagent 類型（Explore/Plan/general-purpose 等）以當前 session 的 harness 宣告清單為準，不要假設固定存在。
 
@@ -139,5 +139,3 @@ fresh subagent 的 context ＝ CLAUDE.md ＋ **你寫的 prompt**。它乾淨，
   - repo 為 public 時，涉及私有專案細節只寫抽象結論
 - 交辦 subagent 時指定產物路徑，不要讓它把 30 行以上的結果塞回對話
 - 判準：如果這個 session 現在被砍掉，重開的人靠 repo 裡的檔案（含 issue 留言）與 memory 能不能接手？不能 = 還沒存夠
-
-> 用詞統一為「隨做隨存」（早期文件有「隨做隨寫」的舊稱，同一件事）。

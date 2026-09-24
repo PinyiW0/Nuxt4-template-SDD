@@ -18,14 +18,11 @@ disable-model-invocation: true
 $ARGUMENTS
 
 <rules>
-**執行規則（CRITICAL）**：
+**執行規則**：
 
-當看到 `<action>AskUserQuestion({...})</action>` 時：
-1. **必須**使用 AskUserQuestion 工具，傳入函數參數
-2. **禁止**將問題內容輸出為文字或 Markdown
-3. **必須**等待用戶回答後，執行「回答後處理」邏輯
+看到 `<action>AskUserQuestion({...})</action>` 時，以 `<action>` 內的物件當參數呼叫 AskUserQuestion 工具（不是把問題印成文字），等使用者回答後執行「回答後處理」。
 
-本 skill 全部文件（含 references/）中的 `{…}` 為待填佔位符：執行時**必須**以實際內容取代，**禁止**原樣輸出。
+本 skill 全部文件（含 references/）中的 `{…}` 是待填佔位符，執行時以實際內容取代。
 </rules>
 
 ## Workflow
