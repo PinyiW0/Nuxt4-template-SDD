@@ -34,7 +34,7 @@ npx playwright install chromium
 
 模板重點（測試環境隔離）：
 - **per-worktree 確定性 port**：由 config 所在目錄 hash 出 3100–3499 的 port——同 worktree 每次同 port（`reuseExistingServer` 可安全重用），不同 worktree 不同 port（多 session 並行不互撞）。**不要寫死 port**
-- **`E2E_BASE_URL` 外部 server 模式**：存在時整個不掛 webServer（Docker gate 等外部環境直接打該 URL）
+- **`E2E_BASE_URL` 外部 server 模式**：存在時整個不掛 webServer（CI 的 e2e job、`scripts/docker-gate.sh` 等外部起好的 production server 直接打該 URL）
 - **webServer.env 強制 `NUXT_PUBLIC_API_BASE=/api`**：避免 `.env` 的絕對 URL 讓瀏覽器打錯 port
 
 ```typescript
@@ -119,7 +119,7 @@ body 可選 `{ empty?: string[] }`：`empty` 內列出的集合，重設回初�
 
 ```typescript
 // server/api/__test__/reset.post.ts
-// defineEventHandler／readBody／createError 是 Nitro server 端 auto-import，不必手動 import
+// defineEventHandler／readBody／createError／useRuntimeConfig 是 Nitro server 端 auto-import，不必手動 import
 import type { H3Event } from 'h3'
 import { z } from 'zod'
 // ⚠️ 用 ~~（root alias）不用 ~：server 端的 ~ 對應 app/，~/server/... 解析不到（issue #137 實測）
@@ -131,9 +131,13 @@ const resetBodySchema = z.object({
   empty: z.array(z.enum(['notes', 'tags'])).optional(),
 }).strict()
 
-// 測試專用端點，僅 dev 模式存在；production 建置一律 404，不隨 app 上生產
+// 測試專用端點：dev 模式存在；production build 預設 404，不隨 app 上生產。
+// 唯一例外是 runtimeConfig.e2eReset（env NUXT_E2E_RESET=true，Nitro 用 destr 轉布林）：
+// CI 的 e2e job 與 scripts/docker-gate.sh 跑 production build 全量時靠它開門——
+// 沒有這個例外，production 下每支 spec 的 beforeEach → resetMockData 會先拿到 404 而炸（#150）。
+// 部署環境不得設此變數；不直讀 process.env（rules/server-security.md：env 一律走 runtimeConfig）。
 export default defineEventHandler(async (event: H3Event) => {
-  if (!import.meta.dev)
+  if (!import.meta.dev && !useRuntimeConfig(event).e2eReset)
     throw createError({ statusCode: 404 })
 
   // 不吞掉解析失敗：非法 JSON 明確回 400，不要讓壞 body 被當成空 body 而通過
@@ -148,6 +152,9 @@ export default defineEventHandler(async (event: H3Event) => {
   return { ok: true }
 })
 ```
+
+`nuxt.config.ts` 要有私有鍵 `runtimeConfig.e2eReset: false`（模板已內建；#150 之前建立的專案要補上，否則 `useRuntimeConfig(event).e2eReset` 型別推不出來）。
+型別由 Nuxt 從 nuxt.config 推導，端點內直接是 boolean，不必自己轉。
 
 > 若 `server/mock/data/index.ts` 尚無 `resetMockData()`，需新增，並支援 `{ empty?: string[] }`：
 >
@@ -372,6 +379,11 @@ export * from './route-match'
 ```
 
 ### Step 6：建立 hydration smoke spec
+
+> **煙霧集合由 `.husky/pre-push` 的 `SMOKE_PATTERN` 一行定義**，模板預設 `specs/(00-hydration|01-auth-guard|02-authz-scope)`：
+> `00-hydration`（本步）、`01-auth-guard`、`02-authz-scope`（後兩支依專案條件產出）。`.husky/pre-push`（只跑煙霧）與 `/vibe-check`
+> 的定向模式都用 sed 抽同一行，**用完整檔名不用 `00`–`02` 前綴**——feature spec 的編號可以從 `01` 起（如 `01-使用者登入.spec.ts`），前綴會誤收。
+> setup 之前建立的舊專案（如煙霧是 `00-auth`）改那一行，不要改檔名遷就模板。
 
 對每個 route 做**整頁載入**掃描。hydration 只發生在 hard load（`page.goto`）；client-side 導航不會重 hydrate，所以逐 route hard load 即可覆蓋全部 hydration 面。
 
@@ -607,7 +619,7 @@ E2E Setup 完成
 - [ ] `package.json` 有 `test:e2e` / `test:e2e:headed` / `test:e2e:ui` 指令
 - [ ] `server/api/__test__/reset.post.ts` 存在且 `resetMockData()` 可用
 - [ ] reset 端點支援 `{ empty?: string[] }` 通道（集合名走 zod enum 白名單）並清空指定集合
-- [ ] reset 端點有 `if (!import.meta.dev) throw createError({ statusCode: 404 })` 守門，不隨 app 上生產
+- [ ] reset 端點有 `if (!import.meta.dev && !useRuntimeConfig(event).e2eReset) throw createError({ statusCode: 404 })` 守門，且 `nuxt.config.ts` 有 `runtimeConfig.e2eReset: false`；production 只在 CI e2e job／`scripts/docker-gate.sh` 以 `NUXT_E2E_RESET=true` 開門，部署不設
 - [ ] `actions.ts` 包含 login / selectOption / confirmDelete / resetMockData（`resetMockData` 支援透傳 `{ empty }`）
 - [ ] `fixtures.ts` 包含測試帳號和路由（與 `_common.flow.md` 一致）
 - [ ] `hydration.ts` 存在且 `index.ts` re-export `{ expect, test }`

@@ -123,7 +123,7 @@ PR #121 · 4 則留言（必修 1 / 可選 2 / 不修 1）
 npm run eslint && npm run typelint
 ```
 
-紅燈 → 修到綠；修不好就還原**自己這次動過的那幾個檔**（不是 `git checkout -- .`），並說明卡在哪。**動到 `app/`、`server/` 另外跑一次 gate config**（`npm run test:gate`）；**動到 `.vue`／store／server 且非純格式時另跑 `/sdd-review`**——跟 `/verify-ac` 用同一套判準，紅燈處理方式相同：只還原本次自己動過的檔。
+紅燈 → 修到綠；修不好就還原**自己這次動過的那幾個檔**（不是 `git checkout -- .`），並說明卡在哪。**動到 `app/`、`server/` 另跑煙霧＋該條建議對應的 spec**（一條指令、位置參數聯集、加 `--reporter=line`，例：`npx playwright test --config playwright.gate.config.ts --reporter=line 'specs/(00-hydration|01-auth-guard|02-authz-scope)' test/e2e/specs/07-xxx.spec.ts`；spec 怎麼挑見 `.claude/skills/vibe-check/SKILL.md`「定向查法」）。全量不在這裡跑：由 push 後 CI 的 production 全量與 `/ship` L2 的 dev 全量承接；**動到 `.vue`／store／server 且非純格式時另跑 `/sdd-review`**——跟 `/verify-ac` 用同一套判準，紅燈處理方式相同：只還原本次自己動過的檔。
 
 改完就結束——**不 commit、不 push**。要 commit 使用者會自己跑 `/commit`。
 

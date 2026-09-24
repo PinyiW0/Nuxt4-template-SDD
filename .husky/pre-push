@@ -1,13 +1,19 @@
 #!/usr/bin/env sh
-# Pre-push gate: 跑 gate config（主 spec + vibe spec，與 /vibe-check 同一套）
-# Docker 可用 → 以 production image 隔離跑（多 session 並行 push 不互撞，且驗的是 build 產物）；
-# Docker 不可用 → fallback 本機 dev server（per-worktree port，仍有隔離）。
-# specs/ 紅燈 = 破壞 Business Invariant（修 UI 不可改 spec）；
-# vibe/ 紅燈 = vibe 層行為壞了（修 UI 或更新/刪該 vibe spec 皆合法）。
+# Pre-push：只跑煙霧 spec（由下方 SMOKE_PATTERN 定義；模板預設 00-hydration｜01-auth-guard｜02-authz-scope：逐 route 整頁載入／auth 守衛／authz scope），本機 dev server。
+#
+# 分級（SSOT：.claude/skills/vibe-check/SKILL.md）：
+#   本機 /vibe-check 預設定向（煙霧＋受影響 spec）、/ship L2 跑 dev 全量、
+#   CI 的 e2e job（.github/workflows/pull_request.yml）跑 production build 全量——
+#   「改 A 有沒有壞 B」的完整回歸在 CI，不在這裡。pre-push 防的是手滑：整頁載不出來、
+#   auth／authz 守衛失效這種一推就炸的東西，一兩分鐘內給答案。
+# scripts/docker-gate.sh（production 全量）改為 /ship --prod-gate 的本機選配，pre-push 不再呼叫它。
+# specs/ 紅燈 = 破壞 Business Invariant（修 UI 不可改 spec）。
 #
 # 最佳化：若本次 push 的 commit「只動到非程式碼檔」（.env*／docs／docker 設定等），
 # 這些變更不會影響被測程式邏輯，因此跳過測試，不必空等。
-# 保守原則：只要有任何一個程式碼檔被改到，就照常跑全套測試。
+# 保守原則：只要有任何一個程式碼檔被改到，就照常跑煙霧。
+# 注意：SKIP_PATTERN／FORCE_TEST_PATTERN 這兩行也被 .claude/skills/ship/scripts/ledger.sh 用 sed 抽走當 L2 判準，
+# 格式（單引號、一行）不可變。
 
 z40="0000000000000000000000000000000000000000"
 
@@ -28,6 +34,34 @@ SKIP_PATTERN='(^|/)\.env($|\.)|\.md$|^docker-compose\.ya?ml$|^Dockerfile$|^\.doc
 # 若 nuxt.config 的 defaultLocale 換了，這裡要同步改成新 defaultLocale 的檔名。
 FORCE_TEST_PATTERN='^i18n/locales/zh-TW\.json$'
 
+# 煙霧集合（#150 分級的最小集合）：regex，對 spec 檔路徑比對（Playwright 位置參數語意）。
+# 模板預設是 /test e2e setup 產出的三支固定檔名；setup 之前建立的舊專案依實際檔名改這一行
+# （例：'specs/(00-hydration|00-auth)'）。/vibe-check 用 sed 抽這一行當同一份判準，格式（單引號、一行）不可變。
+SMOKE_PATTERN='specs/(00-hydration|01-auth-guard|02-authz-scope)'
+
+# ── 設定自檢（一定放在下方「要不要跑」判定之前）──
+# .husky/ 本身在 SKIP_PATTERN 內：只改這個檔的 push 會走「跳過測試」那條路。自檢若放在那之後，
+# 把 pattern 改壞的那次 push 會直接推上去（CI 不跑 hook），之後每次 push 都靜默放行或跑錯集合。
+# 判準是 grep 的 exit code 2（非法 ERE）；合法 pattern 對空輸入回 1 是正常的（同 ledger.sh 的 ere_ok）。
+ere_ok() { rc=0; printf '' | grep -qE "$1" 2>/dev/null || rc=$?; [ "$rc" -le 1 ]; }
+# 空字串會反轉語意：grep -vE '' 把所有檔濾掉（永遠跳過測試）、grep -E '' 命中所有 spec（煙霧變整份 gate），
+# 而 /vibe-check 抽到空的 SMOKE_PATTERN 會改用模板預設，兩邊判準就不一致——一律擋下。FORCE_TEST_PATTERN 允許留空。
+for name in SKIP_PATTERN SMOKE_PATTERN; do
+  eval "val=\$$name"
+  if [ -z "$val" ]; then
+    echo "❌ ${name} 是空的 → 拒絕 push。請在 .husky/pre-push 填回實際的 regex（SMOKE_PATTERN 模板預設 'specs/(00-hydration|01-auth-guard|02-authz-scope)'）。"
+    exit 1
+  fi
+done
+for name in SKIP_PATTERN FORCE_TEST_PATTERN SMOKE_PATTERN; do
+  eval "val=\$$name"
+  if ! ere_ok "$val"; then
+    echo "❌ ${name} 不是合法的 ERE（${val}）→ 拒絕 push。"
+    echo "   請修正 .husky/pre-push 的 ${name} 那一行（/vibe-check 用 sed 抽同一份判準；ledger.sh 讀 SKIP／FORCE 兩行）。"
+    exit 1
+  fi
+done
+
 need_test=0
 
 # git 透過 stdin 傳入 <local_ref> <local_sha> <remote_ref> <remote_sha>
@@ -36,14 +70,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$z40" ] && continue
 
   if [ "$remote_sha" = "$z40" ]; then
-    # 新分支：無法可靠界定變更範圍，保守起見照跑測試
+    # 新分支：無法可靠界定變更範圍，保守起見照跑煙霧
     need_test=1
     break
   fi
 
   files=$(git diff --name-only "$remote_sha" "$local_sha")
-  # 命中強制跑清單（defaultLocale 翻譯檔）→ 不看白名單，直接跑測試
-  if printf '%s\n' "$files" | grep -qE "$FORCE_TEST_PATTERN"; then
+  # 命中強制跑清單（defaultLocale 翻譯檔）→ 不看白名單，直接跑測試（留空＝沒有強制清單，不是「全部強制」）
+  if [ -n "$FORCE_TEST_PATTERN" ] && printf '%s\n' "$files" | grep -qE "$FORCE_TEST_PATTERN"; then
     need_test=1
     break
   fi
@@ -57,45 +91,42 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done
 
 if [ "$need_test" -eq 0 ]; then
-  echo "✅ 本次 push 只動到非程式碼檔（.env／docs／docker／非預設語系翻譯檔等），不影響測試 → 跳過 gate spec。"
+  echo "✅ 本次 push 只動到非程式碼檔（.env／docs／docker／非預設語系翻譯檔等），不影響測試 → 跳過煙霧 spec。"
   exit 0
 fi
 
-# 模板初始階段可能還沒任何 gate 測試檔（SDD 流程尚未產出 spec）。
-# Playwright 對「No tests found」會回非 0，會誤擋 push；
-# 故先確認 gate 範圍內（specs/、vibe/，排除 vibe/unstable/）有測試檔，
-# 沒有則印警告並視為通過 —— 等之後產出 spec，gate 才真正生效。
-# 注意：目錄不存在時 find 回非 0，sh -e 會觸發 errexit，故加 || true（同上方 grep）
-gate_specs=$(find test/e2e/specs test/e2e/vibe -name '*.spec.ts' -not -path '*/vibe/unstable/*' 2>/dev/null || true)
-if [ -z "$gate_specs" ]; then
-  echo "⚠️  尚無 gate 測試檔（test/e2e/specs｜vibe/*.spec.ts）→ 跳過 gate spec。"
-  echo "   （SDD 流程產出 spec 後，此 gate 才會真正守。）"
+# 煙霧 spec 由 /test e2e setup 產出（模板預設檔名見 SMOKE_PATTERN）。沒有任何檔命中 SMOKE_PATTERN
+# （setup 之前、或舊專案還沒改 SMOKE_PATTERN）→ 印警告放行；production 全量仍由 CI 守。
+# 比對對象要跟 Playwright 一樣：它把位置參數當 regex、對 spec 的「絕對路徑」比對、不分大小寫（實測：'^specs/x' 找不到、
+# '^/.*specs/x' 找得到、大寫也找得到）。所以這裡 find 用絕對路徑、grep 加 -i，同一個 pattern 在兩邊命中的檔才一致；
+# 用 ^ 錨定 specs/ 的 pattern 在兩邊都不會命中，別這樣寫。兩邊的 regex 方言不同（JS vs POSIX ERE），只用交集：
+# 分組、| 交替、字元集；\d、(?:…) 這類 JS 專屬寫法不要用。
+# 注意：目錄不存在時 find 回非 0、grep 沒命中回 1，sh -e 會觸發 errexit，故加 || true
+smoke_specs=$(find "$PWD/test/e2e/specs" -name '*.spec.ts' 2>/dev/null | grep -iE "$SMOKE_PATTERN" || true)
+if [ -z "$smoke_specs" ]; then
+  echo "⚠️  沒有 spec 檔命中 SMOKE_PATTERN（${SMOKE_PATTERN}）→ 跳過 pre-push 煙霧。"
+  echo "   （跑過 /test e2e setup 後才會有；舊專案請把 SMOKE_PATTERN 改成實際的煙霧檔名。production 全量仍由 CI 的 e2e job 守。）"
   exit 0
 fi
 
-# Gate 執行策略：
-#   Docker 可用 → scripts/docker-gate.sh：production image 隔離跑（ephemeral port，並行 push 不互撞）
-#   Docker 不可用 → fallback 本機 dev server（per-worktree port 已根治誤連問題），大聲警告
+# 位置參數是對檔案路徑做 regex 比對，SMOKE_PATTERN 一個 pattern 涵蓋所有煙霧檔；用完整檔名不用 00–02 前綴——
+# feature spec 的編號可以從 01 起（如 01-使用者登入.spec.ts），前綴會把它們一起收進來。
+# --reporter=line 只印失敗——AI 執行 git push 時回到對話的輸出只剩有用的部分（config 預設 list 每條測試印一行）。
+# 刻意不用 --last-failed：它與檔名篩選是 AND、缺 .last-run.json 時靜默跑全量、零失敗時 exit 1。
 # 注意：husky 以 sh -e 執行本檔，用 `|| gate_status=$?` 接住失敗才能印出下方分流指引
+echo "🔍 Running smoke spec（${SMOKE_PATTERN}，dev server）…"
 gate_status=0
-if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  echo "🔍 Running gate spec（Docker production build）…"
-  sh scripts/docker-gate.sh || gate_status=$?
-else
-  echo "⚠️  Docker 不可用（未安裝或 daemon 未啟動）→ fallback 本機 dev server 跑 gate。"
-  echo "   本機模式驗的是 dev build 而非 production build；建議啟動 Docker 後再 push。"
-  npx playwright test --config playwright.gate.config.ts || gate_status=$?
-fi
+npx playwright test --config playwright.gate.config.ts --reporter=line "$SMOKE_PATTERN" || gate_status=$?
 
 if [ "$gate_status" -ne 0 ]; then
   echo ""
-  echo "❌ Gate spec failed. 依失敗的 spec 路徑分流："
-  echo "   → test/e2e/specs/ 紅燈 = 破壞 Business Invariant。"
-  echo "     不可改 spec。請對照 spec/e2e-flows/*.flow.md 找出違反的 invariant，修 UI。"
-  echo "   → test/e2e/vibe/ 紅燈 = vibe 層行為壞了。"
-  echo "     修 UI，或更新/刪除該 vibe spec（vibe 層不凍結），時序敏感可搬 vibe/unstable/。"
-  echo "   → 緊急情況可用 --no-verify 跳過（不推薦，CLAUDE.md 政策禁止）。"
+  echo "❌ Smoke spec failed. 依失敗的 spec 分流："
+  echo "   → 00-hydration 紅燈 = 某條 route 整頁載不出來或有 hydration 警告；先本機開該頁看 console。"
+  echo "      （煙霧集合由本檔 SMOKE_PATTERN 定義；下面兩條以模板預設檔名為例）"
+  echo "   → 01-auth-guard／02-authz-scope 紅燈 = 登入守衛或巢狀 scope 授權壞了；"
+  echo "     對照 spec/report/route-map.yaml 的 auth／rbac 區塊修 middleware／server，不可改 test/e2e/specs/（凍結）。"
+  echo "   → 緊急情況可用 --no-verify 跳過（不推薦；那會讓 CI 成為唯一守門）。"
   exit 1
 fi
 
-echo "✅ Gate spec passed. Push proceeding."
+echo "✅ Smoke spec passed. Push proceeding（production 全量由 CI 的 e2e job 跑）。"

@@ -65,8 +65,20 @@ disable-model-invocation: true
    | 2 | 參數錯誤 | 停下報告，重試無用 |
    | 3 | 需人工介入（缺 `gh`／`jq`、找不到或撈到多個 reviewer bot） | 停下報告，重試無用 |
    | 其他 | 契約外的結束碼，代表腳本本身出了沒預期的狀況 | 停下報告。**不要當成 0 也不要當成可重試** |
-2. 沒有新 review → 更新靜默計數、排下一輪、安靜結束
-3. **逐則**（不是整輪）判斷錨點：某則的 `commit_id` 不等於目前 HEAD 時，**一律先 `git fetch origin <branch>`**，再用 `git show origin/<branch>:<path>` 讀遠端實際內容確認問題是否已修掉。已修掉 → 該則只列進第 9 步的回覆清單，**不重改也不重 commit**，且**不計入煞車計數**；其餘各則照 4–7 步走。一輪常同時收到多則 review，整輪跳過會漏掉新問題
+1b. **收 CI 結果**（全量 gate 搬到 CI 之後，這一步是唯一看得到「改 A 有沒有壞 B」的地方）：`gh pr checks <PR編號> --json name,bucket`，看 `e2e` job（production 全量）與其他 check。
+   **先驗錨點再看 bucket**：`gh run list --branch '<branch>' --workflow pull_request.yml --limit 1 --json headSha,status,conclusion`，`headSha` 要等於 `git rev-parse HEAD`——剛 push 完 Actions 還沒登記新 run 時，`gh pr checks` 會回**空陣列**或列出上一個 commit 的 check，空不等於全 pass：
+
+   | `bucket` | 動作 |
+   |---|---|
+   | 空結果、沒有 `e2e` 這個 check、或最新 run 的 `headSha` ≠ 目前 HEAD | 當 `pending`：本輪照常處理 review 留言，共識判定不成立 |
+   | 全部 `pass`（`skipping` 視同 pass）且 run 錨在目前 HEAD | 往下走 |
+   | 有 `pending` | 本輪照常處理 review 留言；共識判定（第 5 節）在 CI 跑完前不成立 |
+   | `cancel`（被 workflow 的 concurrency 取消，因為又 push 了一次） | 當「等新的 run」，不是紅燈，不計入煞車與問題指紋 |
+   | `e2e` 的 `fail` | **列為本輪「必修」**，與 Copilot 留言一起走 4–9 步：讀 job log（或下載 artifact `playwright-report-gate`）找紅的 spec；修法照 `../vibe-check/SKILL.md` Step 4 分流——`specs/` 紅＝修 UI 不改 spec，`vibe/` 紅＝歸「待使用者決定」（鐵律 4）。**不重跑 CI 等它變綠**：config 在 CI 已 `retries: 1`，紅就是紅 |
+   | 其他 check 的 `fail`（lint／typecheck／unit） | 同上列為必修 |
+
+2. 沒有新 review 且 CI 無新 `fail` → 更新靜默計數、排下一輪、安靜結束
+3. **逐則**（不是整輪）判斷錨點：某則的 `commit_id` 不等於目前 HEAD 時，**一律先 `git fetch origin '<branch>'`**，再用 `git show 'origin/<branch>:<path>'` 讀遠端實際內容確認問題是否已修掉。已修掉 → 該則只列進第 9 步的回覆清單，**不重改也不重 commit**，且**不計入煞車計數**；其餘各則照 4–7 步走。一輪常同時收到多則 review，整輪跳過會漏掉新問題
 
    **fetch 不可省。** 自己剛 push 過的 `origin/<branch>` 確實是新的（git 會把該次更新記成 `update by push`，拿空 repo 就能複現），但別人或並行 session 推過、換 clone、換機器時就會過期——而這一步判錯的代價是把「還沒修」當成「已修」然後只回覆不修。fetch 一次的成本遠低於此。
 
@@ -76,11 +88,13 @@ disable-model-invocation: true
 6. 修「必修」。逐則先讀檔驗證指控是否成立再動手——不成立就歸「誤判」並在回覆說明理由。能實測就實測（起假伺服器、跑腳本），比推理可靠
 7. 驗證，依改到什麼決定跑哪幾層：
    - 一律：`npm run eslint` + `npm run typelint`
-   - 改到 `app/`／`server/`：另跑 `npm run test:gate`
+   - 改到 `app/`／`server/`：另跑**煙霧＋該則留言對應的 spec**一條指令（位置參數聯集、加 `--reporter=line`，例
+     `npx playwright test --config playwright.gate.config.ts --reporter=line 'specs/(00-hydration|01-auth-guard|02-authz-scope)' test/e2e/specs/07-xxx.spec.ts`；
+     spec 怎麼挑見 `../vibe-check/SKILL.md`「定向查法」）。**不在本機跑全量**——production 全量由第 8 步 push 後的 CI e2e job 跑，第 1b 步會把結果收回來
    - 改到 `.vue`／store／server 且非純格式：另跑 `/sdd-review`
-   紅燈修到綠才往下。這幾層不是可選的——`.husky/pre-push` 對 `app/`／`server/` 會跑 Docker production gate，不先跑就會在第 8 步 push 時才炸
+   紅燈修到綠才往下。這幾層不是可選的——`.husky/pre-push` 對 `app/`／`server/` 會跑煙霧 spec，不先跑就會在第 8 步 push 時才炸
 8. commit + push。分群與訊息照 `../commit/SKILL.md` 步驟 2–4（**跳過它的確認停點**，commit skill 已把本 skill 列入例外），**commitlint header ≤ 72 字元**。commit 指令要把分支驗證綁在同一條：`[ "$(git branch --show-current)" = "<branch>" ] && git commit …`。本輪無實際改動就跳過。
-   **pre-push 紅燈 → 不進自動修迴圈**：本地 gate 綠、Docker prod gate 紅屬於「假設被證偽」，還原本輪改動、停下報告
+   **pre-push 紅燈 → 不進自動修迴圈**：本地定向綠、煙霧紅屬於「假設被證偽」，還原本輪改動、停下報告
 9. 逐則回覆，並把 comment id 寫進狀態檔的「已處理」。內容要能被第三者驗證（附 commit 對照、遠端實際內容或實測數據）。
 
    **先把回覆內容寫成檔案，再用 `--body-file` / `-F body=@` 送出**——兩個理由，都踩過：
@@ -113,10 +127,11 @@ disable-model-invocation: true
 - `CronCreate` 會被 auto mode 權限分類器擋掉（實測），不要繞
 - wakeup 綁在 session 上，使用者關掉終端機迴圈就停——起手時要告知
 
-## 5. 共識判定（任一成立即收工通知）
+## 5. 共識判定（1 或 2 任一成立，**且** 3 成立，才收工通知）
 
 1. Copilot review 是 `APPROVED`，或 body 明確表示沒問題（🟢 Approval recommended、No issues found），**且無新的 actionable 留言／suppressed comment，且該 review 錨在目前 HEAD**
 2. 連續兩輪 Copilot 沒有提出任何新問題（重複的舊問題不算新問題）
+3. **CI 全部 `pass`、錨在目前 HEAD**（第 1b 步：先用 `gh run list … --json headSha` 驗錨點，再看 `gh pr checks`；空結果或錨在舊 commit 都算 `pending`，再等一輪；`cancel` 等新的 run）——review 共識但 CI 紅，不算共識，e2e 紅是必修
 
 條件 2 不能省——Copilot 不保證會給 approve，可能一直停在 `COMMENTED`。
 
@@ -148,6 +163,7 @@ review 基準線: 5079960256
 botId: BOT_kgDOCnlnWA
 輪次: 3 / 12
 目前間隔(秒): 600 | 靜默階段: 1 | 連續靜默輪次: 0
+最近 CI: pass @95c3faf（bucket 之一：pass / fail / pending / cancel）
 已處理 comment id: 3905342813, 3905475800
 
 ## 問題指紋

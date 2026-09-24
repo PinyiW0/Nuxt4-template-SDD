@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# 同一個 PR 連續 push（/review-loop 每輪都會）只留最後一次 run；被取消的 run 狀態是 cancelled，不是紅燈，
+# /review-loop 輪詢 gh pr checks 時要把它當「等新的 run」
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
 
@@ -40,3 +46,107 @@ jobs:
       # 本機 hook 又能被 --no-verify 繞過，這是唯一擋得住 composable/utils 迴歸的關卡。
       - name: Unit test
         run: npm run test:unit
+
+  # E2E gate 全量（production build）——分級（SSOT：.claude/skills/vibe-check/SKILL.md）裡最慢的一級只在這裡跑：
+  # 本機 pre-push 只跑煙霧、/vibe-check 預設定向，「改 A 有沒有壞 B」的完整回歸靠這個 job。
+  # 與本機 /ship L2 的 dev 全量互不取代：hydration 守門 fixture 只在 dev 生效，production build 會 strip 警告。
+  # needs: build → lint／typecheck／unit 紅就不燒 E2E 分鐘。build job 的 generate 驗的是靜態部署產物，
+  # 這裡自己 npm run build 是因為 mock API 需要 Nitro server，generate 產不出——兩次建置是刻意的。
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Use Node.js 22.22.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # 前置檢查與 .husky/pre-push、/vibe-check 同一套邏輯：gate 範圍沒有 spec 檔（模板初始狀態）就放行。
+      # 刻意不用 --pass-with-no-tests——那會讓「config 壞掉收不到測試」也靜默綠燈。
+      - name: Detect gate specs
+        id: specs
+        run: |
+          gate_specs=$(find test/e2e/specs test/e2e/vibe -name '*.spec.ts' -not -path '*/vibe/unstable/*' 2>/dev/null || true)
+          if [ -z "$gate_specs" ]; then
+            echo "⚠️  尚無 gate 測試檔（test/e2e/specs｜vibe/*.spec.ts）→ 跳過 E2E gate（SDD 流程產出 spec 後才會真正守）。"
+            echo "has_specs=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_specs=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache Playwright browsers
+        if: steps.specs.outputs.has_specs == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.specs.outputs.has_specs == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Build (production)
+        if: steps.specs.outputs.has_specs == 'true'
+        run: npm run build
+
+      # NUXT_E2E_RESET=true：production build 下 reset 端點預設 404，沒有它每支 spec 的 beforeEach 先炸。
+      # 只在 CI 設，部署環境不得設（見 nuxt.config.ts runtimeConfig.e2eReset 的註解）。
+      # 有 auth scaffold 的專案：在這個 env 補 REQUIRED_SECRETS 的假值（不得等於範本 devDefault，security-guard 會拒啟；
+      # mock 後端不驗真值，用 workflow env 即可。不要提交 .env.e2e——.husky/pre-commit 會擋有值的 SECRET／KEY 鍵）。
+      - name: Start production server
+        if: steps.specs.outputs.has_specs == 'true'
+        env:
+          NUXT_E2E_RESET: 'true'
+          # E2E_BASE_URL 模式下 config 不掛 webServer，playwright.config.ts 裡 webServer.env 的 NUXT_PUBLIC_API_BASE=/api
+          # 這道保險套不到這裡起的 server，所以在此明鎖（值要與 playwright.config.ts 那一行一致）。E2E 只能打本機 Nitro mock
+          # （beforeEach 的 /api/__test__/reset 只有 mock 有）；衍生專案若在 CI 環境設了正式 API 網址，沒這行測試會打出去。
+          NUXT_PUBLIC_API_BASE: /api
+          HOST: 127.0.0.1
+          PORT: '3000'
+        run: |
+          node .output/server/index.mjs > server.log 2>&1 &
+          # 不用 curl -f：server 回任何 HTTP 狀態就算 ready。沒有根頁（路由從 /login 起）的專案打 / 會 404，
+          # -f 會把它當成還沒起來、空等 60 秒後 job 失敗。還沒 listen 時 curl 連線被拒本身就回非 0，迴圈照常等。
+          # 上限是「絕對期限 60 秒」，不是迴圈次數：接了連線卻不回應時每次 curl 會等到 --max-time，
+          # 用次數當上限會被乘成好幾分鐘。單次探測只給剩餘秒數（最多 5 秒），到期就停。
+          start=$(date +%s); deadline=$(( start + 60 ))
+          while :; do
+            now=$(date +%s); rem=$(( deadline - now ))
+            [ "$rem" -gt 0 ] || break
+            [ "$rem" -gt 5 ] && rem=5
+            if curl -s --max-time "$rem" -o /dev/null http://127.0.0.1:3000/; then
+              echo "server ready（$(( now - start ))s）"
+              exit 0
+            fi
+            [ "$(date +%s)" -lt "$deadline" ] || break
+            sleep 1
+          done
+          echo "❌ Server 60 秒內未 ready，server.log 最後 50 行："
+          tail -n 50 server.log
+          exit 1
+
+      # config 在 CI 自動 retries: 1——一次紅、重跑綠的測試會標成 flaky，不會讓 job 紅；flaky 看 artifact 的 HTML 報告
+      # （下方不分紅綠都上傳，才拿得到綠 job 裡的 flaky 紀錄）。
+      # E2E_BASE_URL 存在時 config 不掛 webServer，直接打上面起好的 production server。
+      - name: E2E gate (production build, full)
+        if: steps.specs.outputs.has_specs == 'true'
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3000
+        run: npm run test:gate
+
+      # 不分紅綠都上傳：flaky（一紅一綠）時 job 是綠的，只在 failure() 上傳會拿不到上面承諾的報告。
+      # 用 !cancelled() 不用 always()：被 concurrency 取消的 run 沒有必要上傳。
+      - name: Upload gate report
+        if: ${{ !cancelled() && steps.specs.outputs.has_specs == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report-gate
+          path: playwright-report-gate/
+          retention-days: 7
+          # E2E 之前的步驟（build／起 server）先失敗時沒有報告目錄，不要為此再多一條警告
+          if-no-files-found: ignore
