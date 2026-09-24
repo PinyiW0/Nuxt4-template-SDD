@@ -5,7 +5,7 @@ paths:
   - "app/layouts/**/*.vue"
 ---
 
-# Vibe UI 守則（v2）
+# Vibe UI 守則
 
 **主 spec 真理是 `test/e2e/specs/*.spec.ts`**——跑 `npx playwright test` 就知道有沒踩線。業務合約定義於對應的 `spec/e2e-flows/*.flow.md` 的 **Business Invariants** 段。
 

@@ -196,7 +196,7 @@ const LOGIN_BUTTON = /登入/
 /**
  * 登入操作（對應 _common.flow.md「{role} "{account}" 已登入」）
  * ⚠️ 等待條件：離開 /login 頁面（不寫死目標 URL，因為根路由可能 redirect）
- * v2：表單欄位用 label、送出鈕用 role+name 定位（testid 是 fallback，此處語意 anchor 足夠）。
+ * 表單欄位用 label、送出鈕用 role+name 定位（testid 是 fallback，此處語意 anchor 足夠）。
  * label／按鈕文案依該專案 login 頁調整——UI 側範本見 feature-to-ui/references/page-builder.md「登入表單」。
  *
  * ⚠️ getByLabel 用 `exact: true` 不用 regex：Playwright 的 getByLabel 對**任何**帶 aria-label 的元素
@@ -208,7 +208,7 @@ const LOGIN_BUTTON = /登入/
  *
  * ⚠️ 離開判斷用 `matchesRoutePattern`（見 `route-match.ts`）不用 `startsWith('/login')`：
  * startsWith 是字面前綴比對，會誤中同前綴的兄弟路由（如 `/login-recovery`），
- * 導致登入後仍被判定「還在 login 頁」而卡住等待（v2 bug，issue #137）。
+ * 導致登入後仍被判定「還在 login 頁」而卡住等待（issue #137）。
  */
 export async function login(page: Page, account: string, password: string) {
   await page.goto('/login', { waitUntil: 'networkidle' })
@@ -225,7 +225,7 @@ export async function selectOption(page: Page, testId: string, optionName: strin
 }
 
 /** 確認彈窗：等待出現 → 點擊確認（對應 _common.flow.md 確認彈窗 testid）
- * ⚠️ v2 預設用 `maybeConfirm`（dialog scope + 動詞 regex，見 spec.md）；
+ * ⚠️ 預設用 `maybeConfirm`（dialog scope + 動詞 regex，見 spec.md）；
  * 本 helper 僅用於 flow 明示 testid 的 entity。
  */
 export async function confirmDelete(page: Page) {
@@ -452,7 +452,7 @@ const PUBLIC_PAGES: string[] = []
 test.describe('Auth 守衛', () => {
   // 設定自檢：兩份清單若有 pattern 重疊，代表同一路由被同時判定「需登入」與「免登入」，設定本身矛盾。
   // 用 patternsOverlap（逐段比對）不用 startsWith——pattern 含動態段時字面值比對永遠比不中，
-  // 純字面 pattern 又會誤判同前綴的兄弟路由（v2 bug，issue #137）。
+  // 純字面 pattern 又會誤判同前綴的兄弟路由（issue #137）。
   // patternsOverlap 與 auth.global.ts 的 matchesRoutePattern 同一套逐段規則（段數不同不重疊，公開頁不連帶
   // 放行子頁），所以這裡的綠燈等於沒有任何具體路徑會同時落在兩份清單（issue #143）。
   // ⚠️ PUBLIC_PATTERNS 為空時，下面的 test.skip 會把這個自檢標成 skipped（不是零斷言空跑後顯示通過）；

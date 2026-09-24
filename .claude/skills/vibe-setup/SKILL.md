@@ -3,7 +3,7 @@ name: vibe-setup
 description: Vibe UI 分層 — 讀 git diff 將 vibe 改動分類為純 visual / 互動 / 結構，並標記命中的測試 pattern（折疊/tab/loading/error/empty/新區塊...），輸出分層報告供決策或 /vibe-e2e 套版。Use when 跑完 /vibe-check 綠燈、想知道哪些 vibe 改動需要進一步 e2e 驗證。
 ---
 
-# Vibe Setup — UI 分層（v1）
+# Vibe Setup — UI 分層
 
 ## 目的
 

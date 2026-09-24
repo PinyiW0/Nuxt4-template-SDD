@@ -214,8 +214,9 @@ export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```typescript
 // server/mock/data/users.ts
 export const mockUsers = [
-  { accountId: 'acc-001', account: 'admin', password: 'admin888', name: '系統管理員', roles: ['super_admin'], deletedAt: null },
-  { accountId: 'acc-002', account: 'observer1', password: 'pass123', name: '王思婷', roles: ['observer'], deletedAt: null },
+  // 角色值為假想（workspace_owner / member）；實際用 route-map.rbac.roles 萃取出的角色詞
+  { accountId: 'acc-001', account: 'owner1', password: 'pass1234', name: '工作區擁有者', roles: ['workspace_owner'], deletedAt: null },
+  { accountId: 'acc-002', account: 'member1', password: 'pass1234', name: '一般成員', roles: ['member'], deletedAt: null },
 ]
 ```
 
