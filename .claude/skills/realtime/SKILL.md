@@ -42,7 +42,7 @@ metadata:
 13. **離場完整 cleanup，連線的 watcher 也要回收** — 元件 unmount 只退自己訂閱的那份（見第 11 點）；連線本身由連線層負責：`close()` 收掉這條連線的所有狀態（停 scope、清 URL / timer / backoff，以及 `hasConnectedOnce`——手動 backoff 重連不經過 `close()`，所以補抓判斷不受影響），`reset()` 在 `close()` 之上再清資料與訂閱。**每條連線的所有 watcher（message / error / status）要綁在同一個 `effectScope` 裡，重連 / 主動關閉時整組 `scope.stop()`**——這不只是回收記憶體，更是讓「主動關閉」在結構上不可能觸發第 5 點的重連（監聽器已經死了，不會誤判成異常斷線引發重連迴圈）。錯誤紀錄陣列（如 `errorList`）也要設上限，長時間離線反覆失敗不無限堆積。
 14. **鬆散 envelope 用 discriminated union** — 事件信封常是 `{ id, type, channel, timestamp, data }`，`data` 隨 `type` 變形。型別層用 `type` 當 discriminator 收斂（見 sse.md），`handleEvent` 內 `switch (evt.type)` 分派，default 忽略未知型別（向前相容）。
 15. **常駐連線與 `networkidle` 天生互斥，E2E 要分流** — Playwright 等測試工具的 `waitUntil: 'networkidle'` 等網路安靜，常駐連線永遠不安靜，用了必逾時。若專案的 E2E 依賴 networkidle 且不能改，用明確旗標（如「是否設定了真後端位址」）分流：測試環境走輪詢頂替、有真後端才走即時連線；分流後即時連線路徑在自動化測試零覆蓋，**部署前必須手動跑驗收協定**（見 sse.md），不是選配。
-16. **部署前跑驗收協定，不是只看畫面正常** — 連線數是比畫面表現更誠實的指標：重連迴圈、SPA 導航斷線、登出殘留連線，畫面通常看起來一切正常，只有數實際發出的連線請求才看得見。至少驗：停留期間無重連迴圈、頁面間導航後連線數不異常增加、登出後連線確實收乾淨。具體腳本見 `references/sse.md` 的「驗收協定」與 `scripts/`。
+16. **部署前跑驗收協定，不是只看畫面正常** — 連線數是比畫面表現更誠實的指標：重連迴圈、SPA 導航斷線、登出殘留連線，畫面通常看起來一切正常，只有數實際發出的連線請求才看得見。至少驗：停留期間無重連迴圈、頁面間導航後連線數不異常增加、登出後連線確實收乾淨。具體腳本見 `references/sse.md` 的「驗收協定」與下方 References 的腳本表。
 
 > 第 14 點接續 feature-to-api codegen 的發現：OpenAPI 對 SSE 的 `data` 多半給鬆散 `Record<string, never>`，**前端需手寫 discriminated union** 補語意（codegen 補不了）。詳見 `openapi-codegen.md` § 8 與本 skill `references/sse.md`。
 >
@@ -53,6 +53,14 @@ metadata:
 | 傳輸 | 內容 | 檔案 |
 |------|------|------|
 | SSE | EventSource 完整實作 pattern（store / 信封型別 / 重連補抓 / mock 端點 / E2E 分流 / 驗收協定）、踩坑、checklist | [references/sse.md](references/sse.md) + [scripts/](scripts/)（3 支可執行驗收腳本：連線數量測、401 backoff 節奏、直連後端的 ground-truth 監聽） |
+
+`scripts/` 的 3 支驗收腳本各自的使用時機（列號對應 `references/sse.md`「驗收協定」表的 `#`；用前先改檔頭常數）：
+
+| 腳本 | 什麼時候用 | 驗收協定列 |
+|------|-----------|-----------|
+| [scripts/ground-truth-listener.mjs](scripts/ground-truth-listener.mjs) | 前端沒反應、要先分清「後端沒推」還是「前端沒收」時；或要確認訂閱的頻道真的生效時。直連後端，不經前端 | #0 |
+| [scripts/connection-count.mjs](scripts/connection-count.mjs) | 部署前驗連線數時：停留期間有沒有重連迴圈、頁面導航後是否恰好一條連線、登出後連線是否收乾淨 | #1、#2、#3 |
+| [scripts/backoff-401.mjs](scripts/backoff-401.mjs) | 部署前驗 token 失效情境時：把 `/events` 攔成固定 401，看重試間隔是否指數遞增到上限、沒有失控轟炸 | #6 |
 
 > 擴充新傳輸（WebSocket、WebRTC datachannel…）= 屆時在本 skill 加一個 reference 檔，**共通核心不重寫**。永遠只有一個 `realtime` skill。
 
