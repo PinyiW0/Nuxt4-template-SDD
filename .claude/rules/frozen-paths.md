@@ -78,3 +78,4 @@ guard 覆蓋面的回歸清單，發現新繞道就補一列，修補後保留�
 22. `>|`（noclobber override）：`splitSegments` 先把 `|` 當管線切開，重導向 regex 也沒收 `>|`
 23. 直譯器偵測只認指令位置後，仍有一種殘留誤擋：grep 樣式裡放了引號閉合的完整寫檔呼叫（`grep -rn "writeFileSync('<凍結檔>','x')" . && node -v`），同一行又真的跑直譯器——寫入 API 刻意對整條指令掃（跨行 `python3 -c "` 要靠這個），這種形狀就分不出樣式與呼叫
 24. `COMMAND_PREFIX` 未收的其他 wrapper（`ionice`、`taskset`、`chrt`、`setsid`、`unbuffer`、`caffeinate` 等）：`ionice -c3 rm <凍結檔>` 仍漏放。只收 Claude 實際常用的前綴（issue #154），不求窮舉
+25. 字串或參數裡提到前綴＋寫入動詞＋凍結路徑會誤擋：`git commit -m "nice rm <凍結檔>"`、`echo "sudo rm <凍結檔>"`。前綴判定只看前一個詞是不是 `COMMAND_PREFIX` 成員，不檢查前綴本身是否在指令位置；`sudo`／`env` 早就如此，#154 加入 `timeout`／`nice`／`exec`／`stdbuf` 後觸發機率變高。只會多擋不會漏放；根治要讓前綴受指令位置約束，但會牽動 `find -exec`、`bash -c` 的判斷，另案處理（PR #160 review）

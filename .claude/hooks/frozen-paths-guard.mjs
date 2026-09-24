@@ -124,6 +124,9 @@
 //      刻意對整條指令掃（跨行 `python3 -c "` 要靠這個），這種形狀就分不出樣式與呼叫
 //  24. COMMAND_PREFIX 未收的其他 wrapper（ionice、taskset、chrt、setsid、unbuffer、caffeinate 等）：
 //      `ionice -c3 rm <凍結檔>` 仍漏放；只收 AI 實際常用的前綴，不求窮舉（issue #154）
+//  25. 字串或參數裡提到「前綴＋寫入動詞＋凍結路徑」會誤擋（`git commit -m "nice rm <凍結檔>"`）：前綴判定只看
+//      前一個詞，不檢查前綴本身在指令位置；sudo／env 早就如此，#154 加入新前綴後機率變高。只多擋不漏放，
+//      根治會牽動 find -exec、bash -c 的判斷，另案處理（PR #160 review）
 // 這些只能靠 Bash 權限策略或人審補位。
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { normalize, relative, resolve } from 'node:path'
