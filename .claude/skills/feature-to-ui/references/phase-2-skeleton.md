@@ -12,7 +12,7 @@ Sync 模式額外讀取：
 
 > ⚠️ **Phase 2 不產 testid**。骨架只給語意結構（`<h1>` 標題、`<main>`/`<section>` 語意標籤、可見文字），testid 留給 Phase 5 依 `.spec.ts` 合約逐字複製。
 >
-> **為什麼**：主 spec 依 v2 規範不用容器／表單欄位 testid（見 SSOT [testid-conventions.md](../../feature-to-flow/references/testid-conventions.md) 的禁止清單），所以 Phase 2 自創的 `{page}-page` 這類 testid **在生成的當下就註定不在合約白名單內**，只會變成 `/vibe-e2e` 抓的孤兒（`orphan-testid`）與日後的 dead testid 存量。需要新的合約定位點時走 `.flow.md` → `/test e2e spec` 重生流程，不在此自創。
+> **為什麼**：主 spec 依抽象化原則不用容器／表單欄位 testid（見 SSOT [testid-conventions.md](../../feature-to-flow/references/testid-conventions.md) 的禁止清單），所以 Phase 2 自創的 `{page}-page` 這類 testid **在生成的當下就註定不在合約白名單內**，只會變成 `/vibe-e2e` 抓的孤兒（`orphan-testid`）與日後的 dead testid 存量。需要新的合約定位點時走 `.flow.md` → `/test e2e spec` 重生流程，不在此自創。
 
 ---
 
