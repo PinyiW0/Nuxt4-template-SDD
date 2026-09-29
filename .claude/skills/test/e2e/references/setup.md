@@ -51,9 +51,11 @@ npx playwright install chromium
 | 專案 | `nuxt.config.ts` 預設值 | 強制的值 `<MOCK_API_BASE>` |
 |------|------|------|
 | 本模板（`apiBase: '/api'`，client 寫 `/notes`） | `/api` | `'/api'` |
-| client 已寫完整路徑 `/api/v1/...`、預設 `baseApiUrl: ''`（空字串＝接內建 mock） | `''` | `''` |
+| 下游專案例（非本模板）：client 已寫完整路徑 `/api/v1/...`、預設 `baseApiUrl: ''`（空字串＝接內建 mock） | `''` | `''` |
 
 預設值若是絕對網址（`http://...`），代表該專案沒有「同源 mock」這條路，停下來問使用者，不要猜。
+
+值是空字串時，三處要照各自語法寫出「空字串」，不能留成「沒有值」：playwright.config.ts 寫 `''`；workflow 的 YAML 寫 `KEY: ''`（寫成 `KEY:` 會被解析成 null）；docker-gate.sh 寫 `-e KEY=`（等號後直接接空白）。
 
 同一個變數名與同一個值還寫在另外兩處，要跟著換成同一個名字、同一個值（這兩處是 `E2E_BASE_URL` 模式的保險，那時不掛 webServer，上面的 env 套不到）：
 - `scripts/docker-gate.sh`：`docker run` 那行的 `-e <API_BASE_ENV>=<MOCK_API_BASE>`（本模板為 `-e NUXT_PUBLIC_API_BASE=/api`）

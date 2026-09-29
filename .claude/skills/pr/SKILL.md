@@ -134,7 +134,7 @@ Closes #<編號>
 >
 > 1. 只算 `on:` 裡有 `pull_request` 的 workflow；它有設 `branches` 時，本 PR 的 base 要在清單內。
 > 2. 它有設 `paths` 時，本 PR 的 diff 要命中至少一條，否則不列。
-> 3. 通過的 workflow，列 `jobs:` 底下每個 job（有 `name` 用 name，沒有就用 job id）；job 內有 `name:` 的 `run` step 一併列在括號裡，讀者才看得到 Lint／Typecheck／Unit test 這層。
+> 3. 通過的 workflow，列 `jobs:` 底下每個 job（有 `name` 用 name，沒有就用 job id）；job 內**驗證類**的具名 step（build、lint、typecheck、test、e2e 這類，失敗會讓 CI 紅）列在括號裡，讀者才看得到 Lint／Typecheck／Unit test 這層。環境準備與搬運類 step（Use Node、Install、Cache、Upload、Download、Detect、Start server、Merge reports）不列。
 > 4. job 帶 `if:` 時標「條件式」，不判斷條件成不成立。
 >
 > 沒有任何 workflow 符合就不提 CI。job 被增刪或改名時，這樣讀出來的清單會跟著變，不會列出不存在的檢查。
@@ -176,7 +176,7 @@ Pull Request，提升整體開發體驗與工作流程效率。
 - 進階：reviewer/label 選填、建完開瀏覽器
 
 ## 測試
-CI（`pull_request.yml`）：build（Build／Lint／Typecheck／Unit test）→ build-e2e → e2e（shard 1–4/4）→ merge-e2e-report（條件式）。未動 `app/`、`server/`，`sdd-review.yml` 不觸發。
+CI（`pull_request.yml`）：build（Build／Lint／Typecheck／Unit test）→ build-e2e（Build (production)）→ e2e（E2E gate，shard 1–4/4）→ merge-e2e-report（條件式）。未動 `app/`、`server/`，`sdd-review.yml` 不觸發。
 
 Closes #2
 ```

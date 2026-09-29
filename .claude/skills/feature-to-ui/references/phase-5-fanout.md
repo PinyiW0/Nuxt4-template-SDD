@@ -61,7 +61,7 @@
 遵循：decision-tiers.md 三級表；ops/judgment-rubrics.md 第 3 節；rules.md [P5] 段；frontend-security.md；page-builder.md；spec/report/contract-facts.md（Step 0 合約事實：envelope 形狀、ID pattern、登入方式、種子總表、testid 慣例來源，直接引用不重查）。
 禁止：修改凍結區；新增跨模組共用檔（見 decision-tiers.md 第三級，命中就停下來問）；假設其他模組已完成；逐頁停下等確認（見上方「確認點的仲裁」，改成模組級回報）。
 驗收條件：每頁做完立刻跑該頁對應 spec 到綠才算完成該頁，完成後不停下、直接做下一頁；模組內所有頁面做完後，跑一次涵蓋本模組全部 spec 的指令（npx playwright test <本模組 spec 清單>）全綠後，把本模組全部改動 commit 到本 worktree 的分支，`git status --porcelain` 輸出為空才回報（匯流時主線會 `git worktree remove`，有未提交改動會被拒）。
-回報格式：改了哪些檔（檔案:行號）、每頁的 spec 執行結果對照表、worktree 路徑與分支名、最後一個 commit 的 sha 與 `git status --porcelain` 為空的確認（供匯流步驟使用）。
+回報格式：改了哪些檔（檔案:行號）、每頁一列的對照表（頁面、spec 結果、關鍵取捨；沒有取捨就寫「無」，主線匯流第 2 步會原樣貼給使用者）、worktree 路徑與分支名、最後一個 commit 的 sha 與 `git status --porcelain` 為空的確認（供匯流步驟使用）。
 ```
 
 （共通回報尾段見 [ops/delegation-templates.md](../../../ops/delegation-templates.md) 開頭「共通尾段」，逐字貼進每個分身的 prompt。）
@@ -81,5 +81,5 @@
    git merge --ff-only <分身分支>
    ```
    rebase 有衝突就停下回報，不自動解；確認這個分身乾淨合併後才處理下一個分身的分支——不要一次把所有分身的分支都合完再排錯，衝突會疊加，分不清是哪個分身造成的
-4. 全部合併完，跑一次全量（`npm run test:e2e`，見 README.md 指令表），確認跨模組沒有互相影響
+4. 全部合併完，跑一次全量（`npm run test:e2e`，見 README.md 指令表），確認跨模組沒有互相影響。有模組在第 2 步被否決時，它的頁面沒有進主線，它的 spec 在全量裡必紅——那不是跨模組互撞：紅燈只追核准模組的 spec，否決模組的紅燈列出清單、不修，回報時一併說明
 5. `spec/report/route-map.yaml` 理論上 Phase 5 不會被任何分身改動（它是 Phase 0 的產出，Phase 5 只讀不寫）。若合併時真的在這份檔案上出現衝突，視為異常訊號，停下來問，不要猜著解
