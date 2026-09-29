@@ -91,6 +91,15 @@
 // 不併進共用表（sudo 的 -n／-s／-i 不吃值，併進去反而漏放 `sudo -n rm`）；timeout 的時限位置參數
 // 由 WRAPPER_POSITIONALS 跳過。
 //
+// 2026-09-29（issue #164，下游 jwl-2026-frontend 同步 73202fd 時 Copilot review 發現）：前綴判斷
+// （isCommandPosition／commandVerbs／skipWrapperFlags 查表）用原始 token 比對 COMMAND_PREFIX，只有動詞本身
+// 有 baseName()。`/usr/bin/timeout 10 rm`、`/usr/bin/nice rm`、`/usr/bin/stdbuf -o0 tee`、`/usr/bin/env rm` 加
+// 凍結檔全部漏放（`/bin/rm` 會擋是因為動詞那一層有正規化）。同一層的同類寫法：`/usr/bin/env python3 -c`
+// （直譯器判不成指令位置）、`\rm`（跳過 alias 的反斜線）、`bash -lc`／`sh -ec`（-c 併進其他旗標）、`eval "rm …"`。
+// 修法：prefixOf() 統一取正規化詞（baseName 去路徑與開頭 `\`；緊接 shell 之後的 `-[a-z]*c` 視同 `-c`），
+// 三處前綴判斷都改走它；eval 補進 COMMAND_PREFIX。同輪列為已知極限（第 26–29 條）：`$(which rm)`、
+// `find <凍結目錄> -delete`、`rsync`／`install` 寫入、找檔管線接 xargs 寫入（另案 #165）。
+//
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
 //   2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
@@ -139,6 +148,11 @@
 //  25. 字串或參數裡提到「前綴＋寫入動詞＋凍結路徑」會誤擋（`git commit -m "nice rm <凍結檔>"`）：前綴判定只看
 //      前一個詞，不檢查前綴本身在指令位置；sudo／env 早就如此，#154 加入新前綴後機率變高。只多擋不漏放，
 //      根治會牽動 find -exec、bash -c 的判斷，另案處理（PR #160 review）
+//  26. `$(which rm) <凍結檔>`、`` `which rm` <凍結檔> ``：動詞由命令替換算出，指令原文裡只有 which（issue #164）
+//  27. `find <凍結目錄> -delete`：`-delete` 是 find 的內建動作，不是指令位置的動詞（`find … -exec rm {} \;` 有擋）（issue #164）
+//  28. `rsync`／`install` 把檔案寫進凍結區：兩者不在 WRITE_VERBS，同第 24 條「只收 AI 實際常用的、不求窮舉」（issue #164）
+//  29. 找檔管線接 xargs 寫入（`grep -l x <凍結目錄>/*.ts | xargs sed -i …`、`ls <凍結目錄>/*.ts | xargs rm`）：凍結路徑在
+//      上游段、寫入動詞在下游段，逐段判斷兩邊都不像寫入。這是 AI 批次改檔的順手寫法，不算刻意繞道，另案 #165 補防線
 // 這些只能靠 Bash 權限策略或人審補位。
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { normalize, relative, resolve } from 'node:path'
@@ -156,7 +170,9 @@ const WRITE_VERBS = new Set(['tee', 'cp', 'mv', 'rm', 'ln', 'truncate', 'dd', 'p
 // 這裡才會被算進指令位置（PR #141 review）。
 // timeout／nice／exec／stdbuf 是 AI 自己跑指令時常加的前綴，#141 把動詞判定收斂到指令位置後
 // 它們不在此表，`timeout 10 rm <凍結檔>` 這類寫法整段漏放（issue #154）。`!` 不放這裡，見 isCommandPosition。
-const COMMAND_PREFIX = new Set(['sudo', 'env', 'time', 'command', 'nohup', 'xargs', 'npx', 'pnpx', 'bunx', 'then', 'do', 'else', '-exec', '-execdir', '-c', 'timeout', 'nice', 'exec', 'stdbuf'])
+// eval 把字串當指令跑，與 `bash -c` 同一條路（issue #164）。比對前一律先經 prefixOf() 正規化，帶路徑的 wrapper
+//（`/usr/bin/env`）才進得了這張表。
+const COMMAND_PREFIX = new Set(['sudo', 'env', 'time', 'command', 'nohup', 'xargs', 'npx', 'pnpx', 'bunx', 'then', 'do', 'else', '-exec', '-execdir', '-c', 'timeout', 'nice', 'exec', 'stdbuf', 'eval'])
 // git 會改寫工作區檔案的子指令（git add/diff/log 等唯讀或只動 index 的不算）
 const GIT_WRITE_SUBCMDS = new Set(['checkout', 'restore', 'apply', 'mv', 'rm', 'clean', 'stash'])
 // 支援 -i／--in-place 就地改檔的串流編輯器與直譯器：帶 in-place 旗標時視為寫入。
@@ -256,8 +272,23 @@ const SCRIPT_WRITE_API = [
   { detect: /open\s*\([^,]+,\s*['"]>>?[^'"]+['"]/g, capture: /open\s*\([^,]+,\s*['"]>>?([^'"]+)['"]/g, argsChecked: true },
 ]
 
+// 取檔名：去掉路徑（`/usr/bin/env` → `env`）與開頭的 `\`（`\rm` 是跳過 alias 的寫法，issue #164）
 function baseName(word) {
-  return word.slice(word.lastIndexOf('/') + 1)
+  const bare = word.startsWith('\\') ? word.slice(1) : word
+  return bare.slice(bare.lastIndexOf('/') + 1)
+}
+
+// shell 直譯器：它們的 `-c` 常與其他旗標併寫（`bash -lc`、`sh -ec`），要視同 `-c`
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash'])
+
+// 前綴判斷用的正規化詞：先取 baseName（帶路徑的 wrapper 才進得了 COMMAND_PREFIX 與跳旗標表），再把
+// 「緊接在 shell 之後、以 c 結尾的合併旗標」正規化成 `-c`。只認前一個詞是 shell 的情況：`grep -ic rm <凍結檔>`
+// 的 `-ic` 不會被當成 -c 而把 rm 誤判成指令位置（issue #164）。
+function prefixOf(words, i) {
+  const word = baseName(words[i])
+  if (/^-[a-zA-Z]*c$/.test(word) && word !== '-c' && i > 0 && SHELLS.has(baseName(words[i - 1])))
+    return '-c'
+  return word
 }
 
 // 指令是否真的在「跑」直譯器：只認指令位置的 token（段首、sudo／npx／-c／變數指派之後），
@@ -515,8 +546,8 @@ function skipWrapperFlags(words, start, wrapper) {
 // 不把 `!` 放進 COMMAND_PREFIX：那會觸發跳旗標邏輯，把 `find … ! -name tee` 的 tee 誤判成子指令（issue #154）。
 function isCommandPosition(words, i) {
   if (i === 0) return true
-  const prev = words[i - 1]
-  return COMMAND_PREFIX.has(prev) || /^\w+=/.test(prev) || (prev === '!' && isCommandPosition(words, i - 1))
+  const prev = prefixOf(words, i - 1)
+  return COMMAND_PREFIX.has(prev) || /^\w+=/.test(words[i - 1]) || (prev === '!' && isCommandPosition(words, i - 1))
 }
 
 // 只有「指令位置」的 token 才算動詞：段落第一個 token，或 sudo／xargs／find -exec 等前綴
@@ -526,8 +557,9 @@ function commandVerbs(words) {
   for (let i = 0; i < words.length; i++) {
     if (isCommandPosition(words, i))
       verbs.push(baseName(words[i]))
-    if (COMMAND_PREFIX.has(words[i])) {
-      const subcmdIndex = skipWrapperFlags(words, i + 1, words[i])
+    const prefix = prefixOf(words, i)
+    if (COMMAND_PREFIX.has(prefix)) {
+      const subcmdIndex = skipWrapperFlags(words, i + 1, prefix)
       if (subcmdIndex < words.length && subcmdIndex !== i + 1)
         verbs.push(baseName(words[subcmdIndex]))
     }
