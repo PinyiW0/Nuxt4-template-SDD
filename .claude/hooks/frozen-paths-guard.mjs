@@ -279,7 +279,7 @@ function baseName(word) {
 }
 
 // shell 直譯器：它們的 `-c` 常與其他旗標併寫（`bash -lc`、`sh -ec`），要視同 `-c`
-const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash'])
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'fish', 'csh', 'tcsh'])
 
 // 前綴判斷用的正規化詞：先取 baseName（帶路徑的 wrapper 才進得了 COMMAND_PREFIX 與跳旗標表），再把
 // 「緊接在 shell 之後、以 c 結尾的合併旗標」正規化成 `-c`。只認前一個詞是 shell 的情況：`grep -ic rm <凍結檔>`

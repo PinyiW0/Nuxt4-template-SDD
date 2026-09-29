@@ -1053,6 +1053,7 @@ describe('frozen-paths-guard：絕對路徑前綴與同類繞道（issue #164）
     ['\\rm（跳過 alias 的反斜線寫法）', `\\rm ${FROZEN_FILE}`],
     ['bash -lc "rm"（-c 併進其他旗標）', `bash -lc "rm ${FROZEN_FILE}"`],
     ['sh -ec "rm"', `sh -ec "rm ${FROZEN_FILE}"`],
+    ['ksh -lc "rm"（非 bash 系 shell 的合併旗標）', `ksh -lc "rm ${FROZEN_FILE}"`],
     ['eval "rm"', `eval "rm ${FROZEN_FILE}"`],
   ])('%s 既有凍結檔 → 擋下', (_label, command) => {
     const result = runGuard(command)
