@@ -130,7 +130,14 @@ Closes #<編號>
 
 > 末行 `Closes #<編號>` 僅在分支名解析得到 issue 編號時加；沒有就拿掉。
 >
-> **「測試」段的 CI 項目只寫實際會跑的**：先 `ls .github/workflows/`，只列存在的 workflow 真的會跑的檢查，不照抄固定清單。有 `pull_request.yml` 才寫 build／eslint／typecheck／unit test／E2E gate。有 `sdd-review.yml`，而且本 PR 改到 `app/`、`server/`（該 workflow 的 `paths` 觸發條件），才寫 sdd-review。沒有 workflow 就不提 CI。
+> **「測試」段的 CI 項目只寫實際會跑的**：讀 `.github/workflows/*.yml` 的內容決定，不用檔名猜、不照抄固定清單。判準四條：
+>
+> 1. 只算 `on:` 裡有 `pull_request` 的 workflow；它有設 `branches` 時，本 PR 的 base 要在清單內。
+> 2. 它有設 `paths` 時，本 PR 的 diff 要命中至少一條，否則不列。
+> 3. 通過的 workflow，列 `jobs:` 底下每個 job（有 `name` 用 name，沒有就用 job id）；job 內有 `name:` 的 `run` step 一併列在括號裡，讀者才看得到 Lint／Typecheck／Unit test 這層。
+> 4. job 帶 `if:` 時標「條件式」，不判斷條件成不成立。
+>
+> 沒有任何 workflow 符合就不提 CI。job 被增刪或改名時，這樣讀出來的清單會跟著變，不會列出不存在的檢查。
 
 ### 4. 內文精簡易讀守則（重點）
 
@@ -169,7 +176,7 @@ Pull Request，提升整體開發體驗與工作流程效率。
 - 進階：reviewer/label 選填、建完開瀏覽器
 
 ## 測試
-CI 自動跑 build + eslint + typecheck + unit test + E2E gate 全量（production build）。
+CI（`pull_request.yml`）：build（Build／Lint／Typecheck／Unit test）→ build-e2e → e2e（shard 1–4/4）→ merge-e2e-report（條件式）。未動 `app/`、`server/`，`sdd-review.yml` 不觸發。
 
 Closes #2
 ```
@@ -217,7 +224,7 @@ gh pr view --web                   # 開瀏覽器
 
 ### 7. 收尾
 
-回報 PR URL。若為本模板衍生專案，另提醒一句 PR 會觸發哪些 CI，只提 `.github/workflows/` 實際存在的：有 `pull_request.yml` → build + eslint + typecheck + unit test + E2E gate 全量（production build，`e2e` job）；有 `sdd-review.yml` 且改到 `app/`、`server/` → 還會跑 AI 語意審查。兩個都沒有就不提。
+回報 PR URL。若為本模板衍生專案，另提醒一句 PR 會觸發哪些 CI。清單照上方「測試」段的四條判準從 workflow 內容讀出來（與 PR 內文同一份，不要另外用檔名猜）；沒有符合的 workflow 就不提。
 
 ## 注意
 
