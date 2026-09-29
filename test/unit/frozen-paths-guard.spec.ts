@@ -1040,3 +1040,33 @@ describe('frozen-paths-guard：timeout／nice／exec／stdbuf／! 前綴（issue
     expect(result.status).toBe(2)
   })
 })
+
+describe('frozen-paths-guard：絕對路徑前綴與同類繞道（issue #164）', () => {
+  // 前綴判斷原本用原始 token 比對 COMMAND_PREFIX，`/usr/bin/env` 這種帶路徑的 wrapper 進不了跳旗標邏輯，
+  // 後面的動詞判不成指令位置而漏放；`\rm`、`bash -lc`、`eval` 是同一層的同類寫法
+  it.each([
+    ['/usr/bin/timeout 10 rm', `/usr/bin/timeout 10 rm ${FROZEN_FILE}`],
+    ['/usr/bin/nice rm', `/usr/bin/nice rm ${FROZEN_FILE}`],
+    ['/usr/bin/stdbuf -o0 tee', `echo y | /usr/bin/stdbuf -o0 tee ${FROZEN_FILE}`],
+    ['/usr/bin/env rm', `/usr/bin/env rm ${FROZEN_FILE}`],
+    ['/usr/bin/env python3 -c open(…,\'w\')（帶路徑前綴時直譯器也判不出指令位置）', `/usr/bin/env python3 -c "open('${FROZEN_FILE}','w').write('x')"`],
+    ['\\rm（跳過 alias 的反斜線寫法）', `\\rm ${FROZEN_FILE}`],
+    ['bash -lc "rm"（-c 併進其他旗標）', `bash -lc "rm ${FROZEN_FILE}"`],
+    ['sh -ec "rm"', `sh -ec "rm ${FROZEN_FILE}"`],
+    ['ksh -lc "rm"（非 bash 系 shell 的合併旗標）', `ksh -lc "rm ${FROZEN_FILE}"`],
+    ['eval "rm"', `eval "rm ${FROZEN_FILE}"`],
+  ])('%s 既有凍結檔 → 擋下', (_label, command) => {
+    const result = runGuard(command)
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['/usr/bin/timeout 10 cat', `/usr/bin/timeout 10 cat ${FROZEN_FILE}`],
+    ['/usr/bin/env cat', `/usr/bin/env cat ${FROZEN_FILE}`],
+    ['bash -lc "cat"', `bash -lc "cat ${FROZEN_FILE}"`],
+    ['grep -ic rm（-ic 前面不是 shell，不得當成 -c）', `grep -ic rm ${FROZEN_FILE}`],
+  ])('%s 既有凍結檔（唯讀） → 放行', (_label, command) => {
+    const result = runGuard(command)
+    expect(result.status).toBe(0)
+  })
+})

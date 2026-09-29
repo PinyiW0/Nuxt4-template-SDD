@@ -44,7 +44,7 @@
 
 ## 五、交辦：每個分身一個 Agent 呼叫
 
-**確認點的仲裁**：Phase 5 原規則「一次只做一個頁面，完成後停下等使用者確認」（見 [phase-5-pages.md](phase-5-pages.md)）在扇出模式下失效——分身沒有管道向使用者提問，逐頁停下會卡死整個模組。扇出模式下：**分身不逐頁停下等確認**，改成「該模組全部頁面的 spec 皆綠 ＋ 模組級回報（含每頁的一句對照表：頁面、spec 結果、關鍵取捨）」，等所有分身回報後，由主線在第六節「匯流」的第一步一次向使用者確認。確認點從「頁」升到「模組」，不是取消確認。
+**確認點的仲裁**：Phase 5 原規則「一次只做一個頁面，完成後停下等使用者確認」（見 [phase-5-pages.md](phase-5-pages.md)）在扇出模式下失效——分身沒有管道向使用者提問，逐頁停下會卡死整個模組。扇出模式下：**分身不逐頁停下等確認**，改成「該模組全部頁面的 spec 皆綠 ＋ 模組級回報（含每頁的一句對照表：頁面、spec 結果、關鍵取捨）」，等所有分身回報後，由主線在第六節「匯流」第 2 步一次向使用者確認，核准的模組才 merge。確認點從「頁」升到「模組」，不是取消確認。
 
 - **model**：`sonnet`（依 [ops/model-dispatch.md](../../../ops/model-dispatch.md) 第 3 節，實作類任務 sonnet 足夠）
 - **isolation**：`"worktree"`（見第三節）
@@ -61,7 +61,7 @@
 遵循：decision-tiers.md 三級表；ops/judgment-rubrics.md 第 3 節；rules.md [P5] 段；frontend-security.md；page-builder.md；spec/report/contract-facts.md（Step 0 合約事實：envelope 形狀、ID pattern、登入方式、種子總表、testid 慣例來源，直接引用不重查）。
 禁止：修改凍結區；新增跨模組共用檔（見 decision-tiers.md 第三級，命中就停下來問）；假設其他模組已完成；逐頁停下等確認（見上方「確認點的仲裁」，改成模組級回報）。
 驗收條件：每頁做完立刻跑該頁對應 spec 到綠才算完成該頁，完成後不停下、直接做下一頁；模組內所有頁面做完後，跑一次涵蓋本模組全部 spec 的指令（npx playwright test <本模組 spec 清單>）全綠後，把本模組全部改動 commit 到本 worktree 的分支，`git status --porcelain` 輸出為空才回報（匯流時主線會 `git worktree remove`，有未提交改動會被拒）。
-回報格式：改了哪些檔（檔案:行號）、每頁的 spec 執行結果對照表、worktree 路徑與分支名、最後一個 commit 的 sha 與 `git status --porcelain` 為空的確認（供匯流步驟使用）。
+回報格式：改了哪些檔（檔案:行號）、每頁一列的對照表（頁面、spec 結果、關鍵取捨；沒有取捨就寫「無」，主線匯流第 2 步會原樣貼給使用者）、worktree 路徑與分支名、最後一個 commit 的 sha 與 `git status --porcelain` 為空的確認（供匯流步驟使用）。
 ```
 
 （共通回報尾段見 [ops/delegation-templates.md](../../../ops/delegation-templates.md) 開頭「共通尾段」，逐字貼進每個分身的 prompt。）
@@ -69,7 +69,10 @@
 ## 六、匯流
 
 1. 收集每個分身回報的 worktree 路徑、分支名與 commit sha（交辦已要求分身先 commit）
-2. 主線（commander 所在分支）**逐一**處理每個分身的分支，一次一個，在**主線 worktree**執行。先移除該分身的 worktree——分支還被那邊 checkout 著時，主線 `git checkout` 會被拒（branch already used by worktree）：
+2. **向使用者一次確認**：把每個分身回報的模組級對照表（頁面、spec 結果、關鍵取捨）整理成一份貼給使用者，逐模組問「merge／不 merge」。這是第五節「確認點的仲裁」承諾的那一次確認，merge 前必做，不可跳過。分身的 commit 只落在它自己的分支，還沒進主線，所以此時否決沒有回滾成本：
+   - 核准的模組 → 進第 3 步
+   - 否決的模組 → **不 merge、不刪**：worktree 與分支原樣保留，要改幾頁再 merge、還是整條 `git branch -D` 丟掉，由使用者決定。不要替使用者刪，整個模組重做比修幾頁貴得多
+3. 主線（commander 所在分支）**逐一**處理每個核准的分身分支，一次一個，在**主線 worktree**執行。先移除該分身的 worktree——分支還被那邊 checkout 著時，主線 `git checkout` 會被拒（branch already used by worktree）：
    ```bash
    git worktree remove <分身 worktree 路徑>   # 有未 commit 改動會被拒；被拒代表分身沒照交辦 commit，停下回報
    git checkout <分身分支>
@@ -78,5 +81,5 @@
    git merge --ff-only <分身分支>
    ```
    rebase 有衝突就停下回報，不自動解；確認這個分身乾淨合併後才處理下一個分身的分支——不要一次把所有分身的分支都合完再排錯，衝突會疊加，分不清是哪個分身造成的
-3. 全部合併完，跑一次全量（`npm run test:e2e`，見 README.md 指令表），確認跨模組沒有互相影響
-4. `spec/report/route-map.yaml` 理論上 Phase 5 不會被任何分身改動（它是 Phase 0 的產出，Phase 5 只讀不寫）。若合併時真的在這份檔案上出現衝突，視為異常訊號，停下來問，不要猜著解
+4. 全部合併完，跑一次全量（`npm run test:e2e`，見 README.md 指令表），確認跨模組沒有互相影響。有模組在第 2 步被否決時，它的頁面沒有進主線，它的 spec 在全量裡必紅——那不是跨模組互撞：紅燈只追核准模組的 spec，否決模組的紅燈列出清單、不修，回報時一併說明
+5. `spec/report/route-map.yaml` 理論上 Phase 5 不會被任何分身改動（它是 Phase 0 的產出，Phase 5 只讀不寫）。若合併時真的在這份檔案上出現衝突，視為異常訊號，停下來問，不要猜著解
