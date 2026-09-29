@@ -98,7 +98,18 @@
 // （直譯器判不成指令位置）、`\rm`（跳過 alias 的反斜線）、`bash -lc`／`sh -ec`（-c 併進其他旗標）、`eval "rm …"`。
 // 修法：prefixOf() 統一取正規化詞（baseName 去路徑與開頭 `\`；緊接 shell 之後的 `-[a-z]*c` 視同 `-c`），
 // 三處前綴判斷都改走它；eval 補進 COMMAND_PREFIX。同輪列為已知極限（第 26–29 條）：`$(which rm)`、
-// `find <凍結目錄> -delete`、`rsync`／`install` 寫入、找檔管線接 xargs 寫入（另案 #165）。
+// `find <凍結目錄> -delete`、`rsync`／`install` 寫入、找檔管線接 xargs 寫入（另案 #165；第 29 條已於 #165 改寫）。
+//
+// 2026-09-29（issue #165）：找檔管線接 xargs 寫入（`grep -l x <凍結目錄>/*.ts | xargs sed -i …`、
+// `ls <凍結目錄>/*.ts | xargs rm`）全部漏放——凍結路徑在上游段、寫入動詞在下游段，逐段判斷兩邊都不像寫入。
+// 修法：splitPipelineSegments() 多記「這段是否由單一 `|` 接上」；同一條管線內，下游段的指令位置有 xargs、
+// 且該段有寫入動詞（xargsWrites）時，把上游各段比中的凍結 token 都當寫入目標。只認 xargs：它是把
+// stdin 轉成引數的那一步，`cat <凍結檔> | tee /tmp/x` 的 tee 寫的是自己的引數，不受影響。
+// 對抗審查一輪回饋（同日）：①xargs 的吃值旗標（`-n 1`、`-P 4`、`-d x`…）不在 WRAPPER_OWN_VALUE_FLAGS，值被當成
+// 子指令而漏放 ②`|&` 的 & 又被當成單一 & 切段，管線斷掉而漏放 ③沿用 hasWriteVerb 會把 `xargs grep -in sed`
+// 誤當寫入。修法：補 xargs 吃值旗標表；切段時 `|&` 整個當管線符號；改用只看指令位置的 xargsWrites()。
+// 對抗審查二輪回饋（同日）：①xargsWrites 的 git 分支沒看指令位置，`xargs grep -l "git checkout"` 被誤擋
+// ②旗標表缺 BSD 的 -J／-S，`xargs -J % rm %` 漏放。修法：git 分支加上「git 在指令位置」條件；表補 -J、-S。
 //
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
@@ -151,8 +162,15 @@
 //  26. `$(which rm) <凍結檔>`、`` `which rm` <凍結檔> ``：動詞由命令替換算出，指令原文裡只有 which（issue #164）
 //  27. `find <凍結目錄> -delete`：`-delete` 是 find 的內建動作，不是指令位置的動詞（`find … -exec rm {} \;` 有擋）（issue #164）
 //  28. `rsync`／`install` 把檔案寫進凍結區：兩者不在 WRITE_VERBS，同第 24 條「只收 AI 實際常用的、不求窮舉」（issue #164）
-//  29. 找檔管線接 xargs 寫入（`grep -l x <凍結目錄>/*.ts | xargs sed -i …`、`ls <凍結目錄>/*.ts | xargs rm`）：凍結路徑在
-//      上游段、寫入動詞在下游段，逐段判斷兩邊都不像寫入。這是 AI 批次改檔的順手寫法，不算刻意繞道，另案 #165 補防線
+//  29. 管線上游沒有字面凍結路徑的形狀（issue #165 只補「上游有字面路徑＋下游 xargs 寫入」）：
+//      `git diff --name-only | xargs sed -i …`（路徑執行期才產生）、`… | while read f; do sed -i … "$f"; done`
+//      （不是 xargs）仍漏放；`… | xargs sh -c 'rm "$0"'` 只在上游有字面凍結路徑時擋得住
+//  30. 上游有凍結路徑、下游 xargs 的寫入目的地其實在別處時會誤擋（`ls <凍結目錄>/*.ts | xargs cp -t /tmp`）：
+//      與 cp 不分 source／dest 的既有取捨一致，只多擋不漏放（issue #165）
+//      另外 `-c` 在 COMMAND_PREFIX 裡，`grep -c rm <凍結檔>` 本來就會誤擋，管線版 `… | xargs grep -c rm` 同理
+//      （`grep -c "git stash"` 也是）；根治要讓 -c 只在 shell 之後生效，牽動 bash -c／find -exec 判斷，另案
+//  31. 反斜線續行（`ls <凍結目錄>/*.ts \⏎ | xargs rm`，連 `rm \⏎ <凍結檔>` 也是）與大括號群組（`{ rm <凍結檔>; }`、
+//      `| { xargs rm; }`）：splitHeredocBlocks 先依換行切、`{` 不在 COMMAND_PREFIX，既有缺口，#165 對抗審查發現
 // 這些只能靠 Bash 權限策略或人審補位。
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { normalize, relative, resolve } from 'node:path'
@@ -477,10 +495,12 @@ function splitHeredocBlocks(command) {
 // 單一 `&`（背景執行）也是指令分隔符，否則 `echo hi & tee <凍結檔>` 整條併一段、tee 不在
 // 指令位置而漏放；但 `>&`／`<&`／`&>`／`&>>`（含 `2>&1`）是同段內的 fd 重導向，不切。
 // 逐字元掃描而非 regex：避免遮蔽／還原佔位符，也沒有回溯成本。
-function splitSegments(text) {
+// 同上，但每段多記 piped：這段是否由單一 `|` 接在前一段後面（`||` 不算），管線的 xargs 判斷要用（issue #165）
+function splitPipelineSegments(text) {
   const segments = []
   let cur = ''
   let quote = ''
+  let piped = false
   for (let i = 0; i < text.length; i++) {
     const c = text[i]
     if (quote) {
@@ -502,13 +522,22 @@ function splitSegments(text) {
       cur += c
       continue
     }
+    const nextPiped = c === '|' && next !== '|'
+    // `|&`（stdout＋stderr 一起接管線）的 & 屬於這個管線符號，不是另一個分隔符
+    if (c === '|' && next === '&')
+      i++
     if ((c === '&' && next === '&') || (c === '|' && next === '|'))
       i++
-    segments.push(cur)
+    segments.push({ text: cur, piped })
     cur = ''
+    piped = nextPiped
   }
-  segments.push(cur)
+  segments.push({ text: cur, piped })
   return segments
+}
+
+function splitSegments(text) {
+  return splitPipelineSegments(text).map(s => s.text)
 }
 
 function tokenize(text) {
@@ -528,6 +557,9 @@ const WRAPPER_OWN_VALUE_FLAGS = {
   nice: new Set(['-n', '--adjustment']),
   stdbuf: new Set(['-i', '-o', '-e', '--input', '--output', '--error']),
   exec: new Set(['-a']),
+  // xargs：值分開寫時（`xargs -n 1 rm`）會被當成子指令；-i／-l／-e 的值只能黏著寫，不列（issue #165）。
+  // -J／-S 是 BSD（macOS）xargs 的替換字串與長度旗標，`xargs -J % rm %` 在 macOS 很常見
+  xargs: new Set(['-n', '-L', '-s', '-P', '-d', '-a', '-E', '-J', '-S', '--max-args', '--max-lines', '--max-chars', '--max-procs', '--delimiter', '--arg-file', '--eof']),
 }
 // 旗標之後、子指令之前還有固定位置參數的 wrapper：`timeout 10 rm` 的 10 是時限，不是子指令
 const WRAPPER_POSITIONALS = { timeout: 1 }
@@ -590,6 +622,15 @@ function gitWriteSubcmd(words) {
   return false
 }
 
+// 管線下游 xargs 段專用的寫入判斷：就地改檔工具必須在指令位置、-i 旗標必須在它之後。hasWriteVerb 的
+// 就地改檔判斷不看位置，`… | xargs grep -in sed` 會被誤當寫入（issue #165 對抗審查）
+function xargsWrites(words) {
+  const verbs = commandVerbs(words)
+  const at = words.findIndex(w => INPLACE_TOOLS.has(baseName(w)) && verbs.includes(baseName(w)))
+  return verbs.some(v => WRITE_VERBS.has(v)) || (verbs.includes('git') && gitWriteSubcmd(words))
+    || (at !== -1 && words.slice(at + 1).some(w => INPLACE_FLAG.test(w)))
+}
+
 function hasWriteVerb(words) {
   return commandVerbs(words).some(v => WRITE_VERBS.has(v))
     || (words.some(w => INPLACE_TOOLS.has(baseName(w))) && words.some(w => INPLACE_FLAG.test(w)))
@@ -601,7 +642,10 @@ function bashFrozenWrites(command) {
   const targets = new Set()
   for (const { head, bodies } of splitHeredocBlocks(command)) {
     let bodyAt = 0
-    for (const seg of splitSegments(head)) {
+    let upstream = [] // 同一條管線裡前面各段比中的凍結 token（issue #165）
+    for (const { text: seg, piped } of splitPipelineSegments(head)) {
+      if (!piped)
+        upstream = []
       const words = tokenize(seg)
       // heredoc 內文歸給「含 << 開啟符的那一段」（動詞在指令行、目標在內文，如
       // `patch -p1 <<'EOF' && echo done`——內文屬於 patch 段，不是 echo 段）；
@@ -610,6 +654,10 @@ function bashFrozenWrites(command) {
       const bodyWords = bodies.slice(bodyAt, bodyAt + opened).flatMap(tokenize)
       bodyAt += opened
       const frozen = [...words, ...bodyWords].map(frozenRelOf).filter(Boolean)
+      // 管線下游的 xargs 把上游輸出的路徑當引數餵給寫入動詞：`grep -l x <凍結目錄>/*.ts | xargs sed -i …`
+      if (upstream.length && commandVerbs(words).includes('xargs') && xargsWrites(words))
+        upstream.forEach(t => targets.add(t))
+      upstream.push(...frozen)
       if (!frozen.length)
         continue
       if (hasWriteVerb(words)) {

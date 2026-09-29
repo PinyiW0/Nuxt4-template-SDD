@@ -1070,3 +1070,39 @@ describe('frozen-paths-guard：絕對路徑前綴與同類繞道（issue #164）
     expect(result.status).toBe(0)
   })
 })
+
+describe('frozen-paths-guard：找檔管線接 xargs 寫入（issue #165）', () => {
+  // 凍結路徑在管線上游、寫入動詞在下游 xargs 段，逐段判斷兩邊都不像寫入而漏放
+  it.each([
+    ['grep -l | xargs sed -i（glob）', 'grep -l x test/e2e/specs/*.ts | xargs sed -i \'\' \'s/x/y/\''],
+    ['grep -l | xargs sed -i（檔名）', `grep -l x ${FROZEN_FILE} | xargs sed -i '' 's/x/y/'`],
+    ['grep -rl 目錄 | xargs perl -pi', 'grep -rl x test/e2e/specs | xargs perl -pi -e \'s/x/y/\''],
+    ['ls glob | xargs rm', 'ls test/e2e/specs/*.ts | xargs rm'],
+    ['find 目錄 | xargs -I {} rm {}', 'find test/e2e/specs -name "*.ts" | xargs -I {} rm {}'],
+    ['三段管線，寫入在最後', 'grep -l x test/e2e/specs/*.ts | sort | xargs /usr/bin/sed -i "" "s/x/y/"'],
+    ['上游帶 sudo 的 xargs', 'ls test/e2e/specs/*.ts | sudo xargs rm'],
+    ['xargs -n 1 rm（吃值旗標，值分開寫）', 'ls test/e2e/specs/*.ts | xargs -n 1 rm'],
+    ['xargs -P 4 -L 1 rm', 'ls test/e2e/specs/*.ts | xargs -P 4 -L 1 rm'],
+    ['xargs -d 分隔符 rm', 'ls test/e2e/specs/*.ts | xargs -d x rm'],
+    ['|& 接管線', 'ls test/e2e/specs/*.ts |& xargs rm'],
+    ['xargs -J % rm %（BSD 替換字串旗標）', 'ls test/e2e/specs/*.ts | xargs -J % rm %'],
+  ])('%s → 擋下', (_label, command) => {
+    const result = runGuard(command)
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['cat | grep（唯讀）', `cat ${FROZEN_FILE} | grep x`],
+    ['grep -l | xargs wc -l（xargs 接唯讀）', 'grep -l x test/e2e/specs/*.ts | xargs wc -l'],
+    ['find | xargs -I {} cat {}', 'find test/e2e/specs -name x | xargs -I {} cat {}'],
+    ['cat | tee /tmp（tee 寫自己的引數，不是上游路徑）', `cat ${FROZEN_FILE} | tee /tmp/out.txt`],
+    ['上游凍結路徑在前一條指令（; 不是管線）', `cat ${FROZEN_FILE}; ls /tmp | xargs rm`],
+    ['|| 不是管線', `grep -q x ${FROZEN_FILE} || ls /tmp | xargs rm`],
+    ['xargs grep -in sed（sed 只是搜尋字）', 'grep -l x test/e2e/specs/*.ts | xargs grep -in sed'],
+    ['xargs -i sed -n（-i 是 xargs 的旗標，sed 沒帶 -i）', 'grep -l x test/e2e/specs/*.ts | xargs -i sed -n 1p {}'],
+    ['xargs grep "git checkout"（git 只是搜尋字）', 'grep -l x test/e2e/specs/*.ts | xargs grep -l "git checkout"'],
+  ])('%s → 放行', (_label, command) => {
+    const result = runGuard(command)
+    expect(result.status).toBe(0)
+  })
+})
