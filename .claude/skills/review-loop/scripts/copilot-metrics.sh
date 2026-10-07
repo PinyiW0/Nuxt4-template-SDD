@@ -35,9 +35,12 @@ usage() {
   comments_per_review inline_comments ÷ reviews（一位小數；reviews 為 0 時是 -）
   first_review_at, last_review_at, span_min
                       第一則／最後一則 Copilot review 的時刻，與兩者相隔的分鐘數
-  first_clean_round   第一則「無新問題」review 是第幾則（Findings: None／0 new／Approval recommended／No issues found）；沒有則空
-  high_first          第一則 review 內 High severity 的個數（撞配額的空 review 算 0）
-  effort_first        第一則 review 標的 Review effort（Lite／Balanced；v1 格式無此欄則空）
+  first_clean_round   第一則「無新問題」review 是第幾則；沒有則空。判準：v2 寫 Findings: None；
+                      或 v1 寫 0 new／Approval recommended／No issues found，且同時沒有 Comments generated ≥ 1、
+                      沒有 Suppressed comments、沒有 Open (≥1)。只寫 Approval recommended 卻還帶留言的不算
+  high_first          第一則 review 摘要行（v2 的 Findings:）上的 High 個數；沒有摘要行（v1、撞配額的空 review）
+                      為空，代表「無此資訊」，不是 0
+  effort_first        第一則 review 標的 effort（Lite／Balanced）；v2 寫 Review effort:，v1 寫 Review effort level:
 
 結束碼：0 成功／1 可重試的執行失敗／2 參數錯誤／3 需人工介入。
 USAGE
@@ -71,9 +74,8 @@ repo_slug() {
   printf '%s' "$_slug"
 }
 
-# 白名單與 copilot.sh L78、SKILL.md 鐵律 2 是同一份，三處改一處就要同步改另外兩處。
-# login 隨端點而異：GraphQL → copilot-pull-request-reviewer；REST reviews → …[bot]；REST comments → Copilot。
-COPILOT_LOGINS='["Copilot","copilot-pull-request-reviewer","copilot-pull-request-reviewer[bot]"]'
+# login 白名單見 copilot-logins.sh（三支腳本共用一份）。
+. "$(dirname "$0")/copilot-logins.sh"
 
 # 請 review 的次數要數 timeline 事件，不能用 reviewRequests 或 totalCount：
 # timelineItems(...).totalCount 在 #151 回 106（連非 Bot 與其他事件一起算），與 Bot 節點數 12 不符。
@@ -123,13 +125,18 @@ header() {
 # 印一列。所有欄位在同一個 jq 程式裡算完再 @tsv，避免 shell 層拼字串時漏欄。
 metrics_row() {
   pr="$1"
-  slug="$(repo_slug)" || exit $?
+  # slug 由 dispatcher 解析一次後傳進來，since 跑幾十個 PR 不必每個都再查一次 gh repo view。
+  slug="$2"
   owner="${slug%%/*}"; name="${slug##*/}"
 
-  if ! meta="$(gh pr view "$pr" --json number,createdAt,mergedAt,files --jq '
-        { created: .createdAt,
-          merged: (.mergedAt // ""),
-          category: (if any(.files[].path; test("^app/|^server/")) then "程式類" else "制度類" end) }')"; then
+  # 改動檔清單走 REST 分頁：gh pr view --json files 只取前 100 個檔，超過就會把程式類誤判成制度類。
+  if ! paths="$(gh api --paginate "repos/${slug}/pulls/${pr}/files?per_page=100" --jq '.[].filename')"; then
+    die 1 "取 PR #${pr} 的改動檔清單失敗（gh api）。可重試。"
+  fi
+  if printf '%s\n' "$paths" | grep -qE '^(app|server)/'; then category="程式類"; else category="制度類"; fi
+
+  if ! meta="$(gh pr view "$pr" --json number,createdAt,mergedAt --jq '
+        { created: .createdAt, merged: (.mergedAt // "") }')"; then
     die 1 "取不到 PR #${pr}（gh pr view 失敗）：確認 PR 存在且看得到。"
   fi
   [ -n "$meta" ] || die 1 "gh pr view 成功但沒有輸出。可重試。"
@@ -143,9 +150,17 @@ metrics_row() {
   [ -n "$raw" ] || die 1 "gh api 回 0 但沒有輸出，狀態不明。可重試。"
 
   if ! printf '%s' "$raw" | jq -r -s \
-        --arg pr "$pr" --argjson meta "$meta" \
+        --arg pr "$pr" --arg category "$category" --argjson meta "$meta" \
         --argjson requests "$requests" --argjson inline "$inline" \
         --argjson logins "$COPILOT_LOGINS" '
+    # 「無新問題」：v2 明寫 Findings: None；v1 寫 0 new／Approval recommended／No issues found 時，
+    # 還要確定沒有夾帶留言——實測 v1 會同時寫「Approval recommended」與「Comments generated: 1」或 Suppressed comments。
+    def is_clean:
+      test("\\*\\*Findings:\\*\\* None")
+      or ( test("Comments generated:\\*\\* 0 new|Approval recommended|No issues found")
+           and (test("Comments generated:\\*\\* [1-9]") | not)
+           and (test("Suppressed comments") | not)
+           and (test("<strong>Open \\([1-9]") | not) );
     [ .[]
       | if type == "array" then . else error("GitHub API 回傳非陣列：" + tostring) end
       | .[]
@@ -156,7 +171,7 @@ metrics_row() {
     | ($r | length) as $n
     | [
         $pr,
-        $meta.category,
+        $category,
         $meta.created,
         $meta.merged,
         $requests,
@@ -168,7 +183,7 @@ metrics_row() {
         (if $n > 0 then $r[-1].submitted_at else "" end),
         (if $n > 0 then ((($r[-1].submitted_at | fromdateiso8601) - ($r[0].submitted_at | fromdateiso8601)) / 60 | floor) else "" end),
         ((first(range($n) as $i
-                | select($r[$i].body | test("\\*\\*Findings:\\*\\* None|Comments generated:\\*\\* 0 new|Approval recommended|No issues found"))
+                | select($r[$i].body | is_clean)
                 | $i + 1)) // ""),
         # v2 body 的摘要行長這樣：**Findings:** 3 <picture…alt="High severity"…> · 2 <picture…alt="Medium severity"…>
         # 要讀的是數字，不是數 alt="High severity" 出現幾次——Open 清單每條也各帶一個同樣的圖示，會重複計。
@@ -181,7 +196,7 @@ metrics_row() {
                    | map(select(.s == "High") | .n | tonumber) | first) // 0
              end
          else "" end),
-        (if $n > 0 then (($r[0].body | capture("\\*\\*Review effort:\\*\\* (?<e>[A-Za-z]+)") | .e) // "") else "" end)
+        (if $n > 0 then (($r[0].body | capture("\\*\\*Review effort( level)?:\\*\\* (?<e>[A-Za-z]+)") | .e) // "") else "" end)
       ] | @tsv'; then
     die 1 "review 資料解析失敗（回應不是預期的陣列）。可重試。"
   fi
@@ -189,8 +204,9 @@ metrics_row() {
 
 cmd_pr() {
   require_num "PR 編號" "$1"
+  slug="$(repo_slug)" || exit $?
   header
-  metrics_row "$1"
+  metrics_row "$1" "$slug"
 }
 
 cmd_since() {
@@ -199,9 +215,10 @@ cmd_since() {
     die 1 "列 PR 失敗（gh pr list）。可重試。"
   fi
   [ -n "$nums" ] || die 1 "找不到 $1 之後建立的 PR（gh pr list 回空）。日期太新、或 repo 沒 PR。"
+  slug="$(repo_slug)" || exit $?
   header
   for n in $(printf '%s\n' "$nums" | sort -n); do
-    metrics_row "$n" || exit $?
+    metrics_row "$n" "$slug" || exit $?
   done
 }
 

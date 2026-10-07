@@ -26,7 +26,7 @@ usage() {
   severity       High／Medium／Low，來自 v2 review body 的圖示；v1 沒有，留空
   created_at     留言或 review 的時刻
   body_excerpt   意見內容前 200 字（換行與 tab 換成空白）
-  reply_excerpt  我方第一則回覆前 200 字。inline 取 thread 內第一則非 Bot 回覆；
+  reply_excerpt  我方第一則回覆前 600 字（結論常在後段）。inline 取 thread 內第一則非 Bot 回覆；
                  Previously missed 取 PR 留言中第一則提到該路徑的非 Bot 留言。沒有就空
   is_resolved    thread 是否已 Resolved（true／false）；Previously missed 沒有 thread，留空
   verdict        留空，之後填 必修已修／誤判／範圍外／可選／未回覆
@@ -50,8 +50,8 @@ repo_slug() {
   printf '%s' "$_slug"
 }
 
-# 與 copilot.sh L78、copilot-metrics.sh、SKILL.md 鐵律 2 同一份白名單，改一處就要同步改其他處。
-COPILOT_LOGINS='["Copilot","copilot-pull-request-reviewer","copilot-pull-request-reviewer[bot]"]'
+# login 白名單見 copilot-logins.sh（三支腳本共用一份）。
+. "$(dirname "$0")/copilot-logins.sh"
 
 # 四個來源各抓成一個檔（每檔是「頁的陣列」，jq 裡再攤平），全部抓齊才開始算，中途失敗就整個 PR 放棄。
 fetch_sources() {
@@ -95,9 +95,11 @@ header() {
 harvest_pr() {
   pr="$1"
   require_num "PR 編號" "$pr"
-  slug="$(repo_slug)" || exit $?
+  slug="$2"
   dir="$(mktemp -d)" || die 1 "建不了暫存目錄。"
-  fetch_sources "$slug" "$pr" "$dir" || { rm -rf "$dir"; exit 1; }
+  # fetch_sources 失敗時是在同一個 shell 裡 exit，後面接的清理不會執行，所以用 trap 兜底。
+  trap 'rm -rf "$dir"' EXIT
+  fetch_sources "$slug" "$pr" "$dir"
 
   if ! jq -r -n --arg pr "$pr" --argjson logins "$COPILOT_LOGINS" \
         --slurpfile comments "$dir/comments.json" \
@@ -106,7 +108,10 @@ harvest_pr() {
         --slurpfile threads "$dir/threads.json" '
     # --paginate 每頁一個陣列；--slurpfile 再包一層。攤成一層並拒絕非陣列（gh 失敗時可能吐物件）。
     def flat: [ .[] | if type == "array" then . else error("GitHub API 回傳非陣列：" + tostring) end | .[] ];
-    def excerpt: (. // "") | gsub("\r"; "") | gsub("\n+"; " ") | gsub("\t"; " ") | .[0:200];
+    def oneline: (. // "") | gsub("\r"; "") | gsub("\n+"; " ") | gsub("\t"; " ");
+    def excerpt: oneline | .[0:200];
+    # 回覆常以「指控成立，已實測驗證…」開頭，結論在 200 字之後；verdict 靠這欄判，所以放寬到 600。
+    def reply_excerpt: oneline | .[0:600];
     def strip_zw: gsub("​"; "");
     def is_copilot: (.user.type == "Bot") and (.user.login | IN($logins[]));
 
@@ -134,8 +139,9 @@ harvest_pr() {
         severity: ($sev[(.id | tostring)] // ""),
         created_at,
         body_excerpt: (.body | excerpt),
-        reply_excerpt: ($rep[(.id | tostring)] // "" | excerpt),
-        is_resolved: (($res[(.id | tostring)] // "") | tostring),
+        reply_excerpt: ($rep[(.id | tostring)] // "" | reply_excerpt),
+        # 不能寫 $res[k] // ""：jq 的 // 會把 false 也當成「沒有值」，未解決的 thread 就變成空白。
+        is_resolved: ((.id | tostring) as $k | if ($res | has($k)) then ($res[$k] | tostring) else "" end),
         verdict: ""
       })) as $rows_inline
 
@@ -158,7 +164,10 @@ harvest_pr() {
           severity: .sev,
           created_at,
           body_excerpt: ((if .title != "" then .title + " — " else "" end) + .text | excerpt),
-          reply_excerpt: (([ $ic[] | select(.body | contains($m.path)) ] | .[0].body // "") | excerpt),
+          # 只認 review 送出之後的留言；有寫到 path:line 的優先，其次才是只寫到 path 的。
+          # 不加時間條件會把「這個問題被提出之前」的留言當成回覆。
+          reply_excerpt: (( [ $ic[] | select(.created_at >= $m.created_at and (.body | contains($m.path))) ] | sort_by(.created_at) ) as $cand
+            | (([ $cand[] | select(.body | contains($m.path + ":" + $m.line)) ] + $cand) | .[0].body // "") | reply_excerpt),
           is_resolved: "",
           verdict: ""
         })) as $rows_missed
@@ -178,7 +187,8 @@ require_cmd jq "解析與合併四個來源都要它。請先安裝（brew insta
 [ $# -ge 1 ] || { usage >&2; exit 2; }
 for p in "$@"; do require_num "PR 編號" "$p"; done
 
+slug="$(repo_slug)" || exit $?
 header
 for p in "$@"; do
-  harvest_pr "$p" || exit $?
+  harvest_pr "$p" "$slug" || exit $?
 done

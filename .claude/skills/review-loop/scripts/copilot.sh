@@ -64,19 +64,11 @@ repo_slug() {
   printf '%s' "$_slug"
 }
 
-# reviewer bot 的 login 隨端點而異（實測 2026-09-02）：
-#   GraphQL review author      → copilot-pull-request-reviewer
-#   REST /pulls/N/reviews      → copilot-pull-request-reviewer[bot]
-#   REST /pulls/N/comments     → Copilot
-# 所以比對 login 要用精確白名單（與 SKILL.md 鐵律 2 同一份），不用 contains／正則：
-# contains("copilot") 或 test("copilot.*review") 都會撈到 copilot-swe-agent(-review) 這類
-# 「另一個 copilot bot」——請錯 bot 一樣回成功，然後 review 永遠不會來。
-# bot_id 與 list_reviews 一律共用下面這條判準：type 是 Bot ＋ login 在白名單內（大小寫須完全相同）。
+# login 白名單與比對判準見 copilot-logins.sh（三支腳本共用一份）。
+# bot_id 與 list_reviews 一律用同一條判準：type 是 Bot ＋ login 在白名單內。
 # 查 review 用 last:50 而非 first:50——要的是「近期有沒有這個 bot」，而 review 數會被本工作流
 # 自己催高（每輪一則 Copilot review 加一則我方回覆），取最舊的 50 筆遲早會漏掉 bot。
-# 白名單含 comments 端點的短 login "Copilot"，本腳本沒用到該端點，列入是為了與鐵律 2 一字不差。
-# 同一份白名單還在 copilot-metrics.sh（它有用到 comments 端點）；改這裡要同步改那裡與 SKILL.md 鐵律 2。
-COPILOT_LOGINS='["Copilot","copilot-pull-request-reviewer","copilot-pull-request-reviewer[bot]"]'
+. "$(dirname "$0")/copilot-logins.sh"
 bot_id() {
   slug="$(repo_slug)" || exit $?
   owner="${slug%%/*}"; name="${slug##*/}"
