@@ -282,6 +282,8 @@ const totalItems = computed(() => items.value.length)
 </UTable>
 ```
 
+讀取失敗**不是**空狀態：`error` 時整個換成 `<ApiErrorState :error="error" @retry="refresh()" />`，不渲染 UTable，否則 `#empty` 會讓使用者以為資料被刪了（範本見 [page-builder.md](page-builder.md) 載入佔位一節）。
+
 ---
 
 ## 搜尋框

@@ -678,7 +678,7 @@ test('observer 無法編輯他人建立的 note（單筆歸屬）', async ({ pag
 ```
 
 > ⚠️ **拒絕場景 ≠ 不可達場景**：受限角色「被擋」是可觀察、可測的（上方），**必須產**。下方 Skip 規則的「API 層已過濾、UI 根本無法觸發」指的是連入口與路由都不存在、URL 也拼不出來的死路；**不含** BOLA——「帶他人 id 打 `/{id}`」永遠拼得出 URL、是真實攻擊面，`object_ownership` 命中時**必測、不可 skip**。
-> ⚠️ 403/404 statusMessage、守門目標路徑、以及「屬於他人的 object id」以 mock（`requireRole` / `requireOwnership`）、`rbac.global.ts`、mock 種子的實際值為準（交叉比對 Step 2b / 2e）。
+> ⚠️ 403/404 狀態碼、守門目標路徑、以及「屬於他人的 object id」以 mock（`requireRole` / `requireOwnership`）、`rbac.global.ts`、mock 種子的實際值為準（交叉比對 Step 2b / 2e）。
 
 ### 巢狀資源 scope 層（**無條件**，不需 rbac）
 

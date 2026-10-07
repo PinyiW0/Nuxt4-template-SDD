@@ -433,7 +433,7 @@ export function assertNotRateLimited(key: string, max: number, windowMs: number)
   const hits = (buckets.get(key) ?? []).filter(t => now - t < windowMs)
   buckets.set(key, hits)
   if (hits.length >= max)
-    throw createError({ statusCode: 429, statusMessage: '嘗試次數過多，請稍後再試' })
+    throw createError({ statusCode: 429, message: '嘗試次數過多，請稍後再試' })
 }
 export function recordFailure(key: string): void {
   const hits = buckets.get(key) ?? []

@@ -486,7 +486,7 @@ export default defineEventHandler((event) => {
   const id = getRouterParam(event, 'streamId')
   const stream = streams.find(s => s.streamId === id)
   if (!stream)
-    throw createError({ statusCode: 404, statusMessage: 'Stream not found' })
+    throw createError({ statusCode: 404, message: '找不到此串流' })
   return stream
 })
 ```

@@ -2,6 +2,7 @@ import type { AsyncData, UseFetchOptions } from 'nuxt/app'
 import type { FetchContext, FetchError, FetchOptions } from 'ofetch'
 import type { MaybeRefOrGetter } from 'vue'
 import type { HttpAuthHandler } from '~/composables/useHttpAuth'
+import { getErrorStatus } from '~/utils/api-error'
 
 // path 佔位符（:id 或 {id}）對應的實際值
 export type PathParams = Record<string, string | number>
@@ -79,8 +80,7 @@ function unwrapEnvelope(response: { _data?: unknown, headers?: Headers }): void 
 }
 
 function isUnauthorized(error: unknown): boolean {
-  const e = error as FetchError | undefined
-  return e?.response?.status === 401 || e?.statusCode === 401
+  return getErrorStatus(error) === 401
 }
 
 /**
