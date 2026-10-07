@@ -75,6 +75,7 @@ repo_slug() {
 # 查 review 用 last:50 而非 first:50——要的是「近期有沒有這個 bot」，而 review 數會被本工作流
 # 自己催高（每輪一則 Copilot review 加一則我方回覆），取最舊的 50 筆遲早會漏掉 bot。
 # 白名單含 comments 端點的短 login "Copilot"，本腳本沒用到該端點，列入是為了與鐵律 2 一字不差。
+# 同一份白名單還在 copilot-metrics.sh（它有用到 comments 端點）；改這裡要同步改那裡與 SKILL.md 鐵律 2。
 COPILOT_LOGINS='["Copilot","copilot-pull-request-reviewer","copilot-pull-request-reviewer[bot]"]'
 bot_id() {
   slug="$(repo_slug)" || exit $?
