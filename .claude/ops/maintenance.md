@@ -50,3 +50,4 @@
 - 路徑全部有效？
 - 模型名／參數與當前 harness 實際值一致？（用當前 session 的 tool schema 查證，不憑記憶）
 - 有沒有規則在實務中從沒被用到？（候選刪除，列給使用者決定）
+- review-loop 的 evals 要不要重跑？（`.claude/skills/review-loop/evals/README.md` 流程 3、4：本地 `/code-review` 的抓取率與 Copilot 誤判比例有沒有偏離 baseline；只在 `/code-review` 的 prompt 焦點、`.github/copilot-instructions.md` 或 `review-loop/SKILL.md` 第 8 節目標有改動時才跑）
