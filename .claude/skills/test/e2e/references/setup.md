@@ -170,11 +170,11 @@ export default defineEventHandler(async (event: H3Event) => {
 
   // 不吞掉解析失敗：非法 JSON 明確回 400，不要讓壞 body 被當成空 body 而通過
   const body = await readBody(event).catch(() => {
-    throw createError({ statusCode: 400, statusMessage: '輸入格式錯誤' })
+    throw createError({ statusCode: 400, message: '輸入格式錯誤' })
   })
   const parsed = resetBodySchema.safeParse(body ?? {})
   if (!parsed.success)
-    throw createError({ statusCode: 400, statusMessage: '輸入格式錯誤' })
+    throw createError({ statusCode: 400, message: '輸入格式錯誤' })
 
   resetMockData({ empty: parsed.data.empty })
   return { ok: true }

@@ -214,7 +214,7 @@ grep 來源訊號（命中任一即「有串流播放需求」）。**OpenAPI �
      list: 'A：ok(T[]) / page(items, pagination)；B：T[]'
      single: 'A：ok(T)；B：T'
      action: XxxEvent（POST 201；軟刪除 204 無 body，兩模式皆同）
-     error: 'A：ErrorEnvelope；B：createError({ statusCode, statusMessage })'
+     error: 'A：ErrorEnvelope；B：createError({ statusCode, message })'
    ```
 6. **產出前自檢**：
    - □ `app/types/api/_schema.d.ts` 由 `gen:api` 產、未手改（檔頭 `Do not make direct changes`）
@@ -459,7 +459,7 @@ api_contract:
     list: 'A：ok(T[]) / page(items, pagination)；B：T[]'
     single: 'A：ok(T)；B：T'
     action: XxxEvent（POST 201；軟刪除 204 無 body，兩模式皆同）
-    error: 'A：ErrorEnvelope；B：createError({ statusCode, statusMessage })'
+    error: 'A：ErrorEnvelope；B：createError({ statusCode, message })'
 
   # 型別欄位快照（鏡像 app/types/api/*.ts，作為 Sync diff 基準）
   # 程式碼層面的 SSoT 仍是 app/types/api/*.ts

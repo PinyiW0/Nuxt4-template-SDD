@@ -19,7 +19,7 @@ mock 端點一律適用——實際專案會把 mock 演化成 production server
 | 5 | 把 body/query 的 `xxxId` 當操作者身分（冒用） | 操作者身分只取自 auth context 或已驗證的簽名憑證；公開端點自報的身分欄位忽略或 400 |
 | 6 | 回應整筆吐出或黑名單刪欄位 | 白名單挑欄位出去；密碼雜湊、token、審核理由、內部備註不進任何回應；公開／匿名端點只回已發布狀態資料的公開層欄位 |
 | 7 | 密鑰寫死、dev 預設值成為 production fallback | secret 一律走 env（runtimeConfig）；production 啟動守衛擋 dev 預設值（範本見 auth-scaffold） |
-| 8 | 錯誤訊息洩漏內部細節或資料存在性 | `statusMessage` 用固定訊息，不帶 stack／DB 原文；歸屬檢查失敗回 404，不讓外人探測資源存在 |
+| 8 | 錯誤訊息洩漏內部細節或資料存在性 | `message` 與 `statusMessage` 都用固定訊息，不帶 stack／DB 原文（使用者文案放 `message`，見 `.claude/skills/feature-to-api/references/openapi-conventions.md` §4）；歸屬檢查失敗回 404，不讓外人探測資源存在 |
 
 ## 一行示例（最常踩的三條）
 

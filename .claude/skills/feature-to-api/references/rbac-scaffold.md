@@ -187,7 +187,7 @@ export function getMockCurrentUser(event: H3Event): MockCurrentUser | null {
 export function requireRole(event: H3Event, allow: string[], message = '權限不足'): MockCurrentUser {
   const user = getMockCurrentUser(event)
   if (!user || !user.roles.some(r => allow.includes(r)))
-    throw createError({ statusCode: 403, statusMessage: message })
+    throw createError({ statusCode: 403, message })
   return user
 }
 
@@ -198,7 +198,7 @@ export function requireOwnership(event: H3Event, owner: string, restrictedRoles:
   const user = getMockCurrentUser(event)
   const restricted = !!user && user.roles.some(r => restrictedRoles.includes(r))
   if (restricted && owner !== user!.accountId)
-    throw createError({ statusCode: opts.notFound ? 404 : 403, statusMessage: opts.notFound ? '資源不存在' : '無權存取此資源' })
+    throw createError({ statusCode: opts.notFound ? 404 : 403, message: opts.notFound ? '資源不存在' : '無權存取此資源' })
 }
 ```
 
@@ -270,7 +270,7 @@ export default defineEventHandler(async (event: H3Event) => {
   // 順序很關鍵：先查到 object → 再驗歸屬 → 才動作。漏掉中間這步就是 BOLA。
   const note = mockNotes.find(n => n.noteId === noteId && !n.deletedAt)
   if (!note)
-    throw createError({ statusCode: 404, statusMessage: '資源不存在' })
+    throw createError({ statusCode: 404, message: '資源不存在' })
 
   requireOwnership(event, note.createdBy, ['member']) // member 帶他人 note id → 403（workspace_owner 全權放行）
 
@@ -280,7 +280,8 @@ export default defineEventHandler(async (event: H3Event) => {
 })
 ```
 
-> ⚠️ **`server/api/` import 用相對路徑**（不能 `~/`）、**event 標 `H3Event`**、**錯誤用 `statusMessage`**——與 `rules.md` / `phase-1-mock-api.md` 既有規範一致。
+> ⚠️ **`server/api/` import 用相對路徑**（不能 `~/`）、**event 標 `H3Event`**、**使用者文案用 `message`**（`statusMessage` 不傳文案）——與 `rules.md` / `phase-1-mock-api.md` 既有規範一致，取值規則見 [openapi-conventions.md](openapi-conventions.md) §4。
+> ⚠️ **403／404 的 `message` 不會顯示在畫面上**：前端對這兩類一律用 `ERROR_COPY` 固定文案（「你沒有權限執行這個操作」「找不到這筆資料，可能已被刪除」），因為框架會把英文原文填進這兩類的錯誤內容。上面 `requireRole` 的 `message` 參數仍要帶，它進 server log 與 API 直接消費者；但不要指望使用者看得到裡面的角色名。
 > ⚠️ mock data 帶 `createdBy`（值為 accountId）在該資源出現在 `rbac.ownership` **或** `rbac.object_ownership` 時才需要；皆無則不加此欄。
 
 ### 3b. UI 層範本（feature-to-ui 套用）

@@ -154,7 +154,8 @@ await refreshNuxtData('sites')
 |------|------|
 | 只有頁面主資料 lazy | modal 內、次要資料照舊（不 lazy） |
 | 用 `status === 'pending'` 判斷 | `immediate: false` 時初始 `status` 是 `'idle'` 非 `'pending'`（見 `rules/framework-skills.md`） |
-| 狀態互斥順序 | `pending` → skeleton；成功且空 → `#empty`；有資料 → 列表——避免載入中閃現空狀態 |
+| 狀態互斥順序 | `pending` → skeleton；`error` → `<ApiErrorState>`；成功且空 → `#empty`；有資料 → 列表——避免載入中閃現空狀態 |
+| 讀取失敗不可落到空狀態或「找不到」 | `error` 分支排在空狀態**之前**，一律交給 `<ApiErrorState :error="error" @retry="refresh()" />`：它依錯誤種類出文案，斷網／服務不可用／5xx 才給「重新載入」，403／404 一律顯示固定文案（404 即「找不到」）且不給重試——詳情頁不必另寫 404 判斷 |
 | skeleton 容器加 `aria-busy="true"` | 語意化載入標記；**不加**額外 `data-testid`（守「fallback testid 不多加、不漏」） |
 | animation 依 `ui-config.yaml > loading.skeleton` | `pulse` ＝ USkeleton 預設 `animate-pulse`，不用另外設 |
 
@@ -165,7 +166,7 @@ await refreshNuxtData('sites')
 import { listSites } from '~/api'
 
 // 主資料 lazy：切頁即時，pending 期間渲染 skeleton
-const { data: sites, status } = listSites({ key: 'sites', lazy: true })
+const { data: sites, status, error, refresh } = listSites({ key: 'sites', lazy: true })
 </script>
 
 <template>
@@ -173,9 +174,28 @@ const { data: sites, status } = listSites({ key: 'sites', lazy: true })
   <div v-if="status === 'pending'" aria-busy="true" class="space-y-3">
     <USkeleton v-for="i in 4" :key="i" class="h-12 w-full" />
   </div>
+  <!-- 讀取失敗 → 錯誤狀態（不可落到下面的空狀態，使用者會以為資料被刪了） -->
+  <ApiErrorState v-else-if="error" :error="error" @retry="refresh()" />
   <!-- 成功且空 → 空狀態；有資料 → 列表（UTable 用 #empty slot 同理） -->
   <div v-else-if="!sites?.length">尚無資料</div>
   <UTable v-else :data="sites" ... />
+</template>
+```
+
+**詳情頁範例**（狀態順序同列表：`pending` → `error` → 有資料）：
+
+```vue
+<script setup lang="ts">
+import { getSite } from '~/api'
+
+const route = useRoute()
+const { data: site, status, error, refresh } = getSite(() => route.params.id as string, { lazy: true })
+</script>
+
+<template>
+  <div v-if="status === 'pending'" aria-busy="true"><USkeleton class="h-40 w-full" /></div>
+  <ApiErrorState v-else-if="error" :error="error" @retry="refresh()" />
+  <div v-else-if="site">{{ site.name }}</div>
 </template>
 ```
 
@@ -305,6 +325,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { z } from 'zod'
+import { readApiError } from '~/utils/api-error'
 
 const schema = z.object({
   account: z.string().trim().min(1, '請輸入帳號'),
@@ -331,9 +352,8 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     toast.add({ title: '登入成功', color: 'success' })
     await navigateTo('/')
   }
-  catch (error: any) {
-    const message = error?.data?.message || '操作失敗'
-    toast.add({ title: '登入失敗', description: message, color: 'error' })
+  catch (error) {
+    toast.add({ title: '登入失敗', description: readApiError(error, '操作失敗'), color: 'error' })
   }
   finally {
     loading.value = false

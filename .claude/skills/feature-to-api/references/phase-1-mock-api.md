@@ -238,15 +238,15 @@ export default defineEventHandler(async (event: H3Event): Promise<LoginResponse>
   const body = await readBody<LoginBody>(event)
 
   if (!body?.account || !body?.password) {
-    throw createError({ statusCode: 400, statusMessage: '請輸入帳號與密碼' })
+    throw createError({ statusCode: 400, message: '請輸入帳號與密碼' })
   }
 
   const user = mockUsers.find(u => u.account === body.account && !u.deletedAt)
   if (!user) {
-    throw createError({ statusCode: 404, statusMessage: '帳號不存在' })
+    throw createError({ statusCode: 404, message: '帳號不存在' })
   }
   if (user.password !== body.password) {
-    throw createError({ statusCode: 401, statusMessage: '帳號或密碼錯誤' })
+    throw createError({ statusCode: 401, message: '帳號或密碼錯誤' })
   }
 
   // [O] 模式 B 示意：直接回 schema 物件（模式 A 用 ok() 包裝，見 openapi-conventions §3）
@@ -264,7 +264,33 @@ export default defineEventHandler(async (event: H3Event): Promise<LoginResponse>
 
 > ⚠️ **Server 端 import 必須用相對路徑**，不能用 `~/`
 > ⚠️ **event 必須標註 H3Event**、**陣列索引存取須處理 undefined** → 詳見 [rules.md](../references/rules.md)
-> ⚠️ **錯誤用 `statusMessage`，不要用 `message`**（讓前端統一從 `e.statusMessage` 讀取）
+> ⚠️ **錯誤格式以 [openapi-conventions.md §4](openapi-conventions.md) 為唯一真理來源**：server 端用 `createError({ statusCode, message })` 傳使用者文案，`statusMessage` 不傳文案；前端經 `readApiError` 讀（它讀 `data.message` 與 envelope 的 `data.data.message`，不讀 `statusMessage`）；要給使用者看的錯誤一律用 4xx（403／404 的 `message` 不會顯示在畫面上：前端對這兩類一律用 `ERROR_COPY` 固定文案，該欄位仍要寫，但讀者是 server log 與 API 直接消費者）
+>
+> ⚠️ **BFF 警示：server route 內呼叫上游（`$fetch`、DB driver、HTTP SDK、驗證庫等任何可能丟出帶 `statusCode` 的非 H3Error 的東西）一律要 try/catch 後重新包成 `createError`**。ofetch 的 `FetchError` 只是最常見的一個；h3 會對任何非 H3Error 標 `unhandled = true`（`h3/dist/index.mjs:2419-2421`），與狀態碼無關；而 nitropack 的 `isSensitive = error.unhandled || error.fatal`（`error/prod.mjs:18-19`）。後果：
+> - production：回應內容的 `message` 被換成 `"Server Error"`、`data` 被砍成 `undefined`（`prod.mjs:59-60`），連 envelope 都救不回來；前端守衛會擋掉這個字串，使用者只看到固定文案
+> - dev：dev 錯誤處理器無條件寫 `message: error.message`（`error/dev.mjs:79-80`），內部原文會原樣上畫面。ofetch 自組的訊息 `[GET] "http://上游主機:8080/x": 409 Server Error`（`ofetch.CWycOUEr.mjs:13-18`）會洩漏上游主機位址；帶 `statusCode` 的非 H3Error 同理，例如 `ValidationError: duplicate key ... "users_pk"`。所以不能因為「production 看起來沒事」就不包
+>
+> ```typescript
+> // [O] 重新包成 H3Error，才不會被標 unhandled
+> // 就地讀 statusCode：server route 不能 import app/ 的 util（`~/` 不可用，相對 import 也不該為此引入）
+> try {
+>   return await $fetch<OrderItem>(`${upstream}/orders/${id}`)
+> }
+> catch (e) {
+>   const status = (e as { statusCode?: number }).statusCode
+>   // 只轉發對呼叫端有意義的上游 4xx 業務錯誤；上游 401 與所有 5xx（含取不到狀態碼）一律轉 502
+>   // 原樣轉發上游 401 會讓前端 useHttp 的 401 攔截器對「上游的」認證失敗跑 refresh → retry → forceLogout()，把使用者登出
+>   // 要給使用者看的中文 message 必須搭 4xx；5xx 前端一律顯示固定文案，message 不會上畫面
+>   const forwardable = status !== undefined && status >= 400 && status < 500 && status !== 401
+>   throw createError({
+>     statusCode: forwardable ? status : 502,
+>     message: '訂單服務暫時無法使用',
+>   })
+> }
+> // [X] 不包：await $fetch(`${upstream}/orders/${id}`) 直接讓 FetchError 冒出去
+> ```
+>
+> 前端 `readApiError` 已有守衛擋掉 `"Server Error"` 與 ofetch 自組字串，但那是最後一道防線，不該依賴它；dev 尤其擋不住無法識別來源的內部原文。
 > ⚠️ **回應信封依 [openapi-conventions.md §3](openapi-conventions.md)（模式 A `ok()` envelope／模式 B 裸回），判定值讀 `route-map.yaml > response_conventions.envelope`；本頁範例為模式 B 示意**，絕不自創 `{ status, data }` 第三種包裝
 
 ### 列表端點範例（CRUD 標準模式）
@@ -305,9 +331,12 @@ import { z } from 'zod'
 export const createSiteSchema = z.object({
   siteName: z.string().trim().min(1, '請輸入觀測點名稱').max(50, '觀測點名稱過長'),
 })
-// 數字欄示例（本型別無數字欄，示意）：z.number().int().min(0).max(2147483647) 擋 NaN／浮點／負值／int4 溢位
-// enum 欄示例：z.enum(['pending', 'done']) —— runtime 白名單，值從 spec 的 enum 萃取
+// 數字欄示例（本型別無數字欄，示意）：z.number().int('須為整數').min(0, '不可小於 0').max(2147483647, '數值過大') 擋 NaN／浮點／負值／int4 溢位
+// enum 欄示例：z.enum(['pending', 'done'], '狀態值不合法') —— runtime 白名單，值從 spec 的 enum 萃取
 ```
+
+> ⚠️ **schema 定義時每條規則都要寫中文訊息**（如 `z.number().min(0, '不可小於 0')`、`z.enum([...], '狀態值不合法')`）。zod 預設 `issues[0].message` 是英文句子（如 `Too small: expected number to be >=0`），不是 `undefined`，所以後面的 `?? '輸入格式錯誤'` 不會生效，英文會原樣轉送上畫面。
+> 前端擋不住這種「後端主動轉送英文」（zod 的英文訊息放進 `createError({ message })` 就會原樣進回應內容，前端讀到的就是那句英文），責任在 schema 定義處。
 
 ```typescript
 // server/api/sites/index.post.ts
@@ -320,12 +349,12 @@ import { createSiteSchema } from '../../validation/sites'
 export default defineEventHandler(async (event: H3Event): Promise<SiteCreatedEvent> => {
   const parsed = await readValidatedBody(event, createSiteSchema.safeParse)
   if (!parsed.success) {
-    throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
+    throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
   }
   const body = parsed.data
 
   if (mockSites.some(t => t.siteName === body.siteName && !t.deletedAt)) {
-    throw createError({ statusCode: 409, statusMessage: '觀測點名稱已存在' })
+    throw createError({ statusCode: 409, message: '觀測點名稱已存在' })
   }
 
   // [O] 逐欄白名單手構；[X] 禁止 { ...body }——body 可覆蓋 server 決定的欄位（id／owner／租戶）＝跨租戶寫入（wedding-host 實戰）
@@ -349,7 +378,7 @@ export default defineEventHandler((event: H3Event) => {
   const siteId = getRouterParam(event, 'siteId')
   const site = mockSites.find(t => t.siteId === siteId && !t.deletedAt)
   if (!site) {
-    throw createError({ statusCode: 404, statusMessage: '觀測點不存在' })
+    throw createError({ statusCode: 404, message: '觀測點不存在' })
   }
   site.deletedAt = new Date().toISOString()
 
@@ -372,7 +401,7 @@ export default defineEventHandler((event: H3Event): TaskDetail => {
   // scope 條件：兩個 path 參數都進查詢——GET/PATCH/DELETE 三兄弟共用同一行
   const task = mockTasks.find(t => t.taskId === taskId && t.projectId === projectId && !t.deletedAt)
   if (!task)
-    throw createError({ statusCode: 404, statusMessage: '任務不存在' }) // 跨父層探測回 404，不洩漏存在性
+    throw createError({ statusCode: 404, message: '任務不存在' }) // 跨父層探測回 404，不洩漏存在性
 
   return { taskId: task.taskId, title: task.title, priority: task.priority, status: task.status }
 })
@@ -382,12 +411,12 @@ export default defineEventHandler((event: H3Event): TaskDetail => {
 // server/api/projects/[projectId]/tasks/[taskId].patch.ts —— scope 條件與 GET 逐字相同
 const task = mockTasks.find(t => t.taskId === taskId && t.projectId === projectId && !t.deletedAt)
 if (!task)
-  throw createError({ statusCode: 404, statusMessage: '任務不存在' })
+  throw createError({ statusCode: 404, message: '任務不存在' })
 
-// updateTaskSchema：priority: z.number().int().min(1).max(5).optional()、status: z.enum(['pending', 'done']).optional()
+// updateTaskSchema：priority: z.number().int('須為整數').min(1, '優先度須為 1 到 5').max(5, '優先度須為 1 到 5').optional()、status: z.enum(['pending', 'done'], '狀態值不合法').optional()
 const parsed = await readValidatedBody(event, updateTaskSchema.safeParse)
 if (!parsed.success)
-  throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
+  throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
 
 task.priority = parsed.data.priority ?? task.priority // 逐欄更新；[X] 禁止 Object.assign(task, body)
 task.status = parsed.data.status ?? task.status
@@ -397,7 +426,7 @@ task.status = parsed.data.status ?? task.status
 // server/api/projects/[projectId]/tasks/[taskId].delete.ts —— scope 條件與 GET/PATCH 逐字相同
 const task = mockTasks.find(t => t.taskId === taskId && t.projectId === projectId && !t.deletedAt)
 if (!task)
-  throw createError({ statusCode: 404, statusMessage: '任務不存在' })
+  throw createError({ statusCode: 404, message: '任務不存在' })
 task.deletedAt = new Date().toISOString()
 setResponseStatus(event, 204)
 ```
@@ -424,4 +453,4 @@ login 為寫入操作走 `$fetch`，回傳直接是裸型別（`LoginResponse`�
 > **禁止**在註解或 middleware 寫「登入狀態存 localStorage、SSR 讀不到」——錯誤心智模型會導致 hydration mismatch
 > （見 feature-to-ui `rules.md` > SSR / Hydration 安全）。cookie 上限 4KB：`pick` 只挑必要欄位，大型物件不進 persist。
 
-> ⚠️ **錯誤捕捉**：`try { await login() } catch (e: any) { toast.error(e.statusMessage || '登入失敗') }`
+> ⚠️ **錯誤捕捉**：`try { await login() } catch (e) { toast.add({ title: '登入失敗', description: readApiError(e, '帳號或密碼錯誤'), color: 'error' }) }`（`readApiError` 來自 `~/utils/api-error`，見 [openapi-conventions.md](openapi-conventions.md) §4）
