@@ -26,7 +26,8 @@ usage() {
       帶 botId 可跳過解析（狀態檔快取用）。輸出：一行提示文字。
 
   copilot.sh reviews <PR編號> [since-review-id]
-      列出 Copilot reviewer 的 review。輸出：JSON 陣列，含 body 與 commit_id。
+      列出 Copilot reviewer 的 review。輸出：JSON 陣列，含 body、commit_id，
+      以及 quota（撞配額的空 review）與 findings_none（無新問題）兩個布林欄。
       給了 since-review-id 就只列 id 大於它的。
 
 結束碼：0 成功／1 可重試的執行失敗／2 參數錯誤／3 需人工介入。
@@ -154,7 +155,13 @@ list_reviews() {
           | select(.user.type == "Bot"
                    and (.user.login | IN($logins[]))
                    and .id > $since)
-          | {id, state, submitted_at, commit_id, body} ]'; then
+          | (.body // "") as $b
+          # quota：撞配額時 Copilot 回一則零留言的 COMMENTED review，不可當成「沒有新問題」。
+          # findings_none：v2 寫 Findings: None；v1 寫 0 new 且沒有 Suppressed comments。
+          | {id, state, submitted_at, commit_id, body,
+             quota: ($b | test("reached their quota limit")),
+             findings_none: (($b | test("\\*\\*Findings:\\*\\* None"))
+                             or (($b | test("Comments generated:\\*\\* 0 new")) and ($b | test("Suppressed comments") | not)))} ]'; then
     die 1 "review 資料解析失敗（回應不是預期的陣列）。可重試。"
   fi
 }
