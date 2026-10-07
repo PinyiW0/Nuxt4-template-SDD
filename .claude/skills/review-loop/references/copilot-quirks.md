@@ -52,6 +52,76 @@ Copilot 的 review body 可能夾帶結構化的 `Suppressed comments (N)` 區�
 
 review body 一定要讀完，不能只當摘要跳過。`copilot.sh reviews` 的輸出含 `body` 就是為了這個。
 
+body 有兩種格式，**兩種都要認**（2026-09-23 起出現 v2，之後的 review 全是 v2）。
+
+**v1**（#135 review 5085821819，節錄）——項目在 `Suppressed comments` 底下，每條是粗體 `path:line` 接一行 `*` 說明，沒有嚴重度：
+
+```markdown
+### 🔵 Needs a closer look
+…
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (2)
+
+**Previously missed (2)** — in code that hasn't changed since the last review.
+
+**.claude/skills/review-loop/scripts/copilot.sh:83**
+* 在 GraphQL 解析 Copilot reviewer bot id 時，查的是 `reviews(first:50)`……
+**.claude/skills/review-loop/SKILL.md:103**
+* 「輪詢驅動」這段同時寫了……
+
+- **Comments generated:** 0 new
+- **Review effort level:** Lite
+</details>
+```
+
+**v2**（#151 review 5290000574，節錄；`[High]` 這類標記在原文是 `<picture>…<img alt="High severity">…</picture>` 圖示）——開頭有 `<!-- ccr-overview-v2 -->`，項目分三個 `<details>`：
+
+```markdown
+<!-- ccr-overview-v2 -->
+## Copilot review overview
+### 🟡 Changes recommended
+…
+**Review effort:** Lite
+**Findings:** 1 [High]
+
+<details open>
+<summary><strong>Open (1)</strong></summary>
+
+- [High] [Fail safely on invalid skip or force regex patterns](#discussion_r4081616104) · New
+</details>
+
+<details>
+<summary><strong>Resolved since last review (2)</strong></summary>
+- [High] [Set NUXT_PUBLIC_API_BASE for isolated Docker E2E tests](#discussion_r4081479106)
+…
+</details>
+
+<details>
+<summary><strong>Previously missed (1)</strong></summary>
+
+In code that hasn't changed since last review
+
+<details>
+<summary>[Low] Correct inaccurate ledger synchronization claim</summary>
+
+`.husky/​pre-push:82`
+
+This message is inaccurate: `ledger.sh` does not read `SMOKE_PATTERN`……
+</details>
+</details>
+```
+
+讀法：
+
+| 區塊 | 要不要處理 | 怎麼對到留言 |
+|---|---|---|
+| `Open (N)` | 要 | `#discussion_r<id>` 就是 inline 留言的 comment id；嚴重度看圖示的 `alt` |
+| `Resolved since last review (N)` | 不用，只是對帳 | 同上 |
+| `Previously missed (N)` | 要，沒有 thread | 路徑在反引號裡，**夾著零寬空白（U+200B）**，比對前要先去掉；回覆走第 5 節的 `gh pr comment` |
+| `**Findings:** None` | 這一則沒有新問題 | `copilot.sh reviews` 的 `findings_none` 欄已判好 |
+
 `/pr-feedback` 步驟 2 的四路抓法只涵蓋 inline 留言與 review 總結本體，未特別處理這個區塊——它把 (c) review 當「沒有 file:line 的總結」，而 suppressed 區塊**自己帶著 file:line 與完整建議**，照那個指引會被當純摘要略過。委派它抓留言時要自己另外補這一步。
 
 ## 4. Copilot 給的行號不可靠
