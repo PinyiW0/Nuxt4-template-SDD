@@ -50,3 +50,4 @@
 - 路徑全部有效？
 - 模型名／參數與當前 harness 實際值一致？（用當前 session 的 tool schema 查證，不憑記憶）
 - 有沒有規則在實務中從沒被用到？（候選刪除，列給使用者決定）
+- review-loop 的跨 PR 目標有沒有達標？跑 `sh .claude/skills/review-loop/scripts/copilot-metrics.sh since <上次健檢日>`，對照 `review-loop/SKILL.md` 第 8 節「跨 PR 目標」。evals（`review-loop/evals/README.md`）只在 `/code-review` 焦點、`.github/copilot-instructions.md` 或第 8 節目標有改動時才重跑

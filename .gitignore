@@ -39,3 +39,5 @@ logs
 test/e2e/test-results*/
 test/e2e/screenshots/
 playwright-report*/
+# review-loop eval 的執行產物（本地 /code-review 輸出與抓取率），cases.tsv 本身要進版控
+.claude/skills/review-loop/evals/runs/
