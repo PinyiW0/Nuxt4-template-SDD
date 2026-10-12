@@ -102,6 +102,8 @@ disable-model-invocation: true
    兩種格式的樣本見 [references/copilot-quirks.md](references/copilot-quirks.md) 第 3 節。**跳過狀態檔「已處理 comment id」裡的留言**——`pr-feedback` 明說它不記帳，不自己記就會每輪重新回覆刷版。body 裡的項目沒有 comment id，以 `<review_id>:<path>:<line>` 當已處理的鍵
 5. 濾噪音與分類：照 `../pr-feedback/SKILL.md` 步驟 3–4。再套鐵律 2、3、4 篩一次，被篩掉的進「待使用者決定」
 6. 修「必修」。逐則先讀檔驗證指控是否成立再動手——不成立就歸「誤判」並在回覆說明理由。能實測就實測（起假伺服器、跑腳本），比推理可靠
+
+   判成「誤判」，或回覆「已裁決不修／範圍外」時，把它濃縮成一句寫進狀態檔的 `## 政策檔候補`，格式 `<一句話主張> | <證據或裁決出處> | 第 N 次`，例如 `macOS grep 不支援 --include | /usr/bin/grep 2.6.0 實測支援 | 第 1 次`。**本 skill 永遠不改 `.github/copilot-instructions.md`**——那是使用者的決定（見 `.claude/ops/maintenance.md` 第 1 節）
 7. 驗證，依改到什麼決定跑哪幾層：
    - 一律：`npm run eslint` + `npm run typelint`
    - 改到 `app/`／`server/`：另跑**煙霧＋該則留言對應的 spec**一條指令（位置參數聯集、加 `--reporter=line`，例
@@ -129,7 +131,7 @@ disable-model-invocation: true
     - 本輪第 8 步**有** push 新 commit。只回覆、沒改動 → 不請：Copilot 會對同一個 commit 再審一次，只回重複留言，白扣一次額度
     - 第 6 節的停下條件都沒觸發（上限、補字、只剩 Low）
     - 本輪改到 `app/`／`server/` → 等 CI 錨在新 HEAD 且全綠再請：狀態檔記 `待請 review: 是`，下一輪第 1b 步看到 CI 錨在 HEAD 且全綠時才請，請完改回 `否`。CI 不扣 Copilot 額度，別讓 Copilot 審一個 CI 會退回的 commit
-11. 更新狀態檔（基準線、輪次、問題指紋、已處理 comment id），排下一輪
+11. 更新狀態檔（基準線、輪次、問題指紋、已處理 comment id），排下一輪。本輪新增的政策檔候補，拿去搜 `evals/copilot-cases.tsv` 與 `.github/copilot-instructions.md`：cases 裡已有同一件事被判「誤判」或「範圍外」→ 次數加一；政策檔已經寫了還被提 → 在候補後面標「政策檔已寫仍被提」
 
 ## 4. 輪詢驅動
 
@@ -182,7 +184,7 @@ disable-model-invocation: true
 
 ## 7. 收尾通知
 
-回報：**停下原因**（共識／上限／Low／補字／quota 五選一，撞其他煞車就寫該煞車）、跑了幾輪、每輪改了什麼（附 commit sha、幅度與 diff 行數）、哪些判定為誤判或舊 commit 已修（附理由）、**「待使用者決定」清單**（可選／不修／人類與 CI bot 的留言／被鐵律 2–4 篩掉的）、PR 連結。
+回報：**停下原因**（共識／上限／Low／補字／quota 五選一，撞其他煞車就寫該煞車）、跑了幾輪、每輪改了什麼（附 commit sha、幅度與 diff 行數）、哪些判定為誤判或舊 commit 已修（附理由）、**「待使用者決定」清單**（可選／不修／人類與 CI bot 的留言／被鐵律 2–4 篩掉的）、**政策檔候補**（第 2 次以上的列在最前面，附一句建議寫進 `.github/copilot-instructions.md` 的英文，讓使用者決定要不要加）、PR 連結。
 
 末尾附 `sh .claude/skills/review-loop/scripts/copilot-metrics.sh pr <PR編號>` 的輸出，逐欄對照第 8 節「單一 PR 目標」，超標的欄位標出來。跨 PR 的目標不在這裡判。這是這隻 skill 唯一會留下的度量，不附就沒人知道這輪比 baseline 好還是差。
 
@@ -232,6 +234,9 @@ botId: BOT_kgDOCnlnWA
 ## 輪次紀錄
 - 輪 1（15:05）review 5076932849 @8f0a370：SSE 按 frame 解析 → 已修 1e6bca3｜幅度：改設計（+24 -6）
 - 輪 2（15:18）review 5079536037 @1e6bca3：錨在舊 commit，已於 95c3faf 修掉 → 只回覆、不請 review｜幅度：無改動
+
+## 政策檔候補
+- （誤判與已裁決不修的主張，收尾時一併回報；本 skill 不改政策檔）
 
 ## 待使用者決定
 - （累積在這裡，收尾時一併回報）

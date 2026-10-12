@@ -6,6 +6,7 @@
 |------|------|------|
 | **可自行改** | `.claude/ops/*` 的錯字、失效路徑修正、補充正反例；`memory/`（使用者層記憶，不隨 repo）依記憶機制回寫 | 改完必做第 3 節的路由驗證 |
 | **改前先出草案等確認** | `.claude/CLAUDE.md` 本體、`.claude/rules/*`、`.claude/skills/*`、`spec/ui-config/*` | 這些是多方消費的 SSOT，先列 diff 草案給使用者 |
+| **改前先出草案等確認；無人值守 skill 只能提案** | `.github/copilot-instructions.md`、`.github/instructions/*`（Copilot 審查政策檔） | 政策檔在 PR 的 head branch 生效，誰改它誰就能讓 Copilot 不再提某類問題，而本 repo 是 public。`/review-loop` 只能把候補列在收尾通知，由使用者決定寫不寫進去 |
 | **動前必問、預設不動（凍結區）** | 路徑清單以 `.claude/rules/frozen-paths.md` 為準（該檔 SSOT，hook 強制擋，此處不重列） | 見 `rules/frozen-paths.md`；不得為繞過而自寫 sentinel |
 | **動前必問、預設不動（其他）** | `~/.claude/`（全域層，影響所有專案）；`.claude/settings*.json`；任何 `.env*`；`playwright.config.ts`、`playwright.gate.config.ts`（守門合約，`vibe-check`／`vibe-e2e` 兩個 skill 亦各自明訂不可動） | 這幾項不在 frozen-paths hook 管轄內，無技術強制，靠本協議與 skill 內的紅線一起守 |
 
