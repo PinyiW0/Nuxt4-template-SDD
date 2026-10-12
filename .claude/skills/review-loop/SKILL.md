@@ -15,7 +15,7 @@ disable-model-invocation: true
 2. **只自動處理 Copilot reviewer 的留言。** 判準：`user.type == "Bot"` 且 login 屬於這份白名單——`Copilot`、`copilot-pull-request-reviewer`、`copilot-pull-request-reviewer[bot]`（同一個 bot 在三個端點的三種形態，實測 2026-09-02）。**不要寫成「login 含 copilot」**，那會把 `copilot-swe-agent` 這類非 reviewer bot 算進來；也不要改成正則（如 `copilot.*review`）——comments 端點的 login 是 `Copilot`，不含 `review`，會把真的留言全濾掉，且 `copilot-swe-agent-review` 這類名字照樣會中。這份白名單的唯一出處是 `scripts/copilot-logins.sh`，`copilot.sh`、`copilot-metrics.sh`、`copilot-harvest.sh` 都讀它；要改只改那個檔，並同步本段文字。遇到白名單以外、沒見過的 copilot bot，一律歸「待使用者決定」。人類留言、`sdd-review.yml` 這個 CI bot 的語意審查意見，一律**累積進「待使用者決定」不自動修**——不是丟掉，那是本專案最實質的一層審查。
 3. **這三類一律不自動改**，即使符合「必修」判準：刪除既有邏輯、改權限／認證判斷、動安全相關程式碼。無人值守時沒有人能攔阻，而「把這個多餘的權限判斷拿掉」百分之百符合「講得出具體要改成什麼且可驗證」。
 4. **永不**：merge、`--force` push、動凍結區（`test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/`）**含新增檔**、自寫 `.claude/tmp/frozen-allow.json` 繞過 hook。Copilot 對凍結區的意見一律歸「待使用者決定」。
-5. 改動範圍不得超出該則留言指名的檔案與段落。
+5. 改動範圍不得超出該則留言指名的檔案與段落。起手 0 與第 7b 步沒有留言可對照，範圍改成「本 PR diff 內的檔案」（起手 0）與「本輪已動的檔案」（7b）。
 
 `/pr-feedback` 的「永不 commit／push／發言」鐵律不適用於本 skill——使用者啟動本 skill 就是對這三件事的明確授權（同 `/ship` 的既有裁決：鐵律防的是自作主張，不是禁止明確授權）。但上面五條**沒有**被一併解除。
 
@@ -45,6 +45,12 @@ disable-model-invocation: true
 
 ## 2. 起手
 
+0. **本地先審（1b）**：跑 `sh .claude/skills/ship/scripts/ledger.sh plan`，看 L5 那行。
+   - 顯示「沿用」→ 跳過。`/ship` Phase 1 已審過同一份內容（ledger 指紋錨在 merge-base，commit／push 後仍有效），再審是重工
+   - 顯示「要跑」→ 先記下 `sh .claude/skills/ship/scripts/ledger.sh fp L5` 的輸出，再用 Skill tool 跑 `/code-review <當前分支> --max-findings 5`；diff 含 `.md` 時接著照 [references/doc-impl-check.md](references/doc-impl-check.md) 派專項檢查。兩邊的必修**只修落在本 PR diff 內的檔案**，走第 3 節第 7 步驗證、commit，其餘歸「待使用者決定」。都處理完跑 `sh .claude/skills/ship/scripts/ledger.sh mark L5 green "<剛才記下的 fp>"`
+   - 顯示「略過」→ 本 PR 不在 L5 範圍，直接往下
+
+   這一步要在第一次 push 之前：Copilot 每請一次就扣一次額度，本地先擋掉的問題就不必由它來抓。#173 的 eval 顯示本地能先擋掉約三分之一。
 1. `git push`（PR 已存在，**不要**照 `../pr/SKILL.md` 步驟 6——那步含 `gh pr create` 與開瀏覽器）。被拒（non-fast-forward）→ 停下引導 `git pull --rebase`，**絕不 `--force`**
 2. **取基準線初值**：`sh .claude/skills/review-loop/scripts/copilot.sh reviews <PR編號>`，取**錨在「非目前 HEAD」的 review 中的最大 `id`**（都沒有則 0）。
    不設初值會在第一輪把所有歷史 review 重跑一次；但**不能單純取最大 id**——正常工作流是「開 PR（`/pr` 順手請了 review）→ 才啟動迴圈」，
@@ -103,6 +109,8 @@ disable-model-invocation: true
      spec 怎麼挑見 `../vibe-check/SKILL.md`「定向查法」）。**不在本機跑全量**——production 全量由第 8 步 push 後的 CI e2e job 跑，第 1b 步會把結果收回來
    - 改到 `.vue`／store／server 且非純格式：另跑 `/sdd-review`
    紅燈修到綠才往下。這幾層不是可選的——`.husky/pre-push` 對 `app/`／`server/` 會跑煙霧 spec，不先跑就會在第 8 步 push 時才炸
+7b. **每輪覆審（只做一次）**：本輪有改動 → 用 Skill tool 跑 `/code-review --max-findings 5`（不帶目標＝工作區 diff，也就是本輪的修正）；本輪改到 `.md` 時接著照 [references/doc-impl-check.md](references/doc-impl-check.md) 派專項檢查，目標 diff 填工作區 diff。必修且落在**本輪已動的檔案** → 當場修，重跑第 7 步；其餘歸「待使用者決定」。修完**不再覆審一次**——自己審自己的修法會無限循環。
+   這一步攔的是「修 A 帶出 B」：#151 輪 7→10→11→12 的四則留言都在同一段 curl 迴圈，每輪修一處又引出下一處，Copilot 每輪各收一次費。
 8. commit + push。分群與訊息照 `../commit/SKILL.md` 步驟 2–4（**跳過它的確認停點**，commit skill 已把本 skill 列入例外），**commitlint header ≤ 72 字元**。commit 指令要把分支驗證綁在同一條：`[ "$(git branch --show-current)" = "<branch>" ] && git commit …`。本輪無實際改動就跳過。
    **pre-push 紅燈 → 不進自動修迴圈**：本地定向綠、煙霧紅屬於「假設被證偽」，還原本輪改動、停下報告
 9. 逐則回覆，並把 comment id 寫進狀態檔的「已處理」。內容要能被第三者驗證（附 commit 對照、遠端實際內容或實測數據）。
