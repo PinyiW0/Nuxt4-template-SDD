@@ -132,7 +132,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments" --jq '.[] | select(
 | L2 | `/vibe-check --full`（gate config **dev 全量**；預設模式的定向綠不算 L2） | 主線自跑 |
 | L3 | `/sdd-review` | **派 fresh subagent（sonnet）** |
 | L4 | **read-back**：派 fresh subagent 讀改動的規範檔，回答「這條規則誰會讀、何時載入、指得出消費點嗎」；回報格式與檢查清單疊加 `.claude/ops/delegation-templates.md` 第 5 節審查範本（原三問不變；第一行 `判定：PASS｜BLOCKING`；model 照本表 sonnet，不跟範本的 opus）；prompt 附 Phase 0 抓到的 issue `## 範圍`、`## 驗收標準` 原文與「決策：」留言，三者合為任務宣告——Conformance／Minimality 對照它判，缺了範圍與 AC 這兩項檢查形同虛設（同 Phase 2） | **派 fresh subagent（sonnet）** |
-| L5 | `/code-review` | Skill tool 直接呼叫 |
+| L5 | `/code-review`＋文件與實作一致性專項檢查（diff 含 `.md` 時） | `/code-review` 用 Skill tool 直接呼叫；專項檢查派 fresh subagent（sonnet），prompt 照 `../review-loop/references/doc-impl-check.md` |
 
 **順序是硬約束**：L1 先單獨跑到綠，再開 L2／L3／L4／L5。型別還紅的時候跑 gate 與語意審查是浪費時間，
 findings 也會被型別錯誤污染。L2／L3／L4／L5 之間無依賴，同一輪並行發出。
@@ -166,7 +166,8 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
   同節也明文「機械檢查由產出者自跑並附輸出」，所以 L1／L15／L2 主線自己跑是對的。
   派工 prompt 要寫：「讀 `.claude/skills/sdd-review/SKILL.md` 與 `references/checks.md`，只審這幾個檔：<清單>」。
 - **L5 用 Skill tool 呼叫內建 `/code-review`**，它自己會 fan-out 成多個審查 agent，不要再包一層。
-  已知限制：它的範圍不可調（`REVIEW.md` 只對託管版生效）。**不要帶 `--fix`**——審的人不動手，這是「驗證不自驗」。
+  它的 `REVIEW.md` 設定只對託管版生效，所以**沒有辦法指定檢查焦點**；目標（分支／PR／路徑）與 `--max-findings` 可以指定。**不要帶 `--fix`**——審的人不動手，這是「驗證不自驗」。
+  因為指定不了焦點，diff 含 `.md` 時接著派一個 fresh subagent 跑 `../review-loop/references/doc-impl-check.md` 的專項檢查（eval 顯示 `/code-review` 漏抓的一半是文件與實作不一致）。L5 的綠燈＝兩者都沒有必修，兩邊的必修都照下方「L3／L5 的必修」處理。
 - **L4 最容易被整層忘掉**：動到 `.claude/`、`spec/ui-config/` 時它就該跑，而那類改動通常 L1/L2/L3/L5 全部 scope 落空——
   沒有 L4 的話，改 skill 本身走一趟 `/ship` 會拿到一整排「⊘ 略過」然後直接進送出草案，看起來像全綠、其實一層都沒驗。
   `.claude/ops/judgment-rubrics.md` 對這類改動要求的正是 read-back。

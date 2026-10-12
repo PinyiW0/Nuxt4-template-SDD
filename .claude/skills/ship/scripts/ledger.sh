@@ -45,7 +45,9 @@ layer_pattern() {
     # fixer 修 unit 紅燈最常見的做法就是改 test/unit/ 裡那支，漏了就不會重驗。
     L15) echo '^app/(composables|utils|stores)/|^app/api/|^server/|^test/unit/|^vitest\.config\.' ;;
     L3)  echo '^app/.*\.vue$|^app/stores/|^server/.*\.ts$' ;;
-    L5)  echo '^app/|^server/' ;;
+    # L5 不只 app/、server/：2026-08-20～09-29 的 136 則 Copilot 留言有 134 則落在 app/、server/ 以外，
+    # 只看 app/server 等於讓 Copilot 當第一個 reviewer。scope 與 judgment-rubrics 第 5 節、CLAUDE.md 紅線同一份。
+    L5)  echo '^app/|^server/|^\.claude/|^\.github/|^\.husky/|^scripts/|\.sh$|\.mjs$' ;;
     # L4 = judgment-rubrics 第 5 節的制度層，驗法是 fresh subagent read-back。
     # 漏了它，純 .claude/ 的改動（例如改 skill 本身）會拿到「全部略過」的全綠驗證行。
     L4)  echo '^\.claude/|^spec/ui-config/' ;;
