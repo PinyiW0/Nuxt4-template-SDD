@@ -1,0 +1,28 @@
+<style>
+  #s-board-win { box-shadow: 0 50px 120px rgba(0, 0, 0, 0.6), 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
+  #s-board-badge { position: absolute; right: 24px; top: 20px; padding: 6px 16px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 92%, transparent); color: #fff; font-size: 20px; font-weight: 700; }
+</style>
+
+<div id="s-board-s1" class="stat" style="top: 440px">
+  <div class="stat-l">今日訂單</div>
+  <div class="stat-v"><span class="stat-n hf-number-wheel" data-value="1280"></span><span class="stat-u">筆</span></div>
+</div>
+<div id="s-board-s2" class="stat" style="top: 660px">
+  <div class="stat-l">平均處理時間</div>
+  <div class="stat-v"><span class="stat-n hf-number-wheel" data-value="42.5"></span><span class="stat-u">秒</span></div>
+</div>
+<div id="s-board-win" class="win">
+  <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="bar-t">即時看板</span></div>
+  <div class="view"><div id="s-board-cam" class="cam"><video data-clip="main"></video></div><div id="s-board-badge">LIVE</div></div>
+</div>
+
+<script>
+  // 進場：左欄先出，視窗從左側傾斜飛入；2.0 秒對上 timeline 的 click／ticker cue
+  H.panelIn("#s-board-pl", T0 + 0.15);
+  tl.fromTo("#s-board-win", { rotationY: -22, rotationX: 10, scale: 0.86, opacity: 0, transformPerspective: 2200 },
+    { rotationY: 0, rotationX: 0, scale: 1, opacity: 1, duration: 0.9, ease: "power3.out" }, T0);
+  tl.fromTo("#s-board-cam", { scale: 1 }, { scale: 1.08, duration: DUR - 1.0, ease: "power1.inOut" }, T0 + 1.0);
+  H.pop("#s-board-s1", T0 + 2.0);
+  H.pop("#s-board-s2", T0 + 2.4);
+  H.sceneOut("#s-board", T0 + DUR);
+</script>

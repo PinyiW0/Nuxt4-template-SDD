@@ -61,6 +61,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 | `/pr-feedback` | 爬 PR review 留言，分類報告後就地改（不 commit／push／發言） | PR 已開 |
 | `/review-loop` | push 後自動請 Copilot review、輪詢、修「必修」、回覆，直到共識才通知（不 merge） | PR 已開、工作區乾淨 |
 | `/code-review` | 審本地 diff 抓正確性／重用／簡化／效能 bug（Claude Code 內建） | 有未提交或未合併的改動 |
+| `/portfolio-video` | 產品功能 → 作品集精華影片（文案 → 10 秒樣片 → 完整版，三段確認；編號輸出不覆蓋） | 測試機可登入、ffmpeg 已安裝 |
 
 ## AI 作業制度（.claude/ops/）
 

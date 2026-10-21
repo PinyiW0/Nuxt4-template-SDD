@@ -1,0 +1,42 @@
+{
+  "confirmed": true,
+  "product": {
+    "name": "Demo App",
+    "tagline": "示範素材・不代表任何產品",
+    "eyebrow": "FRONTEND PORTFOLIO"
+  },
+  "end": {
+    "quote": "讓每一次操作，都看得見。",
+    "features": ["即時看板", "歷史紀錄"]
+  },
+  "theme": { "bg": "#14100c", "accent": "#ff7a3d", "accent2": "#ffd166" },
+  "bgm": { "file": "bgm.wav" },
+  "segments": [
+    { "type": "title", "duration": 2.2 },
+    { "type": "kinetic", "id": "k1", "duration": 1.1, "lines": ["每一次操作。", "即時呈現。"] },
+    {
+      "type": "scene",
+      "id": "board",
+      "duration": 5.0,
+      "title": "即時看板",
+      "desc": "關鍵數據，操作後即時掌握。",
+      "html": "scenes/board.html",
+      "clips": { "main": "assets/demo-board.mp4" },
+      "cues": [
+        { "at": 2.0, "sfx": "click" },
+        { "at": 2.0, "sfx": "tick", "pattern": "ticker" }
+      ]
+    },
+    { "type": "kinetic", "id": "k2", "duration": 0.8, "lines": ["每一筆。", "都有紀錄。"] },
+    {
+      "type": "scene",
+      "id": "history",
+      "duration": 3.2,
+      "title": "歷史紀錄",
+      "desc": "依日期查找，隨時回顧。",
+      "html": "scenes/history.html",
+      "clips": { "main": "assets/demo-history.mp4" }
+    },
+    { "type": "end", "duration": 3.5 }
+  ]
+}
