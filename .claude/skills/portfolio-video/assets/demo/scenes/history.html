@@ -1,0 +1,16 @@
+<style>
+  #s-history-win { box-shadow: 0 50px 120px rgba(0, 0, 0, 0.6), 0 0 0 1px color-mix(in srgb, var(--accent2) 25%, transparent); }
+</style>
+
+<div id="s-history-win" class="win">
+  <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="bar-t">歷史紀錄</span></div>
+  <div class="view"><div class="cam"><video data-clip="main"></video></div></div>
+</div>
+
+<script>
+  // 進場：視窗從右側斜切滑入，左欄稍後浮現
+  tl.fromTo("#s-history-win", { x: 1400, skewX: -8, opacity: 0 },
+    { x: 0, skewX: 0, opacity: 1, duration: 0.6, ease: "expo.out" }, T0);
+  H.panelIn("#s-history-pl", T0 + 0.15);
+  H.sceneOut("#s-history", T0 + DUR);
+</script>
