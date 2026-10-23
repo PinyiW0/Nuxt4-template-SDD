@@ -125,6 +125,8 @@ if [ "$gate_status" -ne 0 ]; then
   echo "      （煙霧集合由本檔 SMOKE_PATTERN 定義；下面兩條以模板預設檔名為例）"
   echo "   → 01-auth-guard／02-authz-scope 紅燈 = 登入守衛或巢狀 scope 授權壞了；"
   echo "     對照 spec/report/route-map.yaml 的 auth／rbac 區塊修 middleware／server，不可改 test/e2e/specs/（凍結）。"
+  echo "   → browserType.launch: Executable doesn't exist = 瀏覽器沒裝，不是業務合約壞了；"
+  echo "     升級 Playwright 後或新 worktree 要先跑 npx playwright install chromium。"
   echo "   → 緊急情況可用 --no-verify 跳過（不推薦；那會讓 CI 成為唯一守門）。"
   exit 1
 fi
