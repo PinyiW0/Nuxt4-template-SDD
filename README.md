@@ -316,6 +316,7 @@ UI 可以自由微調——顏色、間距、layout、按鈕形式、table/card 
 ## 環境與指令
 
 - node : `>=22.12.0`（見 package.json `engines`）
+- CI runner : `ubuntu-latest`（GitHub 2026-11 起 = Ubuntu 26.04）；Playwright ≥1.61 才支援 26.04，實際版本見 package.json。升級時 `@playwright/test` 與 `playwright-core` 要同版：`npm i -D @playwright/test@latest playwright-core@latest`，裝完本機重跑 `npx playwright install chromium`。先前為止血把 `runs-on` 固定成 `ubuntu-24.04` 的衍生專案，同步升級後可改回 `ubuntu-latest`
 - 編輯器 : VSCode ＋ [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)、[Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar)、[ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)、[Goto definition alias](https://marketplace.visualstudio.com/items?itemName=antfu.goto-alias)
 
 ```

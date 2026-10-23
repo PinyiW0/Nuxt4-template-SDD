@@ -245,6 +245,7 @@ UI 可以自由微調（顏色、間距、layout、按鈕形式、table/card 呈
 ### 環境
 
 - node 版本 : `>=22.12.0`（見 package.json `engines`）
+- CI runner : `ubuntu-latest`（GitHub 2026-11 起 = Ubuntu 26.04）；Playwright ≥1.61 才支援 26.04，實際版本見 package.json。升級時 `@playwright/test` 與 `playwright-core` 要同版：`npm i -D @playwright/test@latest playwright-core@latest`，裝完本機重跑 `npx playwright install chromium`
 - 編輯器 : `VSCode`
 
 ### VSCode 套件
