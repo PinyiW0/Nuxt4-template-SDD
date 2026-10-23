@@ -76,15 +76,20 @@ jobs:
           fi
 
       - name: Use Node.js 22.22.0
-        if: steps.specs.outputs.has_specs == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22.22.0
           cache: npm
 
       - name: Install
-        if: steps.specs.outputs.has_specs == 'true'
         run: npm ci
+
+      # 無 spec（模板狀態）時 e2e shard 整段跳過，runner 映像換版或 Playwright 停支援某 distro 時 CI 照樣綠燈——
+      # #180（ubuntu-latest 切 26.04、1.58.2 裝不了 chromium）就是這樣被掩蓋。所以無 spec 也在這裡裝一次瀏覽器，
+      # 讓模板自己的 CI 抓得到 runner／Playwright 不相容；有 spec 時各 shard 本來就會裝，不重複。
+      - name: Playwright runner compatibility check (no specs)
+        if: steps.specs.outputs.has_specs != 'true'
+        run: npx playwright install --with-deps chromium
 
       - name: Build (production)
         if: steps.specs.outputs.has_specs == 'true'
@@ -187,7 +192,7 @@ jobs:
       # config 在 CI 自動 retries: 1——一次紅、重跑綠的測試會標成 flaky，不會讓 job 紅；flaky 看合併後的 HTML 報告。
       # E2E_BASE_URL 存在時 config 不掛 webServer，直接打上面起好的 production server。
       # --reporter 覆蓋 config 的 list＋html：blob 給 merge-e2e-report 合併，list 留在 job log 看紅燈。
-      # 分到 0 條測試的 shard（spec 數少於 4）Playwright 照常 exit 0（實測 1.58.2）。
+      # 分到 0 條測試的 shard（spec 數少於 4）Playwright 照常 exit 0（實測 1.64.1）。
       - name: E2E gate (production build, shard ${{ matrix.shard }}/4)
         if: needs.build-e2e.outputs.has_specs == 'true'
         env:
