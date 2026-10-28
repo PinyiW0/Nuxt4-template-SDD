@@ -21,7 +21,7 @@ disable-model-invocation: true
 | 項目 | 說明 |
 |---|---|
 | 測試機可登入 | 登入資料只能放 `<work>/auth.json`，格式與 cookie 寫法見 [references/capture.md](references/capture.md)；用完就刪（`--purge` 只加在最後一支素材，或 Phase 5 統一 `rm`） |
-| 工具 | `ffmpeg`／`ffprobe`、Node 22；`@playwright/test` 走 repo 的 `node_modules`；首次 `npx hyperframes` 會下載 CLI 與瀏覽器（1–3 分鐘） |
+| 工具 | `ffmpeg`／`ffprobe`、Node（版本見 `.nvmrc`）；`@playwright/test` 走 repo 的 `node_modules`；首次 `npx hyperframes` 會下載 CLI 與瀏覽器（1–3 分鐘） |
 | 網路 | gsap 從 jsDelivr CDN 載入（render 時需連線）、首次 `npx` 下載 hyperframes、`mix.mjs` 缺音效時下載 CC0 音效 |
 | 工作資料夾 `<work>` | scratchpad 下 `portfolio-video/<產品名>/`。**所有產物**（HyperFrames 專案、素材、音檔、MP4、cookie）都在這裡，repo 不放任何媒體檔 |
 | 風格依據 | `spec/ui-config/creative-direction.md`（風格 preset、動效原則）；寫 scene 前必讀 |
