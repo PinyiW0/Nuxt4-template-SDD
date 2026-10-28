@@ -20,7 +20,7 @@ At most 5 Low findings per review. If there are more, add one summary line with 
 - **Frozen paths:** `test/e2e/specs/`, `spec/gherkin-feature/`, `spec/e2e-flows/`. These change only through the spec workflow; existing files are blocked by a hook. Do not suggest edits there.
 - **Generated or vendored files:** `package-lock.json`, `app/types/api/_schema.d.ts`, `doc/images/`.
 - **Non-default translation files:** `i18n/locales/*.json` other than `zh-TW.json`. E2E runs only in the default locale, so these do not affect tests. `zh-TW.json` is the source of E2E text assertions and is reviewed like code.
-- **What CI already enforces:** ESLint, typecheck, unit tests, and E2E results. Do not repeat a finding that a failing CI check would already show.
+- **What CI already enforces:** ESLint, typecheck, unit tests, E2E results, and OSV-Scanner (new vulnerabilities in `package-lock.json`). Do not repeat a finding that a failing CI check would already show.
 
 ## Already decided — do not raise again
 
