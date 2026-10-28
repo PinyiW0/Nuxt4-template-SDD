@@ -1,0 +1,99 @@
+name: osv-scanner
+
+# 漏洞掃描（OSV-Scanner）
+# - PR：比「main 的掃描結果 vs PR 分支的掃描結果」，只報這個 PR 新引入的漏洞；既有公告不會讓無關 PR 變紅
+# - 每週排程／手動：全量掃 package-lock.json，新公告在這裡浮現；結果上 Security › Code scanning
+# 忽略清單在 repo 根目錄 osv-scanner.toml（IgnoredVulns 每筆要有 reason 與 ignoreUntil；PackageOverrides 設 ignore 的要有 reason 與 effectiveUntil，由 ignore-list-lint 檢查）。
+# private 衍生 repo：Code scanning 需 GitHub Code Security 授權，把兩個 job 的 upload-sarif 設為 false（pr-scan 改掉下面的表達式、scheduled-scan 補 with:）。
+# 紅綠燈由 fail-on-vuln（預設 true）決定、與上傳無關，仍可設為 branch protection 的必要檢查（check 名稱 pr-scan / osv-scan）；也要加 ignore-list-lint，它紅燈才擋得住缺到期日的忽略條目。
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '30 1 * * 1' # 每週一 01:30 UTC＝台北 09:30
+  workflow_dispatch:
+
+# 同一個 PR 連續 push 只留最後一次 run（與 pull_request.yml 同一套邏輯）；
+# 排程與手動跑都落在 main，不砍進行中的 run，否則手動一按會把進行中的每週全量砍掉；
+# 但同一組只留一個排隊中的 run，連按兩次手動時前一個排隊的會被取消
+concurrency:
+  group: osv-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # 忽略清單的機械守門（python3 tomllib 真解析）：每筆 [[IgnoredVulns]] 要有 id、reason、ignoreUntil（日期；缺＝永久忽略，osv-scanner 不會擋），
+  # 每筆設了 ignore 的 [[PackageOverrides]] 要有 effectiveUntil（日期）與 reason；
+  # PR 改到這份檔時標 warning，因為同一個 PR 可以一邊引入漏洞一邊把它加進忽略清單，pr-scan 看不出來
+  ignore-list-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Check every ignore entry has expiry date and reason
+        run: |
+          [ -f osv-scanner.toml ] || { echo "no osv-scanner.toml, nothing to check"; exit 0; }
+          python3 - osv-scanner.toml <<'PY'
+          import sys, tomllib, datetime
+          with open(sys.argv[1], "rb") as f:
+              data = tomllib.load(f)
+          errors = []
+          def has_text(v):
+              return isinstance(v, str) and v.strip() != ""
+          def is_date(v):
+              return isinstance(v, datetime.date)
+          vulns = data.get("IgnoredVulns", [])
+          for i, e in enumerate(vulns, 1):
+              if not has_text(e.get("id")):
+                  errors.append(f"IgnoredVulns 第 {i} 筆缺 id")
+              if not has_text(e.get("reason")):
+                  errors.append(f"IgnoredVulns 第 {i} 筆缺 reason")
+              if not is_date(e.get("ignoreUntil")):
+                  errors.append(f"IgnoredVulns 第 {i} 筆缺 ignoreUntil（或不是日期）")
+          overrides = data.get("PackageOverrides", [])
+          for i, e in enumerate(overrides, 1):
+              ignored = any(
+                  isinstance(src, dict) and src.get("ignore") is True
+                  for src in (e, e.get("vulnerability"), e.get("license"))
+              )
+              if not ignored:
+                  continue
+              if not is_date(e.get("effectiveUntil")):
+                  errors.append(f"PackageOverrides 第 {i} 筆設了 ignore 卻缺 effectiveUntil（或不是日期）")
+              if not has_text(e.get("reason")):
+                  errors.append(f"PackageOverrides 第 {i} 筆設了 ignore 卻缺 reason")
+          for m in errors:
+              print(f"::error file=osv-scanner.toml::{m}")
+          if errors:
+              sys.exit(1)
+          print(f"{len(vulns)} IgnoredVulns + {len(overrides)} PackageOverrides OK")
+          PY
+      - name: Warn when a PR changes the ignore list
+        if: github.event_name == 'pull_request'
+        run: |
+          if ! git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- osv-scanner.toml; then
+            echo "::warning file=osv-scanner.toml::本 PR 改動了忽略清單，審查時確認每筆的理由與到期日"
+          fi
+
+  # reusable workflow 一律釘 commit SHA（非可變 tag）：tag 可被上游移動，惡意版本會在持有 secrets 的 job 內執行。升版時連同註解的版本號一起更新。
+  pr-scan:
+    if: github.event_name == 'pull_request'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+    with:
+      # fork PR 的 GITHUB_TOKEN 唯讀，上傳 Code scanning 會失敗變成假紅燈，所以只在同 repo 分支的 PR 上傳
+      # （比對 full_name 而非 fork == false：fork 已刪除時 head.repo 為 null，後者會誤判成可上傳）
+      upload-sarif: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+
+  scheduled-scan:
+    if: github.event_name != 'pull_request'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
