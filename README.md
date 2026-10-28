@@ -239,8 +239,22 @@ doc/
 | 機敏值進版控 | `.husky/pre-commit` | staged `.env*` 中 `KEY`／`SECRET`／`TOKEN`／`PASSWORD`／`CREDENTIAL` 有值 |
 | 手滑推上壞掉的 app | `.husky/pre-push`（煙霧 spec，由該檔 `SMOKE_PATTERN` 定義，預設 `00-hydration`／`01-auth-guard`／`02-authz-scope`，dev server） | 整頁載不出來、auth／authz 守衛失效的 push；只動文件／設定時自動略過 |
 | 環境會說謊 | `.github/workflows/pull_request.yml` | 本機過了但 CI 不過的（unit / build / lint / typecheck ＋ **E2E gate 全量（production build，4 shard 平行）** 都在 PR 上跑） |
+| 依賴會過期 | `.github/workflows/osv-scanner.yml`（OSV-Scanner） | PR 新引入的已知漏洞（只比 main 與 PR 分支的差異，既有公告不擋無關 PR）；每週一遞迴全量掃 lockfile，新公告在這裡浮現 |
 
 兩道關的分工：**pre-push 防我手滑（煙霧），CI 防我環境說謊（全量 production）。** 本機 `/vibe-check` 預設只跑煙霧＋受影響的 spec，`/ship` 收尾跑一次 dev 全量。
+
+### 漏洞掃描（OSV-Scanner）
+
+`.github/workflows/osv-scanner.yml` 用 Google 的 reusable workflow（釘 commit SHA）：PR 只報這個 PR 新引入的漏洞（比 main 與 PR 分支的差異），每週一再全量掃一次讓新公告浮現。忽略清單是 `osv-scanner.toml`，每筆要有理由與到期日，由 `ignore-list-lint` 機械檢查。守門 check 名稱：`pr-scan / osv-scan` 與 `ignore-list-lint`。
+
+完整說明（忽略規則、private repo、手動掃映像檔、Docker 不掃的理由）見 `doc/README.template.md` 的「漏洞掃描（OSV-Scanner）」段。
+
+本 repo 的情況：
+- 本 repo 是 public，掃描結果在 Security › Code scanning 篩 `tool:osv-scanner`
+- Code scanning 自動產生的 `osv-scanner` check 不是守門用的，實測 `pr-scan` 紅燈時它仍綠
+- 目前忽略清單兩筆：deepmerge 上游無修補版；nuxt GHSA-vjh5-4x84-xrqp 是公告資料把 3.x 區段寫成沒有上界，4.6.3 其實已含修補（OSV 多報、`npm audit` 沒有這則）
+- Docker 映像檔不掃：2026-10-28 實測，Nitro 把 npm 依賴全打包進 chunk，掃描器抓不到任何 npm 套件；決策記在 #183
+- Dependabot alerts 是 repo 設定頁的事、不進版控，本 repo 目前關閉；開不開不影響這條流程
 
 ### Vibe UI 守則（改 UI 必讀）
 
@@ -386,6 +400,7 @@ docker compose up -d                                   # http://localhost:${HOST
 - [ ] `.github/workflows/` 下所有 `uses:` 釘 commit SHA，非可變 tag——tag 可被上游移動，惡意版本會在持有 secrets 的 job 內執行。升 action 版本時連同行末註解的版本號一起更新
 - [ ] workflow 觸發用 `pull_request` 而非 `pull_request_target`——後者會把 secrets 交給 fork PR 的程式碼，是公開 repo 最典型的 token 竊取破口
 - [ ] **新增外部協作者前**重新評估 `sdd-review.yml`：對同 repo 分支的 PR，該 job 持有 `CLAUDE_CODE_OAUTH_TOKEN` 且 Claude 會讀 PR diff。其 `--allowed-tools` 含 `Read` 與留言工具，惡意 diff 理論上可透過 prompt injection 誘導把環境變數寫進公開留言。個人 repo（無外部 push 權限）此風險不成立，開放協作即成立
+- [ ] 有開 branch protection 就把 `pr-scan / osv-scan`（OSV-Scanner PR 檢查）與 `ignore-list-lint`（缺到期日的忽略條目要靠它紅燈才擋得住）設為必要檢查；private repo 不用改檔（見 `doc/README.template.md` 的「漏洞掃描（OSV-Scanner）」段）
 
 ### 設定檔職責
 
