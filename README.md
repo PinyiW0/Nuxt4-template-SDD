@@ -239,29 +239,21 @@ doc/
 | 機敏值進版控 | `.husky/pre-commit` | staged `.env*` 中 `KEY`／`SECRET`／`TOKEN`／`PASSWORD`／`CREDENTIAL` 有值 |
 | 手滑推上壞掉的 app | `.husky/pre-push`（煙霧 spec，由該檔 `SMOKE_PATTERN` 定義，預設 `00-hydration`／`01-auth-guard`／`02-authz-scope`，dev server） | 整頁載不出來、auth／authz 守衛失效的 push；只動文件／設定時自動略過 |
 | 環境會說謊 | `.github/workflows/pull_request.yml` | 本機過了但 CI 不過的（unit / build / lint / typecheck ＋ **E2E gate 全量（production build，4 shard 平行）** 都在 PR 上跑） |
-| 依賴會過期 | `.github/workflows/osv-scanner.yml`（OSV-Scanner） | PR 新引入的已知漏洞（只比 main 與 PR 分支的差異，既有公告不擋無關 PR）；每週一全量掃 `package-lock.json`，新公告在這裡浮現 |
+| 依賴會過期 | `.github/workflows/osv-scanner.yml`（OSV-Scanner） | PR 新引入的已知漏洞（只比 main 與 PR 分支的差異，既有公告不擋無關 PR）；每週一遞迴全量掃 lockfile，新公告在這裡浮現 |
 
 兩道關的分工：**pre-push 防我手滑（煙霧），CI 防我環境說謊（全量 production）。** 本機 `/vibe-check` 預設只跑煙霧＋受影響的 spec，`/ship` 收尾跑一次 dev 全量。
 
 ### 漏洞掃描（OSV-Scanner）
 
-`npm audit` 不能當 CI 關卡：新公告一出，所有無關 PR 一起變紅，而且沒有忽略清單。`.github/workflows/osv-scanner.yml` 用 Google 的 reusable workflow（釘 commit SHA）分兩個 job 補這個洞：
+`.github/workflows/osv-scanner.yml` 用 Google 的 reusable workflow（釘 commit SHA）：PR 只報這個 PR 新引入的漏洞（比 main 與 PR 分支的差異），每週一再全量掃一次讓新公告浮現。忽略清單是 `osv-scanner.toml`，每筆要有理由與到期日，由 `ignore-list-lint` 機械檢查。守門 check 名稱：`pr-scan / osv-scan` 與 `ignore-list-lint`。
 
-| job | 何時跑 | 做什麼 | 結果看哪裡 |
-|---|---|---|---|
-| `pr-scan` | 每個對 main 的 PR | 掃 main 與 PR 分支各一次、**只報差異**：這個 PR 新引入的漏洞才紅，既有公告不擋無關 PR | PR 的 Checks；Files changed 的 annotation 標出套件與公告 |
-| `scheduled-scan` | 每週一 09:30（台北），或 Actions 頁手動 Run workflow | 全量掃 `package-lock.json`，既有依賴的新公告在這裡浮現 | Security › Code scanning 篩 `tool:osv-scanner`；run 的 artifact 也有 SARIF 檔 |
+完整說明（忽略規則、private repo、手動掃映像檔、Docker 不掃的理由）見 `doc/README.template.md` 的「漏洞掃描（OSV-Scanner）」段。
 
-- **忽略**：`osv-scanner.toml`，每筆三欄都要填——`id`（GHSA 或 CVE，別名一併忽略）、`reason`、`ignoreUntil`；缺 `ignoreUntil` 等於永久忽略，所以 `ignore-list-lint` job 會擋缺欄位的條目。到期後只有每週全量會再報，PR 不會因此變紅。**動到這份檔的 PR 要特別看**：同一個 PR 可以一邊引入漏洞一邊把它加進清單，`pr-scan` 看不出來，所以 CI 會在 PR 上標 warning
-- **排程會被 GitHub 關掉**：public repo 60 天沒有活動，GitHub 會自動停用排程 workflow（private repo 不會；Actions 頁可重新啟用）；排程失敗的通知只寄給最後改 workflow 檔的人。模板這類 public 且很久沒動的 repo 要留意
-- **掃出既有漏洞**：不在手上的 PR 順手修——有修補版就另開 issue 升版；無修補版或誤報就加進忽略清單附理由與到期日。目前兩筆：deepmerge 上游無修補版；nuxt GHSA-vjh5-4x84-xrqp 是公告資料把 3.x 區段寫成沒有上界，4.6.3 其實已含修補（這筆只在 nuxt ≥ 4.6.2 成立，清單隨模板同步到衍生專案，同步前先確認版本，低於就不要帶這筆）
-- **與 `npm audit` 的關係**：本機手動查照用，但兩邊資料庫不同（OSV 多報了 nuxt 的 GHSA-vjh5-4x84-xrqp 這則，`npm audit` 沒有這則公告），忽略清單只對 OSV-Scanner 生效
-- **Docker 映像檔不掃**（2026-10-28 實測，決策記在 #183）：production 映像檔只剩 `.output`，Nitro 把 npm 依賴全打包進 chunk，掃描器抓不到任何 npm 套件，也認不出 Node runtime 本體，看得到的只有 Alpine 系統套件；而 CI 目前不建映像檔，若為了掃而在排程裡 build，runner 沒有快取、每次都拉最新 base，掃到的是「Alpine 最新版乾不乾淨」，不是正式機跑的那份。npm 依賴靠上面兩個 job，Node 修補靠 `.nvmrc` 升版。上線前想手動掃一次（約 10 秒）：
-  ```bash
-  docker build --pull -t scan-me . && docker save scan-me -o /tmp/scan-me.tar
-  docker run --rm -v /tmp:/src ghcr.io/google/osv-scanner:v2.7.0 scan image --archive /src/scan-me.tar
-  ```
-- **衍生 private repo**：Code scanning 需 GitHub Code Security 授權，把兩個 job 的 `upload-sarif` 設為 `false`（`pr-scan` 改掉既有那行的表達式，`scheduled-scan` 補 `with:`）。紅綠燈由 `fail-on-vuln` 決定、與上傳無關，仍可設為 branch protection 的必要檢查（check 名稱 `pr-scan / osv-scan`，也要加 `ignore-list-lint`——缺到期日的忽略條目要靠它紅燈才擋得住；Code scanning 另外自動產生的 `osv-scanner` check 不是守門用的，實測 `pr-scan` 紅燈時它仍綠）；結果改看 PR annotation 與 run artifact 的 SARIF（artifact 只保留 5 天，排程跑完 5 天內要看）
+本 repo 的情況：
+- 本 repo 是 public，掃描結果在 Security › Code scanning 篩 `tool:osv-scanner`
+- Code scanning 自動產生的 `osv-scanner` check 不是守門用的，實測 `pr-scan` 紅燈時它仍綠
+- 目前忽略清單兩筆：deepmerge 上游無修補版；nuxt GHSA-vjh5-4x84-xrqp 是公告資料把 3.x 區段寫成沒有上界，4.6.3 其實已含修補（OSV 多報、`npm audit` 沒有這則）
+- Docker 映像檔不掃：2026-10-28 實測，Nitro 把 npm 依賴全打包進 chunk，掃描器抓不到任何 npm 套件；決策記在 #183
 - Dependabot alerts 是 repo 設定頁的事、不進版控，本 repo 目前關閉；開不開不影響這條流程
 
 ### Vibe UI 守則（改 UI 必讀）
@@ -408,7 +400,7 @@ docker compose up -d                                   # http://localhost:${HOST
 - [ ] `.github/workflows/` 下所有 `uses:` 釘 commit SHA，非可變 tag——tag 可被上游移動，惡意版本會在持有 secrets 的 job 內執行。升 action 版本時連同行末註解的版本號一起更新
 - [ ] workflow 觸發用 `pull_request` 而非 `pull_request_target`——後者會把 secrets 交給 fork PR 的程式碼，是公開 repo 最典型的 token 竊取破口
 - [ ] **新增外部協作者前**重新評估 `sdd-review.yml`：對同 repo 分支的 PR，該 job 持有 `CLAUDE_CODE_OAUTH_TOKEN` 且 Claude 會讀 PR diff。其 `--allowed-tools` 含 `Read` 與留言工具，惡意 diff 理論上可透過 prompt injection 誘導把環境變數寫進公開留言。個人 repo（無外部 push 權限）此風險不成立，開放協作即成立
-- [ ] 有開 branch protection 就把 `pr-scan / osv-scan`（OSV-Scanner PR 檢查）與 `ignore-list-lint`（缺到期日的忽略條目要靠它紅燈才擋得住）設為必要檢查；private repo 把 `osv-scanner.yml` 兩個 job 的 `upload-sarif` 設為 `false`（Code scanning 需 GitHub Code Security 授權；紅綠燈不受影響）
+- [ ] 有開 branch protection 就把 `pr-scan / osv-scan`（OSV-Scanner PR 檢查）與 `ignore-list-lint`（缺到期日的忽略條目要靠它紅燈才擋得住）設為必要檢查；private repo 不用改檔（見 `doc/README.template.md` 的「漏洞掃描（OSV-Scanner）」段）
 
 ### 設定檔職責
 

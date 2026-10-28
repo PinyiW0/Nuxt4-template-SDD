@@ -189,7 +189,7 @@ app/pages · components · layouts · stores   ← 為通過合約而生
 | commit 訊息 | `.husky/commit-msg` + commitlint | 不符 Conventional Commits |
 | 機敏值進版控 | `.husky/pre-commit` | staged `.env*` 中 `KEY`／`SECRET`／`TOKEN`／`PASSWORD`／`CREDENTIAL` 有值 |
 | 手滑推上壞掉的 app | `.husky/pre-push`（煙霧 spec，由該檔 `SMOKE_PATTERN` 定義，預設 `00-hydration`／`01-auth-guard`／`02-authz-scope`，dev server） | 整頁載不出來、auth／authz 守衛失效的 push；只動文件／設定時自動略過 |
-| 依賴會過期 | `.github/workflows/osv-scanner.yml`（OSV-Scanner） | PR 新引入的已知漏洞（只比 main 與 PR 分支的差異，既有公告不擋無關 PR）；每週一全量掃 `package-lock.json`，新公告在這裡浮現 |
+| 依賴會過期 | `.github/workflows/osv-scanner.yml`（OSV-Scanner） | PR 新引入的已知漏洞（只比 main 與 PR 分支的差異，既有公告不擋無關 PR）；每週一遞迴全量掃 lockfile，新公告在這裡浮現 |
 
 人為紅線（AI 與人都適用）：
 
@@ -204,14 +204,19 @@ app/pages · components · layouts · stores   ← 為通過合約而生
 | job | 何時跑 | 做什麼 | 結果看哪裡 |
 |---|---|---|---|
 | `pr-scan` | 每個對 main 的 PR | 掃 main 與 PR 分支各一次、**只報差異**：這個 PR 新引入的漏洞才紅，既有公告不擋無關 PR | PR 的 Checks；Files changed 的 annotation 標出套件與公告 |
-| `scheduled-scan` | 每週一 09:30（台北），或 Actions 頁手動 Run workflow | 全量掃 `package-lock.json`，既有依賴的新公告在這裡浮現 | public repo：Security › Code scanning 篩 `tool:osv-scanner`；private repo：run 的 artifact 裡的 SARIF 檔（只保留 5 天，排程跑完 5 天內要看） |
+| `scheduled-scan` | 每週一 09:30（台北，固定跑 default branch），或 Actions 頁手動 Run workflow（跑你選的分支；選非 main 時結果記在該分支、不取代 main 的告警） | 遞迴掃整個 repo 的 lockfile（目前只有根目錄的 `package-lock.json`），既有依賴的新公告在這裡浮現 | public repo：Security › Code scanning 篩 `tool:osv-scanner`；private repo：run 的 artifact 裡的 SARIF 檔（只保留 5 天，排程跑完 5 天內要看） |
 
-- **忽略**：`osv-scanner.toml`，每筆三欄都要填——`id`（GHSA 或 CVE，別名一併忽略）、`reason`、`ignoreUntil`；缺 `ignoreUntil` 等於永久忽略，所以 `ignore-list-lint` job 會擋缺欄位的條目。到期後只有每週全量會再報，PR 不會因此變紅。**動到這份檔的 PR 要特別看**：同一個 PR 可以一邊引入漏洞一邊把它加進清單，`pr-scan` 看不出來，所以 CI 會在 PR 上標 warning
+- **忽略**：`osv-scanner.toml`，每筆三欄都要填——`id`（GHSA 或 CVE，別名一併忽略）、`reason`、`ignoreUntil`；缺 `ignoreUntil` 等於永久忽略，所以 `ignore-list-lint` job 會擋缺欄位的條目。`[[PackageOverrides]]` 每筆都要指名 `name`（空字串會套用到所有套件），不准 `nameIsRegex`（`.*` 會一次忽略全部，正規式編不過則整份設定作廢），設了 `ignore` 還要有 `effectiveUntil` 與 `reason`。欄位名稱不分大小寫比對，出現白名單以外的欄位（拼錯、多寫 `note`）也會紅燈：osv-scanner 遇到未知欄位會丟掉整份設定，忽略清單全部失效。到期日最多 180 天後（寫 9999-12-31 會被擋）。osv-scanner 對每個 lockfile 讀同目錄的 `osv-scanner.toml`，repo 內每一份都受 lint 檢查（TOML 寫錯也會紅燈）。到期後只有每週全量會再報，PR 不會因此變紅。**動到這些檔的 PR 要特別看**：同一個 PR 可以一邊引入漏洞一邊把它加進清單，`pr-scan` 看不出來，所以 CI 會在 PR 上標 warning
 - **排程會被 GitHub 關掉**：public repo 60 天沒有活動，GitHub 會自動停用排程 workflow（private repo 不會；Actions 頁可重新啟用）；排程失敗的通知只寄給最後改 workflow 檔的人。上線後很久沒動的 public 專案要留意
 - **掃出既有漏洞**：不在手上的 PR 順手修——有修補版就另開 issue 升版；無修補版或誤報就加進忽略清單附理由與到期日。清單隨模板同步，本專案自己掃到的另加。注意 nuxt 的 GHSA-vjh5-4x84-xrqp 誤報條目只在 nuxt ≥ 4.6.2 成立，衍生專案同步前先確認版本，低於就不要帶這筆
 - **與 `npm audit` 的關係**：本機手動查照用，但兩邊資料庫不同，忽略清單只對 OSV-Scanner 生效
-- **Docker 映像檔不掃**：production 映像檔只剩 `.output`（Nitro 打包後沒有 node_modules），掃描器看不到 npm 套件與 Node runtime，只看得到 Alpine 系統套件；而 CI 不建映像檔，若為了掃而在排程裡 build，拉到的永遠是最新 base、不是正式機跑的那份。npm 依賴靠上面兩個 job，Node 修補靠 `.nvmrc` 升版；要掃正式機那份映像檔，另開 issue 用 `osv-scanner scan image <registry 映像檔>` 做
-- **private repo**：Code scanning 需 GitHub Code Security 授權，把兩個 job 的 `upload-sarif` 設為 `false`（`pr-scan` 改掉既有那行的表達式，`scheduled-scan` 補 `with:`）。紅綠燈由 `fail-on-vuln` 決定、與上傳無關，仍可設為 branch protection 的必要檢查（check 名稱 `pr-scan / osv-scan`，也要加 `ignore-list-lint`——缺到期日的忽略條目要靠它紅燈才擋得住；Code scanning 另外自動產生的 `osv-scanner` check 不是守門用的）；結果改看 PR annotation 與 run artifact 的 SARIF（artifact 只保留 5 天，排程跑完 5 天內要看）
+- **Docker 映像檔不掃**：本模板 2026-10-28 實測：production 映像檔只剩 `.output`，Nitro 把 npm 依賴全打包進 chunk、沒有 node_modules，掃描器抓不到 npm 套件與 Node runtime，只看得到 Alpine 系統套件。衍生專案若有被 Nitro 外部化的套件（例如 sharp、prisma 這類原生套件），`.output/server/node_modules` 會有 npm 套件，那時掃映像檔才有意義。另外 CI 不建映像檔，若為了掃而在排程裡 build，拉到的永遠是最新 base、不是正式機跑的那份。npm 依賴靠上面兩個 job，Node 修補靠 `.nvmrc` 升版。上線前想手動掃一次（約 10 秒；掃到的是你本機當下的 base 層，與正式機同一份快取才有參考價值）：
+  ```bash
+  d=$(mktemp -d) && docker build -t scan-me . && docker save scan-me -o "$d/scan-me.tar"
+  docker run --rm -v "$d:/src" ghcr.io/google/osv-scanner:v2.7.0@sha256:4f3b7e2c64b9d38a5febc5a7e4a3dfef1d1362f726dea7a2ef4762b46469fcd0 scan image --archive /src/scan-me.tar
+  rm -rf "$d"; docker rmi scan-me
+  ```
+- **private repo**：Code scanning 需 GitHub Code Security 授權。`visibility` job 會自動判斷（查不到也當 private），private repo 不上傳 SARIF、不用改檔；有授權想上傳，到 repo Settings › Variables 設 `OSV_UPLOAD_SARIF=true`（設 `false` 則強制不上傳）。紅綠燈由 `fail-on-vuln` 決定、與上傳無關，仍可設為 branch protection 的必要檢查（check 名稱 `pr-scan / osv-scan`，也要加 `ignore-list-lint`——缺到期日的忽略條目要靠它紅燈才擋得住；Code scanning 另外自動產生的 `osv-scanner` check 不是守門用的，實測 `pr-scan` 紅燈時它仍綠）；結果改看 PR annotation 與 run artifact 的 SARIF（artifact 只保留 5 天，排程跑完 5 天內要看）
 - Dependabot alerts 是 repo 設定頁的事、不進版控；開不開不影響這條流程
 
 ### Vibe UI 守則（改 UI 必讀）
@@ -317,7 +322,7 @@ cd ../nuxt4-template-issue-40 && npm install
     - Allow squash merging : `Default to pull request title and commit details`
 - Branches／Rules（有開 branch protection 或 ruleset 時）
   - Require status checks to pass：加 `pr-scan / osv-scan`（OSV-Scanner 的 PR 檢查）、`ignore-list-lint`（缺到期日的忽略條目要靠它紅燈才擋得住）與 `pull_request.yml` 的 job
-- private repo：Code scanning 需 GitHub Code Security 授權，把 `.github/workflows/osv-scanner.yml` 兩個 job 的 `upload-sarif` 設為 `false`（`pr-scan` 改掉既有那行的表達式，`scheduled-scan` 補 `with:`；紅綠燈由 `fail-on-vuln` 決定、不受影響；結果改看 PR annotation 與 run artifact 的 SARIF，artifact 只保留 5 天，排程跑完 5 天內要看）
+- private repo：SARIF 上傳自動關閉、不用改檔，細節見「漏洞掃描（OSV-Scanner）」段的 private repo 項
 
 ### 開發步驟
 
@@ -373,7 +378,7 @@ docker compose up -d                                   # http://localhost:${HOST
 - [ ] `.github/workflows/` 下所有 `uses:` 釘 commit SHA，非可變 tag——tag 可被上游移動，惡意版本會在持有 secrets 的 job 內執行。升 action 版本時連同行末註解的版本號一起更新
 - [ ] workflow 觸發用 `pull_request` 而非 `pull_request_target`——後者會把 secrets 交給 fork PR 的程式碼，是公開 repo 最典型的 token 竊取破口
 - [ ] **新增外部協作者前**重新評估 `sdd-review.yml`：對同 repo 分支的 PR，該 job 持有 `CLAUDE_CODE_OAUTH_TOKEN` 且 Claude 會讀 PR diff。其 `--allowed-tools` 含 `Read` 與留言工具，惡意 diff 理論上可透過 prompt injection 誘導把環境變數寫進公開留言。個人 repo（無外部 push 權限）此風險不成立，開放協作即成立
-- [ ] 有開 branch protection 就把 `pr-scan / osv-scan`（OSV-Scanner PR 檢查）與 `ignore-list-lint`（缺到期日的忽略條目要靠它紅燈才擋得住）設為必要檢查；private repo 把 `osv-scanner.yml` 兩個 job 的 `upload-sarif` 設為 `false`（Code scanning 需 GitHub Code Security 授權；紅綠燈不受影響）
+- [ ] 有開 branch protection 就把 `pr-scan / osv-scan`（OSV-Scanner PR 檢查）與 `ignore-list-lint`（缺到期日的忽略條目要靠它紅燈才擋得住）設為必要檢查；private repo 不用改檔（見「漏洞掃描（OSV-Scanner）」段）
 
 ### 設定檔職責
 
