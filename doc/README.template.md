@@ -267,7 +267,7 @@ UI 可以自由微調（顏色、間距、layout、按鈕形式、table/card 呈
 
 ### 環境
 
-- node 版本 : `26.12.1`，以 `.nvmrc` 為準（package.json `engines` 為 `>=26.12.1`；Dockerfile 的 `ARG NODE_VERSION` 與 CI 的 `node-version-file` 都對齊它，升版時改 `.nvmrc`、Dockerfile 預設值與 package.json `engines` 三處）
+- node 版本 : `26.13.0`，以 `.nvmrc` 為準（package.json `engines` 為 `>=26.13.0`；Dockerfile 的 `ARG NODE_VERSION` 與 CI 的 `node-version-file` 都對齊它，升版時改 `.nvmrc`、Dockerfile 預設值與 package.json `engines` 三處，三處不一致時 `npm run test:unit` 會失敗）。從舊版 Node 切過來時先 `nvm use` 再 `npm install`：Node 22 內建的 npm 10 在這個依賴樹會崩潰
 - CI runner : `ubuntu-latest`（GitHub 2026-11 起 = Ubuntu 26.04）；Playwright ≥1.61 才支援 26.04，實際版本見 package.json。升級時 `@playwright/test` 與 `playwright-core` 要同版：`npm i -D @playwright/test@latest playwright-core@latest`，裝完本機重跑 `npx playwright install chromium`
 - 編輯器 : `VSCode`
 
