@@ -329,7 +329,7 @@ UI 可以自由微調——顏色、間距、layout、按鈕形式、table/card 
 
 ## 環境與指令
 
-- node : `26.12.1`，以 `.nvmrc` 為準（package.json `engines` 為 `>=26.12.1`；Dockerfile 的 `ARG NODE_VERSION` 與 CI 的 `node-version-file` 都對齊它，升版時改 `.nvmrc`、Dockerfile 預設值與 package.json `engines` 三處）。衍生專案同步時先 `nvm use` 切到 26 再 `npm install`：Node 22 內建的 npm 10 在這個依賴樹會崩潰
+- node : `26.13.0`，以 `.nvmrc` 為準（package.json `engines` 為 `>=26.13.0`；Dockerfile 的 `ARG NODE_VERSION` 與 CI 的 `node-version-file` 都對齊它，升版時改 `.nvmrc`、Dockerfile 預設值與 package.json `engines` 三處，三處不一致時 `npm run test:unit` 會失敗）。衍生專案同步時先 `nvm use` 切到 26 再 `npm install`：Node 22 內建的 npm 10 在這個依賴樹會崩潰
 - CI runner : `ubuntu-latest`（GitHub 2026-11 起 = Ubuntu 26.04）；Playwright ≥1.61 才支援 26.04，實際版本見 package.json。升級時 `@playwright/test` 與 `playwright-core` 要同版：`npm i -D @playwright/test@latest playwright-core@latest`，裝完本機重跑 `npx playwright install chromium`。先前為止血把 `runs-on` 固定成 `ubuntu-24.04` 的衍生專案，同步升級後可改回 `ubuntu-latest`
 - 編輯器 : VSCode ＋ [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)、[Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar)、[ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)、[Goto definition alias](https://marketplace.visualstudio.com/items?itemName=antfu.goto-alias)
 
