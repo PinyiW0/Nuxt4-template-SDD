@@ -1,7 +1,7 @@
 # 模型調度守則
 
 > 目的：把額度花在判斷上，不花在粗活上。任何等級的主線模型（含 Sonnet 當主線時）都適用。
-> 參數皆為 session 內查證值（2026-07-05 首查；2026-08-20 複查 model 清單、effort 與模型 ID）；過期時依 [maintenance.md](maintenance.md) 的查證流程更新，**不憑記憶填**。
+> 參數皆為 session 內查證值（2026-07-05 首查；2026-08-20 複查 model 清單、effort（Agent tool 當時仍無）與模型 ID；2026-11-04 定期健檢複查：`effort` 參數已存在、補 `fork` 定位）；過期時依 [maintenance.md](maintenance.md) 第 5 節的查證流程更新（主線先抄基準檔、分身只比對），**不憑記憶填**。
 
 ## 1. 指揮官不下場（硬判準）
 
@@ -29,10 +29,10 @@
 
 ## 3. 顯式指定 model（查證值）
 
-**Agent tool 的 `model` 參數只接受**：`haiku`、`sonnet`、`opus`、`fable`（2026-07-05 tool schema 查證）。
-**Agent tool 沒有 effort 參數**；effort 只在 Workflow 的 `agent()` 內可用（`low`/`medium`/`high`/`xhigh`/`max`，同日 Workflow tool schema 查證）。
+**Agent tool 的 `model` 參數只接受**：`haiku`、`sonnet`、`opus`、`fable`（2026-07-05 首查、2026-11-04 tool schema 複查仍同）。
+**Agent tool 有 `effort` 參數**（`low`／`medium`／`high`／`xhigh`／`max`；2026-11-04 tool schema 查證；schema 說明大意：只在使用者或 CLAUDE.md／skill 明示時才設）。規則：**預設不設**——只在使用者、CLAUDE.md 或 skill 明示要某個 effort 時才帶，不憑自己判斷設定。`subagent_type: "fork"` 忽略此參數，跑主線 effort。Workflow 的 `agent()` 同樣支援 `effort`（2026-11-04 基準檔確認），但 Workflow 本身只有使用者明示才可呼叫。
 
-**不指定 model 時 subagent 繼承主線模型**——主線是高階模型時，忘記指定 = 用最貴的模型跑粗活。因此：**派 subagent 一律顯式帶 model**，對照表：
+**不指定 model 時 subagent 繼承主線模型**——主線是高階模型時，忘記指定 = 用最貴的模型跑粗活。因此：**派 subagent 一律顯式帶 model**（`fork` 不收 model 參數；例行派工本來就不用 fork，見本節末），對照表：
 
 | 任務 | model | 理由 |
 |------|-------|------|
@@ -45,6 +45,11 @@
 > 完整模型 ID 不寫死：以當前 session 環境宣告為準（每次模型改版都會變）。
 > 成本相對階序 haiku < sonnet < opus < fable；絕對比例未確認，勿自行編造。
 > subagent 類型（Explore/Plan/general-purpose 等）以當前 session 的 harness 宣告清單為準，不要假設固定存在。
+> `subagent_type: "fork"` 會繼承本對話全文並跑主線模型（忽略 `model`／`effort`）。兩條規則：
+> - 它不是 fresh-context，**不得當驗證者**（第 6 節）。
+> - 它跑主線模型，等於繞過上表：粗活照上表本該派 sonnet／haiku（主線是 `fable` 時更違反「不派給 subagent」）。**粗活不用 fork**：需要本對話的上下文，就把那段上下文寫進交辦 prompt，派 fresh-context subagent。
+>
+> skill frontmatter 的 `context: fork` 是另一件事：那是派 **fresh-context** subagent 跑 skill，subagent 內不能問使用者（官方 skills／sub-agents 文件；本 repo 的 feature-to-api、feature-to-ui、feature-to-flow 就是這種）。這三個 skill 的確認點目前仍寫成 Phase 0 停下等確認，改法見 #196／#197。
 
 ## 4. 升降級路徑
 
@@ -80,7 +85,7 @@ opus 解出、且錯誤呈現固定 pattern
 
 ## 6. 驗證不自驗
 
-做的人不驗自己的產出。驗證一律派 **fresh-context** subagent（新開、不帶本對話包袱）：
+做的人不驗自己的產出。驗證一律派 **fresh-context** subagent（新開、不帶本對話包袱；`subagent_type: "fork"` 繼承本對話，**不算 fresh**，不可當驗證者）：
 
 | 產出類型 | 驗法 | model |
 |----------|------|-------|
@@ -119,7 +124,7 @@ fresh subagent 的 context ＝ CLAUDE.md ＋ **你寫的 prompt**。它乾淨，
 
 - 正例：`/ship` 的 `scripts/ledger.sh` 寫好了整套去重，但 `mark` 子命令在 SKILL.md 裡一次都沒被叫到，
   機制整個是死碼。兩輪對抗審查（第二輪 opus）都沒抓到，dogfood 實跑第一次就撞到——
-  審查 prompt 問的是「這份文件對不對」，它就審文字；沒有人問「這些子命令有人叫嗎」
+  審查 prompt 問的是「這份文件對不對」，它就審文字；沒有人問「這些子命令有人叫嗎」（此洞已於後續修復：`ship/SKILL.md` 現已呼叫 `mark`；事件留作教訓）
 - 反例：為了「乾淨」把已排除的路線一起丟掉，開新 session 重做——第 7 節存得下結論，
   存不下「試過但沒寫下來的死路」，換 session 就真的丟了
 

@@ -27,7 +27,7 @@
 1. **升降級路徑的具體數字**（錯 1 次升級、同任務 2 輪上限）——是合理判斷值，不是實證數據。用幾輪後若發現太嚴或太鬆，直接改 [model-dispatch.md](model-dispatch.md) 並記錄理由。
 2. **model 對照表的任務分派**——「sonnet 做實作夠用」基於一般經驗，未在本專案 A/B 實測。本專案有 dogfood 傳統：拿真實任務／真實 spec 跑過再校準，別只信自製案例（教訓原文在使用者層記憶，不隨 repo）。
 3. **「被 harness 導向另一個模型的請求是否消耗本窗口額度」——完全未確認**。harness 不暴露計費資訊。建議使用者到 usage 儀表板實測後，把答案補進這份檔案。
-4. **Agent tool 無 effort 參數**是 2026-07-05 的 tool schema 事實；harness 隨時可能加上。健檢時重查。
+4. **Agent tool 的 effort 參數**：2026-11-04 重查已存在，值為 `low`／`medium`／`high`／`xhigh`／`max`（2026-07-05 首查時尚無；只在明示時設，詳見 [model-dispatch.md](model-dispatch.md) 第 3 節）。harness 隨時可能再改，健檢時重查。
 
 ## 四、接手大任務前的 checklist
 

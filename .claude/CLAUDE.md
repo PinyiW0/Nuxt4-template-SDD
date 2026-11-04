@@ -32,7 +32,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 ## 紅線（一律生效）
 
-- `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/` 凍結——PreToolUse hook 強制擋既有檔修改（含 subagent；新增放行），處理方式見 `rules/frozen-paths.md`（唯讀不受限）
+- `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/` 凍結——PreToolUse hook 強制擋既有檔修改（含同目錄 subagent；新增放行；只保護啟動 session 的專案目錄；跨 worktree 與 isolation 分身的範圍見 frozen-paths.md、#199），處理方式見 `rules/frozen-paths.md`（唯讀不受限）
 - 修改 UI 檔案時遵守 `rules/vibe-ui.md`（Business Invariants 不可破壞）
 - 完成程式碼修改後必跑 `npm run eslint` + `npm run typelint`；**動到 `app/`／`server/`**（含 vibe）commit 前必跑 `/vibe-check`（白名單內定向、其餘 dev 全量；`--full` 強制全量；production 全量由 CI 跑）；動到 `.vue`／store／server 且非純格式時另跑 `/sdd-review`。完整分層與門檻見 `ops/judgment-rubrics.md` 第 2、5 節。跑 `/ship` 時這幾層由它依 ledger 統一調度並記帳，不必手動逐一叫；手動路徑的義務不變
 - `/review-loop` 會自行 commit／push／在 PR 上回覆留言並重新請 review——啟動它就是對這三件事的授權；但它**永不 merge、永不 `--force` push**，要不要 merge 一律由使用者決定
@@ -78,15 +78,17 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 ## 規範索引
 
+> `paths` 觸發的規則在 general-purpose 分身與 `context: fork` 的 skill 內**不注入**（2026-07-06 實測、2026-11-04 複測 general-purpose 分身仍同，fork skill 未複測；官方文件只保證 Explore／Plan 分身會載入）；分身需要的規則要在交辦 prompt 或 skill 內明文指讀。凍結區 hook 只保護啟動 session 的專案目錄；跨 worktree 與 `isolation: "worktree"` 分身的範圍見 frozen-paths.md、#199。
+
 | 規範 | 檔案 | 載入時機 |
 |------|------|----------|
 | 程式碼品質驗證 | [rules/code-quality.md](rules/code-quality.md) | 修改 app/、server/ 程式碼時（自動） |
-| Server 安全慣例 | [rules/server-security.md](rules/server-security.md) | 修改 server/ 時（自動；subagent 內不注入，feature-to-api 明文指讀） |
-| 前端安全慣例 | [rules/frontend-security.md](rules/frontend-security.md) | 修改 app/ UI／store／composable 時（自動；subagent 內不注入，feature-to-ui 明文指讀） |
+| Server 安全慣例 | [rules/server-security.md](rules/server-security.md) | 修改 server/ 時（自動；feature-to-api 明文指讀） |
+| 前端安全慣例 | [rules/frontend-security.md](rules/frontend-security.md) | 修改 app/ UI／store／composable 時（自動；feature-to-ui 明文指讀） |
 | UI 實作規範 | [rules/ui-conventions.md](rules/ui-conventions.md) | 修改 pages/、components/、layouts/ 時（自動） |
-| Vibe UI 守則 | [rules/vibe-ui.md](rules/vibe-ui.md) | 同上（paths 觸發；subagent 內不注入，2026-07-06 實測） |
-| 主 spec 凍結 | [rules/frozen-paths.md](rules/frozen-paths.md) | 修改凍結區時（hook 強制擋既有檔，含 subagent） |
-| 框架 skill 裁決 | [rules/framework-skills.md](rules/framework-skills.md) | 修改 .vue／store／composable 時（paths 觸發；subagent 內不注入，2026-07-06 實測） |
+| Vibe UI 守則 | [rules/vibe-ui.md](rules/vibe-ui.md) | 同上（paths 觸發） |
+| 主 spec 凍結 | [rules/frozen-paths.md](rules/frozen-paths.md) | 修改凍結區時（hook 強制擋既有檔，含同目錄 subagent） |
+| 框架 skill 裁決 | [rules/framework-skills.md](rules/framework-skills.md) | 修改 .vue／store／composable 時（paths 觸發） |
 | i18n 語系與 gate 政策 | [rules/i18n-locale-policy.md](rules/i18n-locale-policy.md) | 修改 i18n/ 翻譯檔或 .husky/pre-push 時（paths 觸發）；E2E 斷言以 defaultLocale zh-TW 為準 |
 | UI 設定 | `spec/ui-config/ui-config.yaml` | UI 實作時讀取 |
 | 視覺層級 | `spec/ui-config/visual-hierarchy.md` | UI 實作時讀取（feature-to-ui `@` 載入＋ui-conventions 指讀） |
