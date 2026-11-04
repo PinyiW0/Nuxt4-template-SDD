@@ -148,7 +148,7 @@ disable-model-invocation: true
 
 **只用 `ScheduleWakeup`**：每輪最後自我排程，`delaySeconds` 取狀態檔的 `下次間隔`。狀態檔的 `驅動` 固定是 `wakeup`，第 3 節第 0 步讀它決定本輪要不要排 `ScheduleWakeup`。
 
-**不支援 `/loop` 驅動**（#172 決策）：`/loop` 是固定間隔的外部排程，和 `ScheduleWakeup` 並存就會一輪跑兩次。要讓兩者互斥，得另外處理「停下後 `/loop` 還在叫」「續跑時換誰叫」「`/loop` 原樣重送的文字算不算續跑授權」——#172 的三輪審查每補一處就冒出新的邊界，所以拿掉。被 `/loop` 帶起時照第 3 節第 0 步處理。
+**不支援 `/loop` 驅動**（#172 決策）：帶間隔的 `/loop` 是外部排程，和 `ScheduleWakeup` 並存就會一輪跑兩次；自定步調的 `/loop` 本身就靠 `ScheduleWakeup` 排程，兩邊會互相取代，其中一邊被靜默取消。兩種都不能和本 skill 的排程共存。要讓兩者互斥，得另外處理「停下後 `/loop` 還在叫」「續跑時換誰叫」「`/loop` 原樣重送的文字算不算續跑授權」——#172 的三輪審查每補一處就冒出新的邊界，所以拿掉。被 `/loop` 帶起時照第 3 節第 0 步處理。
 
 **間隔序列**（依實測 Copilot 周轉：小 PR 50 秒–3 分，#151 每輪 5.8–11.9 分、中位數 7.9 分）：
 
@@ -164,7 +164,7 @@ disable-model-invocation: true
 三個限制要講明：
 
 - `ScheduleWakeup` **只在主 session 有**，subagent 內沒有——別把排程動作派出去。同一個 session 只會有一個待觸發的 wakeup：再排一次就取代前一次（2026-11-02 實測）
-- `CronCreate` 會被 auto mode 權限分類器擋掉（實測），不要繞
+- `CronCreate` 會被 auto mode 權限分類器擋掉（實測，日期未記錄；2026-11-04 健檢未重驗，重驗後補日期），不要繞
 - wakeup 綁在 session 上，使用者關掉終端機迴圈就停——寫進第 2 節第 6 步的起手通知
 
 ## 5. 共識判定（1 或 2 任一成立，**且** 3 成立，才收工通知）
@@ -218,7 +218,7 @@ disable-model-invocation: true
 
 ## 8. 目標與 baseline（度量）
 
-baseline 用 `copilot-metrics.sh since 2026-08-20` 在 2026-10-07 算得（22 個 PR，#124–#169，全部在本節上線之前）：每 PR 的 Copilot review 次數平均 4.8、p90 13、最大 16；每次 review 的 inline 留言 1.3 則；撞配額 4 次；制度類 PR 的首尾相隔最長 166 分（#151）。
+baseline 用 `copilot-metrics.sh since 2026-08-20` 在 2026-10-07 算得（22 個 PR，#124–#169，全部在本節上線之前）：每 PR 的 Copilot review 次數平均 4.8、p90 13（未篩有效 review）、最大 16；每次 review 的 inline 留言 1.3 則；撞配額 4 次；制度類 PR 的首尾相隔最長 166 分（#151）。
 
 **單一 PR 目標**（第 7 節收尾時逐欄對照）：
 
@@ -226,15 +226,16 @@ baseline 用 `copilot-metrics.sh since 2026-08-20` 在 2026-10-07 算得（22 �
 |---|---|---|
 | `reviews`（制度類） | ≤ 3 | 第 6 節的制度類輪數上限 |
 | `reviews`（程式類） | ≤ 6 | 第 6 節的程式類輪數上限 |
-| `comments_per_review` | ≥ 2 | baseline 1.3；一輪只拿到一兩則＝沒把 Previously missed 消化完 |
+| `comments_per_review` | ≥ 2（`reviews` − `quota_hits` ≥ 2 才判此欄） | baseline 1.3；一輪只拿到一兩則＝沒把 Previously missed 消化完。只有一次 review 且 0 則＝一次乾淨通過，不是沒消化，不計 |
 | `high_first` | ≤ 2 | 本地先審上線後，High 應該在 push 前就被抓掉 |
 | `quota_hits` | 0 | 撞牆就該停，不該再請 |
 | `span_min`（制度類） | ≤ 60 | baseline 166 |
 
 **跨 PR 目標**（單一 PR 算不出來，不在收尾判；`.claude/ops/maintenance.md` 第 5 節定期健檢時跑 `copilot-metrics.sh since <上次健檢日>` 再算）：
 
-- `reviews` 的 p90 ≤ 6。baseline 13；尾端的五個 PR 吃掉 65% 的額度。p50 現在就已達標，所以不拿 p50 當目標
+- `reviews` 的 p90 ≤ 6，只在有效 review 的 PR 上算（定義見本節末條），取 `reviews` 原值（不扣 `quota_hits`）。baseline 13；尾端的五個 PR 吃掉 65% 的額度。p50 現在就已達標，所以不拿 p50 當目標
 - 最近 10 個 PR 有任一欄連續超標 → 健檢報告點名，建議回頭看第 5、6 節的判準是否要調
+- 健檢報告固定附「有效 review 的 PR 數」當樣本量：`reviews` − `quota_hits` ≥ 1 的 PR 才算。`reviews` 含撞配額的空 review，沒額度的月份照算會灌水，p90 達標不代表制度有效
 
 ## 狀態檔
 
