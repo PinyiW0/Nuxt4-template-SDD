@@ -54,13 +54,13 @@
 
 | Prop | Type | 說明 |
 |------|------|------|
-| items (v-model) | `{ id: number, [key: string]: unknown }[]` | 可拖曳的項目列表 |
-| itemKey | `string` | 項目唯一鍵（預設 `'id'`） |
+| items (v-model) | `Record<string, unknown>[]` | 可拖曳的項目列表；`itemKey` 指定的欄位（如 `noteId`）當唯一鍵 |
+| itemKey | `string` | 項目唯一鍵的欄位名（預設 `'id'`，依資源實際欄位改，如 `'noteId'`） |
 | handle | `string` | 拖曳把手的 CSS selector（選填） |
 
 | Emit | Payload | 說明 |
 |------|---------|------|
-| sorted | `number[]` | 排序後的 id 陣列 |
+| sorted | `string[]` | 排序後的唯一鍵陣列；型別跟資源 ID 一致（數字 ID 改 `number[]`），與排序端點的 `ids` 同型別 |
 
 | Slot | Scope | 說明 |
 |------|-------|------|

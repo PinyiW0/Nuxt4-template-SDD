@@ -90,6 +90,7 @@
 - 步驟 2 的前綴狀態是 ⚠️ 時，先把 spec 路徑的新前綴換成既有 `path_prefix` 再比；否則整批端點會同時被列成新增與刪除
 - spec `paths` 的 method × path 與 `route-map.yaml > api_contract.endpoints` 取差集：spec 有、route-map 沒有 → 「新增」；route-map 有、spec 沒有 → 「刪除」
 - 兩邊都有、但 request／response schema 引用變了 → 「修改」；codegen 重生後 `typelint` 紅燈的位置就是修改點
+- 不影響型別的驗證限制變更（`maxLength`、`minimum`、`pattern`、`format` 等）typelint 抓不到：用 `git diff $(git log -1 --format=%H -- spec/report/route-map.yaml) -- spec/api/api-spec.yml` 比對上次 Sync 時的 spec 與現在的 spec（新 spec 已 commit 也比得到），被改到的 operation 與它引用的 schema 也列「修改」
 - 結果寫入步驟 8 的「端點變更」表
 
 ### 步驟 4：讀取現有型別定義

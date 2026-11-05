@@ -472,7 +472,9 @@ import { mockNotes } from '../../../mock/data/notes'
 
 // schema 照慣例放 server/validation/notes.ts，此處內嵌示意
 const sortNotesSchema = z.object({
-  ids: z.array(z.string().min(1, 'id 不可為空')).min(1, '排序清單不可為空').max(500, '排序清單過長'),
+  // id 型別跟資源實際 ID 一致（notes 用字串）；features.md DraggableList 的 sorted payload 同型別
+  ids: z.array(z.string().min(1, 'id 不可為空')).min(1, '排序清單不可為空').max(500, '排序清單過長')
+    .refine(ids => new Set(ids).size === ids.length, '排序清單有重複 id'),
 })
 
 export default defineEventHandler(async (event: H3Event) => {
