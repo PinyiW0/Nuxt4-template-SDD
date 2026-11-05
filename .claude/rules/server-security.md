@@ -6,7 +6,7 @@ paths:
 # Server 安全慣例
 
 每條規則各對應一個實際專案被打穿的漏洞（wedding-host 全站安全審查），不是假想威脅。
-mock 端點一律適用——實際專案會把 mock 演化成 production server，查詢過濾、欄位投影、輸入驗證這些 pattern 會存活下來。
+mock 端點一律適用——實際專案會把 mock 演化成 production server，查詢過濾、欄位投影、輸入驗證這些 pattern 會存活下來。認證層例外：mock token 可偽造，上線前一定要換成真認證（auth-scaffold.md §4b① 的 `MOCK_AUTH` 守衛）。
 
 ## 禁止事項
 
@@ -37,7 +37,7 @@ mockTasks.push({ taskId: crypto.randomUUID(), projectId, title: body.title, prio
 // [X] 5：信任 body 自報身分
 const authorId = body.memberId
 // [O] 5：身分取自 auth context
-const authorId = event.context.authUser.accountId
+const authorId = requireAuth(event).accountId
 ```
 
 ## 消費地圖

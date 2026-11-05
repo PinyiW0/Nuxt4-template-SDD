@@ -9,7 +9,8 @@
 - spec/report/route-map.yaml > api_contract.path_prefix（API 路徑前綴，決定 server/api/ 資料夾結構）
 - spec/report/route-map.yaml > api_contract.endpoints（端點規格）
 - spec/report/route-map.yaml > enabled_features（若含 dragAndDrop → 需建 sort API；若含 fileUpload → 需建 upload API）
-- spec/report/route-map.yaml > rbac（**若存在** → 角色守門：endpoints 套 requireRole 回 403（BFLA）、ownership 套列表過濾、object_ownership 套單筆歸屬檢查（BOLA）、多角色種子；範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a）
+- spec/report/route-map.yaml > auth（**若存在** → 非 public 端點首行 `requireAuth`，未登入回 401；見步驟 6）
+- spec/report/route-map.yaml > rbac（**若存在** → 角色守門：endpoints 套 requireRole 回 403（BFLA）、ownership 套列表過濾、object_ownership 套單筆歸屬檢查（BOLA，預設 404）、多角色種子；範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a）
 - spec/e2e-flows/*.flow.md（操作流程中引用的實體名稱、資料值）
 - ui-config.yaml > testAccounts（測試帳號）
 - rules.md [P1] 段落（Server API 類型規範）
@@ -30,6 +31,7 @@ Sync 模式額外讀取：
 > - 例：`path_prefix = /api/v1` + endpoint `/api/v1/sites` → 檔案 `server/api/v1/sites/index.get.ts`
 > - 例：`path_prefix = /api` + endpoint `/api/sites` → 檔案 `server/api/sites/index.get.ts`
 > - 下方所有範例為示意，**實際資料夾與 endpoint 路徑以本專案 `route-map.yaml > api_contract.path_prefix` 為準**
+> - route-map 標 `outside_prefix: true` 的離群端點（路徑不在 `/api` 下，如 `/upload-data`）放 `server/routes/`：Nitro 的 `server/api/` 只服務 `/api/*`
 
 > ⚠️ **Business Invariant 常數檔**：滿足 [invariants.md](invariants.md) 適用條件時，Phase 1 須一併建立／更新 `app/constants/invariants.ts`（來源：`.flow.md` Business Invariants 段；與 mock data 並列產出，UI 與 spec 是消費端）。
 
@@ -52,12 +54,15 @@ Phase 1 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 2. **新增的型別** → 建立新的 `app/types/api/{resource}.ts`，更新 `index.ts` 的 re-export
 3. **修改的型別** → 讀取現有檔案 → Edit 受影響的欄位（新增/修改/刪除 interface 屬性）
 4. **新增的端點** → 建立新的 `server/api/**/*.ts` + 對應 mock data
+   - sync-report 標「新增 auth 守門」或「新增角色守門」時，先補齊缺的 scaffold 再做這一步，依「缺哪個」判斷，不看檔案在不在：沒有 `server/mock/auth-context.ts`（或缺 `requireAuth`）→ 照 [auth-scaffold.md](auth-scaffold.md) §3、§4b 補生 auth-context、種子、`00.security-guard.ts`、`rate-limit.ts`、auth mock 端點；有角色守門但 auth-context 缺 `requireRole`／`requireOwnership` 或種子沒有 `roles` → 照 [rbac-scaffold.md](rbac-scaffold.md) §3a 補上
+   - 有 auth 的專案，既有 `server/plugins/00.security-guard.ts` 沒有 `MOCK_AUTH` 那段 → 照 auth-scaffold.md §4b① 補上（舊版範本沒有這段）
 5. **修改的端點** → 讀取現有端點原始碼 → 根據型別變更調整回傳結構和 mock 資料
-6. **刪除項目** → **不執行刪除**，列在確認清單提醒用戶
+   - 第 4、5 步的端點一樣要套用下方全量模式步驟 6 的登入守門與角色守門（讀 `route-map.yaml` 最新的 `auth`／`rbac`，含 Sync 步驟 7.7 新增的規則）
+6. **刪除項目** → **不執行刪除**，列在回報清單提醒使用者手動處理
 7. **掃描影響擴散** → 修改型別後，掃描所有 import 該型別的端點檔案，若回傳結構受影響則補入修改清單
-8. **詢問用戶確認**（含增量變更清單）
+8. **回報增量變更清單後結束**（分身等不到回覆；使用者要調整就改檔，再執行下一步）
 
-增量確認格式：
+增量回報格式：
 ```
 Phase 1 增量更新完成
 
@@ -71,9 +76,7 @@ Phase 1 增量更新完成
 - [done] server/api/observers/index.post.ts：新建
 
 待刪除（不自動執行）：
-- ⚠️ server/api/sites/[id].delete.ts（05-刪除觀測點 已移除）
-
-確認後繼續？
+- ⚠️ server/api/sites/[siteId].delete.ts（05-刪除觀測點 已移除）
 ```
 
 > 完成後提示：「Phase 1 增量更新完成。下一步：`/feature-to-api 1.5`（同步 client 層）」
@@ -126,15 +129,15 @@ Phase 1 增量更新完成
    > ⚠️ 違反此規則會導致 `.flow.md` 預期值與 mock 不一致，E2E 測試被迫偏離 SSoT 鏈（`.feature` → `.flow.md` → `.spec.ts`）
 
 6. **建立 API 端點**（回傳格式必須嚴格符合 `types/api/` 合約）
-   - **角色守門（讀 `route-map.rbac`，非臨場猜）**：phase-0 授權偵測已把角色規則萃取進 `route-map.yaml > rbac`（單一 SoT）。此處**一律讀該區塊套用**，不再從 `.feature` 散文重新偵測（避免漂移）。範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a：
-     1. **先建橋接 util** `server/mock/auth-context.ts`（`getMockCurrentUser` / `requireRole` / `requireOwnership`，由 Bearer mock-token 反查當前使用者 roles）——這是 token → 角色的唯一橋樑
+   - **登入守門（route-map 有 `auth` 區塊時，不論有無 `rbac`）**：除了下面列的例外，所有端點的 handler **首行** `requireAuth(event)`（`auth.public_paths` 是頁面路由，不是端點清單；公開判定照 OpenAPI 的有效 security：先看 operation 自己的 `security`，沒寫就用全域 `security`；結果是空陣列或含 `{}` 選項 → 公開，不加 `requireAuth`；spec 裡有其他 operation 寫了 `security`，這個 operation 和全域都沒寫 → 公開；整份 spec 的 operation 和全域都沒寫 `security`（只定義 `securitySchemes`）→ 當受保護，並在回報列出待確認；沒有 OpenAPI、從 `.feature` 推導時，`.feature` 寫明不登入也能用的端點才算公開，並列進回報）——無 token 或查無使用者 → **401**（不是 403；前端靠 401 才會換發 token 或導去登入頁）。`auth.token_endpoints` 的 login／refresh／logout 不加；`/auth/me` 本身就用 `requireAuth` 反查。`server/mock/auth-context.ts` 範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a；無 `rbac` 時只建 `getMockCurrentUser` ＋ `requireAuth` 兩個函式，不做 ownership 過濾。
+   - **角色守門（`rbac` 區塊存在時，疊在登入守門之上；讀 `route-map.rbac`，非臨場猜）**：phase-0 授權偵測已把角色規則萃取進 `route-map.yaml > rbac`（單一 SoT）。此處**一律讀該區塊套用**，不再從 `.feature` 散文重新偵測（避免漂移）。範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a：
+     1. **先建橋接 util** `server/mock/auth-context.ts`（`getMockCurrentUser` / `requireAuth` / `requireRole` / `requireOwnership`，由 Bearer mock-token 反查當前使用者 roles）——這是 token → 角色的唯一橋樑
      2. **多角色種子**：`mockUsers` 帶 `roles: string[]`，`rbac.roles` 每個角色**至少一帳號**（否則無從以該角色登入看差異）
-     3. **`rbac.endpoints`**（端點存取控制 / OWASP BFLA）：對應 handler **首行** `requireRole(event, allow, message)` → 不在 allow 內的角色直接 403
-     4. **`rbac.ownership`**（列表級 ACL）：用 `getMockCurrentUser(event)` 取當前角色，`restricted_roles` 內的角色過濾 `owner_field === me.accountId`，其餘角色不過濾；該資源 mock data 需含 `owner_field`（如 `createdBy`，值為 accountId）
-     5. **`rbac.object_ownership`**（單筆 object 級 ACL / **OWASP API #1 BOLA**）：`/{id}` 端點 handler 內**先查到該筆 object → `requireOwnership(event, obj.owner_field, restricted_roles)` → 才動作**，受限角色帶他人 id → 403（`notfound: true` 則 404）；mock data 同需含 `owner_field`。**最常漏、卻是 OWASP 排名第 1**
-     6. **`rbac.business_guards`** 只是登錄、不在此自動生（last-super-admin 409、self-vs-others 改密疊加條件等留手寫）
-     > 角色名一律用 `rbac.roles` 的實際值，**不寫死** `super_admin`/`observer`；判準是「受限 vs 全權」「哪些角色 allow」的語意。
-   - **沒有 `rbac` 區塊、但 route-map 有 `auth` 區塊** → 無角色分層仍要擋未登入：建精簡版 `server/mock/auth-context.ts`（只需 `getMockCurrentUser` ＋ `requireAuth`——由 Bearer mock-token 反查使用者，查無 → `createError` 401），**寫入端點與登入後才可讀的端點** handler 首行 `requireAuth(event)`；`auth.public_paths` 對應的公開讀取端點與 `/auth/*` 不加。不做 ownership 過濾。
+     3. **`rbac.endpoints`**（端點存取控制 / OWASP BFLA）：對應 handler **首行** `requireRole(event, allow, message)`（內含 `requireAuth`）→ 未登入 401、不在 allow 內的角色 403
+     4. **`rbac.ownership`**（列表級 ACL）：首行 `const me = requireAuth(event)`，`restricted_roles` 內的角色過濾 `owner_field === me.accountId`，其餘角色不過濾；該資源 mock data 需含 `owner_field`（如 `createdBy`，值為 accountId）
+     5. **`rbac.object_ownership`**（單筆 object 級 ACL / **OWASP API #1 BOLA**）：`/{id}` 端點首行 `const me = requireAuth(event)`，**先查到該筆 object → `requireOwnership(me, obj.owner_field, restricted_roles)` → 才動作**，受限角色帶他人 id → 404（route-map 條目設 `deny_status: 403` 時傳 `{ denyStatus: 403 }`）；mock data 同需含 `owner_field`。**最常漏、卻是 OWASP 排名第 1**
+     6. **`rbac.business_guards`** 只是登錄、不在此自動生（「不得刪最後一個全權角色」409、self-vs-others 改密疊加條件等留手寫）
+     > 角色名一律用 `rbac.roles` 的實際值，**不寫死**範例角色名；判準是「受限 vs 全權」「哪些角色 allow」的語意。
    - **`rbac` 與 `auth` 都沒有** → 純公開專案，所有端點不加守門、不加 ownership 過濾。
 6.5. **讀回完整性自查（產完端點必跑）**：逐一列出每個寫入 handler（`.post.ts` / `.put.ts` / `.patch.ts`）更新進 mock data 的欄位，確認：
    - 存在 GET handler 回傳含這些欄位（詳情 GET 回 `XxxDetail` 完整型別，不是 `XxxListItem`）
@@ -149,7 +152,7 @@ Phase 1 增量更新完成
    - □ 每個回應是白名單挑欄位；`password`／token／內部備註類欄位不在任何回應
    - □ 操作者身分取自 auth context／簽名憑證，無任何 handler 拿 body/query 的 id 當身分
    > wedding-host 實戰：DELETE 漏父層過濾（IDOR）、`{ weddingId, ...body }` 被覆蓋（跨租戶寫入）、數字欄 NaN／溢位進資料層——全是這張清單能擋下的。
-7. **詢問用戶確認**
+7. **回報產出清單後結束**（不自動進 Phase 1.5）
 
 ## 輸出結構
 
@@ -167,18 +170,25 @@ server/
 │   └── data/
 │       ├── index.ts
 │       ├── users.ts
+│       ├── revoked-tokens.ts  # auth 命中時（auth-scaffold.md §3a）
 │       ├── sites.ts
 │       └── stations.ts
 ├── validation/
+│   ├── auth.ts            # loginSchema／refreshSchema（auth 命中時）
 │   └── sites.ts           # 寫入端點的 zod schema（server-security.md 第 4 條）
 └── api/
-    ├── auth/
+    ├── auth/              # auth 命中時四個一定要生，不看 spec 有沒有寫；refresh／me／logout 範本見 auth-scaffold.md §3a
     │   ├── login.post.ts
-    │   └── logout.post.ts
+    │   ├── refresh.post.ts
+    │   ├── logout.post.ts
+    │   └── me.get.ts
     └── sites/
         ├── index.get.ts
-        └── [id].get.ts
+        ├── [siteId].get.ts
+        └── [siteId].delete.ts
 ```
+
+> ⚠️ 同一目錄的動態段參數名要一致（`[siteId].get.ts` 與 `[siteId].delete.ts`）；名稱不一致時 `getRouterParam` 可能取不到值。
 
 ## API 合約型別範例
 
@@ -207,7 +217,7 @@ export type { CreateSiteBody, SiteCreatedEvent, SiteListItem } from './sites'
 ```
 
 > ⚠️ **命名慣例**：欄位 `camelCase`、型別 `PascalCase`、UUID/日期皆用 `string`
-> ⚠️ **不要定義 `ApiResponse<T>` 包裝型別**——mock 端點直接回 `T`，無包裝。
+> ⚠️ **不要定義 `ApiResponse<T>` 包裝型別**——型別只寫裸 schema（view 型別）；mock 回應的外層依 [openapi-conventions.md](openapi-conventions.md) §3 的模式（模式 A 用 `ok()` 包、模式 B 裸回）。
 
 ## Mock 資料範例
 
@@ -228,26 +238,48 @@ export const mockUsers = [
 ## API 端點範例
 
 ```typescript
-// server/api/auth/login.post.ts
-import type { H3Event } from 'h3'
-import type { LoginBody, LoginResponse } from '../../../app/types/api/auth'
+// server/validation/auth.ts
+import { z } from 'zod'
 
-import { mockUsers } from '../../mock/data/users'
+export const loginSchema = z.object({
+  account: z.string().trim().min(1, '請輸入帳號').max(100, '帳號過長'),
+  password: z.string().min(1, '請輸入密碼').max(200, '密碼過長'),
+})
+
+export const refreshSchema = z.object({
+  refreshToken: z.string().min(1, '缺少 refresh token').max(500, 'refresh token 格式錯誤'),
+})
+```
+
+```typescript
+// server/api/v1/auth/login.post.ts（假設 path_prefix = /api/v1，與 auth-scaffold §3a 的 refresh／me／logout 同層）
+import type { H3Event } from 'h3'
+import type { LoginResponse } from '../../../../app/types/api/auth'
+
+import { REFRESH_TTL_MS } from '../../../mock/data/revoked-tokens' // auth-scaffold.md §3a
+import { mockUsers } from '../../../mock/data/users'
+import { assertNotRateLimited, clearFailures, recordFailure } from '../../../utils/rate-limit'
+import { loginSchema } from '../../../validation/auth'
 
 export default defineEventHandler(async (event: H3Event): Promise<LoginResponse> => {
-  const body = await readBody<LoginBody>(event)
-
-  if (!body?.account || !body?.password) {
-    throw createError({ statusCode: 400, message: '請輸入帳號與密碼' })
+  const parsed = await readValidatedBody(event, loginSchema.safeParse)
+  if (!parsed.success) {
+    throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
   }
+  const body = parsed.data
 
+  // 登入限流：同 IP＋帳號 15 分鐘內失敗 10 次 → 429；只計失敗、成功清零（rate-limit.ts 範本見 auth-scaffold.md §4b②）
+  // 不讀 X-Forwarded-For：這個 header 由瀏覽器端自填，換一個值就換一個限流 key；部署在反向代理後面時才改讀代理設定的可信 header
+  const key = `login:${getRequestIP(event)}:${body.account}`
+  assertNotRateLimited(key, 10, 15 * 60 * 1000)
+
+  // 帳號不存在與密碼錯回同一個 401、同一句文案：分開回，外人就能逐一試出哪些帳號存在
   const user = mockUsers.find(u => u.account === body.account && !u.deletedAt)
-  if (!user) {
-    throw createError({ statusCode: 404, message: '帳號不存在' })
-  }
-  if (user.password !== body.password) {
+  if (!user || user.password !== body.password) {
+    recordFailure(key)
     throw createError({ statusCode: 401, message: '帳號或密碼錯誤' })
   }
+  clearFailures(key)
 
   // [O] 模式 B 示意：直接回 schema 物件（模式 A 用 ok() 包裝，見 openapi-conventions §3）
   // 回傳形狀對齊 auth-scaffold.md §3a 的 TokenPairData（LoginResponse 的唯一權威定義）
@@ -257,7 +289,7 @@ export default defineEventHandler(async (event: H3Event): Promise<LoginResponse>
     expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     accountId: user.accountId,
     refreshToken: `mock-refresh-${user.accountId}-${Date.now()}`,
-    refreshExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    refreshExpiresAt: new Date(Date.now() + REFRESH_TTL_MS).toISOString(),
   }
 })
 ```
@@ -299,12 +331,12 @@ export default defineEventHandler(async (event: H3Event): Promise<LoginResponse>
 
 ```typescript
 // server/api/sites/index.get.ts
-import type { H3Event } from 'h3'
 import type { SiteListItem } from '../../../app/types/api/sites'
 
 import { mockSites } from '../../mock/data/sites'
 
-export default defineEventHandler((event: H3Event): SiteListItem[] => {
+// 用不到 event 就不宣告參數（專案 eslint 擋未使用參數）；auth 命中時首行要 requireAuth(event)，那時才帶 event
+export default defineEventHandler((): SiteListItem[] => {
   return mockSites
     .filter(t => !t.deletedAt)
     .map(t => ({
@@ -431,6 +463,85 @@ task.deletedAt = new Date().toISOString()
 setResponseStatus(event, 204)
 ```
 
+### additionalFeatures 端點（`route-map.yaml > enabled_features` 有啟用時）
+
+`feature-to-ui` 的 [features.md](../../feature-to-ui/references/features.md) 有些 wrapper 要後端端點，範本只放這裡。規則同上方 POST 範例：寫入一律 `readValidatedBody`＋schema、不 spread body；有 auth 時首行 `requireAuth`（步驟 6「登入守門」）；回應外層依 envelope 模式。
+
+```typescript
+// server/api/v1/notes/sort.put.ts —— dragAndDrop：依 ids 順序重排（假設 path_prefix=/api/v1；相對路徑依實際深度調整）
+import type { H3Event } from 'h3'
+import { z } from 'zod'
+
+// 無 auth：刪掉這行 import、`const me = requireAuth(event)` 與 for 迴圈。有 auth 無 rbac：import 只留 requireAuth、`const me =` 改回 `requireAuth(event)`，for 迴圈只留存在檢查
+import { requireAuth, requireOwnership } from '../../../mock/auth-context'
+import { mockNotes } from '../../../mock/data/notes'
+
+// schema 照慣例放 server/validation/notes.ts，此處內嵌示意
+const sortNotesSchema = z.object({
+  // id 型別跟資源實際 ID 一致（notes 用字串）；features.md DraggableList 的 sorted payload 同型別
+  ids: z.array(z.string().min(1, 'id 不可為空'))
+    .min(1, '排序清單不可為空')
+    .max(500, '排序清單過長')
+    .refine(ids => new Set(ids).size === ids.length, '排序清單有重複 id'),
+})
+
+export default defineEventHandler(async (event: H3Event) => {
+  const me = requireAuth(event)
+  const parsed = await readValidatedBody(event, sortNotesSchema.safeParse)
+  if (!parsed.success)
+    throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
+
+  // 批次寫入也要逐筆驗歸屬：只靠 /{id} 端點的檢查，A 就能重排 B 的筆記
+  for (const id of parsed.data.ids) {
+    const note = mockNotes.find(n => n.noteId === id && !n.deletedAt)
+    if (!note)
+      throw createError({ statusCode: 404, message: '筆記不存在' })
+    requireOwnership(me, note.createdBy, ['member']) // ['member'] 換成 route-map.rbac.object_ownership 的 restricted_roles
+  }
+
+  const order = new Map(parsed.data.ids.map((id, index) => [id, index]))
+  // 清單外的項目排在最後、維持原相對順序
+  mockNotes.sort((a, b) => (order.get(a.noteId) ?? order.size) - (order.get(b.noteId) ?? order.size))
+  setResponseStatus(event, 204)
+})
+```
+
+```typescript
+// server/api/v1/upload.post.ts —— fileUpload：mock 不存檔，回假網址（假設 path_prefix=/api/v1）
+import type { H3Event } from 'h3'
+
+// 無 auth 專案刪掉下面兩行 import 與 handler 開頭的 requireAuth、限流三行（rate-limit.ts 只在 auth 命中時產出）
+import { requireAuth } from '../../mock/auth-context'
+import { assertNotRateLimited, recordFailure } from '../../utils/rate-limit' // auth-scaffold §4b②：上傳同套限流
+
+const MAX_BYTES = 5 * 1024 * 1024
+const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+
+export default defineEventHandler(async (event: H3Event) => {
+  requireAuth(event)
+  const key = `upload:${getRequestIP(event)}`
+  assertNotRateLimited(key, 30, 60 * 1000)
+  recordFailure(key) // 上傳每次都記一筆（登入只記失敗），沒記就永遠不會觸發 429
+  // 讀 body 前先擋大小：readMultipartFormData 會把整包讀進記憶體，沒有 content-length 或超過上限 → 413
+  const length = Number(getRequestHeader(event, 'content-length'))
+  if (!length || length > MAX_BYTES + 64 * 1024)
+    throw createError({ statusCode: 413, message: '檔案過大' })
+  const parts = await readMultipartFormData(event)
+  const file = parts?.find(part => part.name === 'file' && part.filename)
+  if (!file)
+    throw createError({ statusCode: 400, message: '請選擇檔案' })
+  if (!ALLOWED_TYPES.has(file.type ?? ''))
+    throw createError({ statusCode: 400, message: '檔案格式不支援' })
+  if (file.data.length > MAX_BYTES)
+    throw createError({ statusCode: 413, message: '檔案過大' })
+
+  setResponseStatus(event, 201)
+  return { url: `/uploads/mock-${crypto.randomUUID()}`, name: file.filename ?? 'file' }
+})
+```
+
+> 大小與格式界限從 spec 萃取（OpenAPI `maxLength`／`format: binary` 旁的說明），spec 沒寫就用上方保守值，並在回報列為待確認。
+
 ### 角色守門範例（讀 route-map.rbac）
 
 > **完整範本（橋接 util `auth-context.ts` + 端點 403 + ownership 過濾 + 多角色種子）見 [rbac-scaffold.md §3a](rbac-scaffold.md)，以該檔為唯一權威版本，勿在此複製。**角色名用 `rbac.roles` 實際值，勿寫死。
@@ -438,10 +549,10 @@ setResponseStatus(event, 204)
 三種守門形狀（依 route-map 命中的 rbac 區塊選用）：
 
 - **① 端點存取控制**（`rbac.endpoints`）——handler 首行 `requireRole(event, allow, message)`，當前角色不在 allow 內 → 403。
-- **② 擁有權過濾**（`rbac.ownership` 的列表端點）——`getMockCurrentUser(event)` 取角色，`restricted_roles` 內的角色只回自己 `owner_field` 的資料；全權角色不過濾。
-- **③ 單筆 object 歸屬**（`rbac.object_ownership` 的 `/{id}` 端點，OWASP **BOLA / API #1**）——順序鐵律：**先查到 object → 再驗歸屬（`requireOwnership(event, owner, restrictedRoles)`）→ 才動作**；受限角色帶他人 id → 403。先動作或只比對 id 不查 owner，就是 OWASP #1 漏洞。
+- **② 擁有權過濾**（`rbac.ownership` 的列表端點）——首行 `const me = requireAuth(event)` 取目前使用者，`restricted_roles` 內的角色只回自己 `owner_field` 的資料；全權角色不過濾。
+- **③ 單筆 object 歸屬**（`rbac.object_ownership` 的 `/{id}` 端點，OWASP **BOLA / API #1**）——順序鐵律：**先查到 object → 再驗歸屬（`requireOwnership(me, owner, restrictedRoles)`，`me` 來自首行 `requireAuth(event)`）→ 才動作**；受限角色帶他人 id → 預設 404（route-map 條目設 `deny_status: 403` 時回 403）。先動作或只比對 id 不查 owner，就是 OWASP #1 漏洞。
 
-> ⚠️ 三個 util 皆由 `server/mock/auth-context.ts` 提供（rbac-scaffold §3a），**需傳入 `event`** 才能從 Authorization header 反查角色。
+> ⚠️ 這些 util 皆由 `server/mock/auth-context.ts` 提供（rbac-scaffold §3a）：`requireAuth`／`requireRole`／`getMockCurrentUser` 傳入 `event`，從 Authorization header 反查使用者；`requireOwnership` 傳入 `requireAuth` 回傳的使用者。
 > ⚠️ 守門 / 過濾後直接回結果；E2E 斷言基於「該登入角色實際拿到的資料量」（見 spec.md 的多角色推算）。
 
 ## Auth Store 範例

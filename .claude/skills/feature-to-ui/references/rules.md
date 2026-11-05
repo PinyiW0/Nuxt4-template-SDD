@@ -223,7 +223,7 @@ const heatMapPoints = computed<HeatMapPoint[]>(() => analysis.value?.heat_map_da
 | 禁止假設路徑 | 先確認檔案存在再呼叫 |
 | 禁止 `globalThis.$fetch` | 用正確路徑，不繞過型別 |
 | 禁止定義 local interface | 從 `~/types/api/` import |
-| API 不存在 | 先建 API，不跳過 |
+| API 不存在 | 停下回報契約缺口，交 `/feature-to-api` 補（同下節），不在本 skill 建 `server/` 端點 |
 
 ### 契約缺口：GET 讀不回要顯示的欄位 → 停下回報 `[P5]`
 
@@ -259,16 +259,13 @@ import Draggable from 'vuedraggable'
 
 ## Pinia Store 規範 `[P5]`
 
+Store 由 `@pinia/nuxt` auto-import，直接呼叫 `useXxxStore()`（裁決見 `.claude/rules/framework-skills.md`）。
+
 ```typescript
-// [X] 依賴 auto-import → "useAuthStore is not defined"
 const authStore = useAuthStore()
 
-// [O] 明確 import
-import { useAuthStore } from '~/stores/auth'
-const authStore = useAuthStore()
-
-// [O] 登入用 store 方法（狀態自動 persist），不直接 $fetch
-await authStore.login(account, password)
+// [O] 登入用 store 方法（狀態自動 persist），不直接 $fetch；簽名以 auth-scaffold.md §3a 為準
+await authStore.login({ account, password })
 ```
 
 ---

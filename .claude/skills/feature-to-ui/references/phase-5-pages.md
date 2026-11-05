@@ -13,6 +13,8 @@
 > 正確行為：
 > - 實作一個頁面 → 輸出確認格式 → **停止回應**
 > - 用戶回覆後 → 開始下一個頁面
+>
+> 例外：模組扇出模式（`routes[]` > 10）的模組分身不逐頁停下，見 [phase-5-fanout.md](phase-5-fanout.md) 第五節。
 
 ---
 
@@ -32,6 +34,8 @@
 - features.md（僅 features_used 有值時需讀取，了解對應元件的使用方式）
 - rules.md [P5] 段落（配色、對比色、Zod v4、Nuxt UI 類型、表單型別安全、API、第三方 import、Pinia Store、testid）
 - pitfalls.md（實測踩過的 12 條坑，含正確寫法片段）
+- decision-tiers.md（自決／回報／必停的分級）
+- .claude/rules/frontend-security.md、.claude/rules/ui-conventions.md、.claude/rules/vibe-ui.md、.claude/rules/framework-skills.md（分身內 paths 規則不注入，必須主動讀）
 
 ⚠️ 必須先掃描 API 端點結構：
 執行 glob server/api/**/*.ts 取得實際 API 路徑列表

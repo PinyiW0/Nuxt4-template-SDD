@@ -211,8 +211,7 @@ export function compareRouteSpecificity(a: string, b: string): number {
 > 防迴圈設計見 feature-to-api `references/auth-scaffold.md` §4。`login.vue` 範本見 [page-builder.md](page-builder.md)「登入表單」。
 
 ```ts
-// app/middleware/auth.global.ts
-import { useAuthStore } from '~/stores/auth'
+// app/middleware/auth.global.ts（useAuthStore 由 @pinia/nuxt auto-import）
 import { matchesRoutePattern } from '~/utils/route-match'
 
 const base64UrlDash = /-/g
@@ -264,8 +263,7 @@ export default defineNuxtRouteMiddleware((to) => {
 > `PROTECTED_ROUTES` 陣列**由 route-map.rbac.protected_routes 生成寫入**（角色名照 route-map 實際值，不寫死）。守門目標 `/403` 頁需存在（Phase 2 補空殼）。
 
 ```ts
-// app/middleware/rbac.global.ts
-import { useAuthStore } from '~/stores/auth'
+// app/middleware/rbac.global.ts（useAuthStore 由 @pinia/nuxt auto-import）
 import { compareRouteSpecificity, coversRoutePattern } from '~/utils/route-match'
 
 // 由 route-map.rbac.protected_routes 生成；path 涵蓋其下子頁（寫 /accounts 也守 /accounts/42），allow = 允許角色

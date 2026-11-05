@@ -122,7 +122,7 @@ fi
 - **檔案不存在**（本專案第一次跑 `/test e2e spec`）：依下方模板逐欄盤點，來源：
   - envelope 形狀 → `spec/report/route-map.yaml > api_contract.response_conventions`（若 `/feature-to-api` 已產出）；沒有則讀 `server/api/**/*.ts` 的實際回應結構
   - ID pattern → `server/mock/data/*.ts` 各實體 ID 的產生方式
-  - 登入方式 → `test/e2e/helpers/actions.ts` 的 `login()` 實作 + `server/api/auth/**`
+  - 登入方式 → `test/e2e/helpers/actions.ts` 的 `login()` 實作 + `server/api/**/auth/**`
   - 種子總表（帳號／初始資料） → `server/mock/data/*.ts` 全部初始資料
   - testid 慣例來源 → SSOT 指標見上方「抽象化原則」第 5 點連結，加上本專案實際使用的 testid 前綴清單
   - 把上面指令算出的 hash（或 `none`）填進 `route_map_hash` 欄位，寫入 `spec/report/contract-facts.md`（格式見下方模板），完成後再進入 Step 1
@@ -648,7 +648,7 @@ export async function loginAs(page: Page, role: keyof typeof ROLE_ACCOUNTS) {
 | `endpoints`（受限端點） | 「{受限角色} 呼叫 {端點} → 被拒」 | API spy 抓 **403**：`page.waitForResponse(r => /<path-regex>/.test(r.url()) && r.status() === 403)`；或 UI 端語意反饋（`getFeedbackElement` / 無權限文字） |
 | `protected_routes`（受保護路由） | 「{受限角色} 直接打 {path} → 被導離」 | `await page.goto(path)` 後 `await page.waitForURL('**/403')`（或首頁）；**不**斷言看得到受保護內容 |
 | `ownership`（列表 ACL） | 同一列表，全權角色 vs 受限角色筆數不同 | 兩個 test 各自 `loginAs`，斷言可見實體集合依角色推算（見 Step 2b） |
-| `object_ownership`（單筆 BOLA / **OWASP API #1**） | 「{受限角色} 帶**他人 id** 打 {`/{id}` 端點} → 被拒」 | API spy 抓 **403**（`notfound: true` 時 **404**）：`page.waitForResponse(r => /<path-with-OTHER-id>/.test(r.url()) && [403, 404].includes(r.status()))`。關鍵是「**同端點、換成不屬於自己的 object id**」——這正是 BOLA 攻擊面，**必測** |
+| `object_ownership`（單筆 BOLA / **OWASP API #1**） | 「{受限角色} 帶**他人 id** 打 {`/{id}` 端點} → 被拒」 | API spy 抓 **404**（route-map 條目設 `deny_status: 403` 時 **403**）：`page.waitForResponse(r => /<path-with-OTHER-id>/.test(r.url()) && [403, 404].includes(r.status()))`。關鍵是「**同端點、換成不屬於自己的 object id**」——這正是 BOLA 攻擊面，**必測** |
 
 ```ts
 // 範例：受限角色被端點擋（403）

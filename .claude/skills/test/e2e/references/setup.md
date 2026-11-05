@@ -540,7 +540,7 @@ import { TestUsers } from '../helpers'
 // 無 auth 專案：刪掉 beforeAll 與 headers。回應依 envelope 模式解包（模式 A 取 .data）
 let headers: Record<string, string> = {}
 test.beforeAll(async ({ request }) => {
-  const res = await request.post('/api/auth/login', {
+  const res = await request.post('/api/v1/auth/login', { // 前綴依 route-map.yaml > api_contract.path_prefix
     data: { account: TestUsers.admin.account, password: TestUsers.admin.password },
   })
   const data = await res.json()

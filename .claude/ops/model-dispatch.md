@@ -49,7 +49,7 @@
 > - 它不是 fresh-context，**不得當驗證者**（第 6 節）。
 > - 它跑主線模型，等於繞過上表：粗活照上表本該派 sonnet／haiku（主線是 `fable` 時更違反「不派給 subagent」）。**粗活不用 fork**：需要本對話的上下文，就把那段上下文寫進交辦 prompt，派 fresh-context subagent。
 >
-> skill frontmatter 的 `context: fork` 是另一件事：那是派 **fresh-context** subagent 跑 skill，subagent 內不能問使用者（官方 skills／sub-agents 文件；本 repo 的 feature-to-api、feature-to-ui、feature-to-flow 就是這種）。這三個 skill 的確認點目前仍寫成 Phase 0 停下等確認，改法見 #196／#197。
+> skill frontmatter 的 `context: fork` 是另一件事：那是派 **fresh-context** subagent 跑 skill，subagent 內不能問使用者（官方 skills／sub-agents 文件；本 repo 的 feature-to-api、feature-to-ui、feature-to-flow 就是這種）。feature-to-api 與 feature-to-ui 已改成「分身只做、不問」：直接寫檔後回報，使用者要調整就改檔再進下一 Phase（#196）；feature-to-flow 的確認點尚未改。三支的 frontmatter 都設 `model: sonnet`。
 
 ## 4. 升降級路徑
 

@@ -4,6 +4,7 @@ description: 根據 .feature 檔搭配 NuxtUI 產生完整 UI 畫面（分階段
 argument-hint: "[phase]"
 context: fork
 agent: general-purpose
+model: sonnet
 ---
 
 # Feature to UI 工作流程
@@ -45,6 +46,7 @@ flowchart LR
 /feature-to-ui 3            # Phase 3: Layout 建置
 /feature-to-ui 4            # Phase 4: 共用元件
 /feature-to-ui 5 <功能名>   # Phase 5: 頁面實作（必須指定功能，一次一頁）
+/feature-to-ui 5 --merge    # Phase 5 模組扇出的第二段：依匯流清單 merge（見 phase-5-fanout.md 第六節）
 ```
 
 ## 全量模式 vs Sync 模式
@@ -65,12 +67,19 @@ flowchart LR
 > | 目標頁狀態 | 行為 |
 > |---|---|
 > | Phase 2 空殼（只有語意結構 + `Phase 5 實作` 註解） | **直接實作填充**，不必問——這正是 Phase 5 的職責 |
-> | 已有實作內容 | **停下來問**使用者要跳過／增修／重建，不可默默覆蓋 |
+> | 已有實作內容 | **不覆蓋**：回報現況並列出跳過／增修／重建三個選項後結束；使用者帶選擇重新執行（如 `/feature-to-ui 5 <功能名> 重建`） |
 > | 不存在 | 依 route-map 建立 |
 
 ### Sync 模式運作方式
 
-1. 讀取 `spec/report/sync-report.md`（由 `/feature-to-api` Phase 0 產出）
+1. 讀取 `spec/report/sync-report.md`（由 `/feature-to-api` Phase 0 產出）。報告的「Phase 執行建議」用指令全名標示（`/feature-to-ui 1`…`/feature-to-ui 5`、`/feature-to-api 1`）。舊版報告只寫「Phase 1」「Phase 2」時照下表對照：
+
+   | 舊報告寫 | 對應 |
+   |---|---|
+   | Phase 1 | `/feature-to-api 1`（型別），不是本 skill |
+   | Phase 2 的設定檔列（theme／project／meta／colorMode） | 本 skill Phase 1 |
+   | Phase 2 的路由列 | 本 skill Phase 2 |
+   | Phase 3–5 | 本 skill 同號 Phase |
 2. 按標記執行：
    - Phase 2：只建立新增路由的空殼頁面
    - Phase 5：按 build（新增）/ patch（修改）/ rebuild（重大變更）分別處理
@@ -108,7 +117,11 @@ flowchart LR
 ### 核心規範（按需讀取）
 
 - **[rules.md](references/rules.md)** - 共用規則權威來源（配色、視覺層級指引、類型、API、Pinia、Layout 規範）。**testid 命名規範不在此**——SSOT 是 [`feature-to-flow/references/testid-conventions.md`](../feature-to-flow/references/testid-conventions.md)，rules.md 只給本 skill 的遵守要點與指讀
-- ⭐ **`.claude/rules/frontend-security.md`** - 前端安全慣例（XSS／敏感資料存放／client 信任邊界）。本 skill 跑在 fork context，paths 規則不會自動注入——Phase 4/5 產元件與頁面前必須主動讀取
+- ⭐ **paths 規則要主動讀**——本 skill 跑在 fork context（空白對話分身），paths 規則不會自動注入：
+  - Phase 2–5 寫 `app/` 前讀 `.claude/rules/ui-conventions.md`、`.claude/rules/vibe-ui.md`、`.claude/rules/frontend-security.md`、`.claude/rules/framework-skills.md`
+  - Phase 1 寫 `nuxt.config.ts` 前讀 `.claude/rules/frontend-security.md`
+  - 路由屬 `(marketing)` 時另讀 `spec/ui-config/creative-direction.md`
+  - 每個 Phase 結束前跑 `npm run eslint` + `npm run typelint`，全綠才回報
 - **references/phase-N-*.md** - 各 Phase 的執行步驟與模板（**每個 Phase 開始前讀取對應的 phase 檔**）
 - [page-builder.md](references/page-builder.md) - DSL 解析 + 表單範本（Phase 5 需要）
 - [components.md](references/components.md) - 元件使用規範（Phase 4, 5 需要）
@@ -172,6 +185,15 @@ flowchart LR
 
 - 執行 `/feature-to-ui`（無參數或參數為 `1`）時，**直接開始 Phase 1**
 - **前置檢查**：確認 `spec/report/route-map.yaml` 和 `app/types/api/` 存在，若不存在則提示「請先執行 `/feature-to-api`」
+
+### 分身只做、不問（確認點改為事後改檔）
+
+本 skill 以 `context: fork` 在空白對話分身裡執行。分身不能問使用者，也等不到回覆，所以每次呼叫都是：做完本次目標 → 回報 → 結束。
+
+- references 寫「詢問用戶確認」「停下來問」「等待用戶回覆」的地方，一律改成：該項不做（或選不改寫既有內容的做法），把待確認項目寫進回報後結束
+- 使用者要調整時，直接改產出檔；或在主對話決定後帶著決定重新執行（如 `/feature-to-ui 4 charts 用 vue-chartjs`、`/feature-to-ui 5 <功能名> 重建`）
+- Phase 5「一次一頁」＝一次呼叫只做一頁
+- 模組扇出的 merge 拆成兩段，見 [phase-5-fanout.md](references/phase-5-fanout.md) 第六節
 
 ---
 

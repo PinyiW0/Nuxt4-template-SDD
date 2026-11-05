@@ -1,17 +1,17 @@
 # Phase 5 Pitfalls
 
-> Phase 5 開工前讀；每條來自衍生專案實測。
+> Phase 5 開工前讀；每條來自衍生專案實測。第 7、8 條已寫進 Phase 1 步驟，第 9 條已寫進 Phase 3 範本，第 12 條已寫進 Phase 2 範本；留在這裡供 Phase 5 自檢。
 
 ## 目錄
 
-1. [UButton 無預設 type](#1-ubutton-無預設-type)
+1. [送出鈕必須明寫 type="submit"](#1-送出鈕必須明寫-typesubmit)
 2. [UInput type="number" 的 role 是 spinbutton](#2-uinput-typenumber-的-role-是-spinbutton)
 3. [Radix dialog 開啟時背景整片 inert](#3-radix-dialog-開啟時背景整片-inert)
 4. [切換鈕 aria-label 撞到欄位 label](#4-切換鈕-aria-label-撞到欄位-label)
 5. [實體名稱只渲染一次](#5-實體名稱只渲染一次)
 6. [可空欄位一律 fallback 文字](#6-可空欄位一律-fallback-文字)
 7. [Nuxt Icon 必裝本地 collection](#7-nuxt-icon-必裝本地-collection)
-8. [Tailwind v4 色階必用語意名](#8-tailwind-v4-色階必用語意名)
+8. [自訂 neutral 色不可叫 neutral](#8-自訂-neutral-色不可叫-neutral)
 9. [避免巢狀 main](#9-避免巢狀-main)
 10. [建立成功後跳到該筆所在分頁](#10-建立成功後跳到該筆所在分頁)
 11. [分頁筆數不挑「剛好夠用」的數字](#11-分頁筆數不挑剛好夠用的數字)
@@ -19,13 +19,13 @@
 
 ---
 
-## 1. UButton 無預設 type
+## 1. 送出鈕必須明寫 type="submit"
 
-**症狀**：表單內點擊非送出按鈕（如密碼欄的顯示／隱藏鈕），整個表單被送出。
+**症狀**：在 `UForm` 裡按送出鈕，表單沒有送出、`@submit` 沒觸發。
 
-**原因**：`@nuxt/ui` 的 `UButton` 底層是原生 `<button>`，`type` prop 沒有預設值；瀏覽器對沒有 `type` 的 `<button>` 預設當成 `submit`，在 `UForm` 內即觸發送出。
+**原因**：NuxtUI 4.12 的 `UButton` 把 `type` 傳給 `ULink`，`ULink` 的 `type` 預設是 `"button"`。所以沒寫 `type` 的 `UButton` 渲染成 `<button type="button">`，不會送出表單。原生 `<button>` 沒寫 type 時預設 submit，這條在 `UButton` 不成立。
 
-**做法**：表單內每顆非送出按鈕加 `type="button"`，送出鈕維持 `type="submit"`。
+**做法**：送出鈕一律寫 `type="submit"`。非送出鈕可以不寫；寫 `type="button"` 無害，讀的人一眼看得出不是送出鈕。
 
 ```vue
 <UButton
@@ -142,25 +142,29 @@ export function displayOr(value: string | null | undefined, fallback = '尚未�
 
 **原因**：`@nuxt/icon` 沒裝對應的本地 icon collection 套件（如 `@iconify-json/heroicons`）時，會退回打 Iconify 線上 API 取圖示；server 端渲染沒有等待網路往返的機制，圖示渲染不出來，client 端再補上就造成 SSR／CSR 輸出不一致。
 
-**做法**：專案用到的每個 icon collection 都裝對應的 `@iconify-json/*` 套件。
+**做法**：專案用到的每個 icon collection 都裝對應的 `@iconify-json/*` 套件（Phase 1 步驟 3.5 會檢查並安裝）。
 
 ```bash
 npm i -D @iconify-json/heroicons @iconify-json/lucide
 ```
 
-## 8. Tailwind v4 色階必用語意名
+## 8. 自訂 neutral 色不可叫 neutral
 
-**症狀**：`text-neutral-*` 這類 class 顯示出的顏色跟設計稿有落差，肉眼難分辨差異，整份 UI 慢慢漂掉。
+**症狀**：自訂了 neutral 色階，NuxtUI 元件（卡片底色、次要文字）卻還是內建灰，跟設計稿差幾個色階，肉眼難分。
 
-**原因**：Tailwind v4 的 `text-neutral-900` 讀的是 `--color-neutral-*` 這個 CSS 變數；把設計稿的原始色階名稱（如把品牌深色直接命名成 `neutral-950`）當成 `@theme` 裡的 token 名寫入，會讓 `text-neutral-*` 靜默吃到 Tailwind 內建色，內建色階與品牌色可能只差幾個色階值，肉眼難分。
+**原因**：NuxtUI 4.12 的 colors plugin 遇到 app.config 映射值 `'neutral'` 會改讀 `--color-old-neutral-*`（內建灰階），自訂的 `--color-neutral-*` 進不了元件色票。
 
-**做法**：`@theme` 內的色階一律用 Tailwind 語意色階名，設計稿原始命名只留在 CSS 註解對照。
+**做法**：自訂 neutral 另取色名，app.config 映射到那個色名；不要覆寫 `--color-neutral-*`。`text-neutral-*` 會經 `--ui-color-neutral-*` 自動指到新色名。
 
 ```css
 @theme static {
-  /* 設計稿原名：ink-900 */
-  --color-neutral-900: #1a1a1a;
+  --color-ink-900: #1a1a1a;
 }
+```
+
+```ts
+// app/app.config.ts
+export default defineAppConfig({ ui: { colors: { neutral: 'ink' } } })
 ```
 
 ## 9. 避免巢狀 main

@@ -368,6 +368,7 @@ docker compose up -d                                   # http://localhost:${HOST
 
 每個專案上線前過一遍（無 auth 專案只看最後一條；範本與依據見 `.claude/skills/feature-to-api/references/auth-scaffold.md` §4b）：
 
+- [ ] 認證已換成真後端，`server/plugins/00.security-guard.ts` 的 `MOCK_AUTH` 已改成 `false`（§4b①；mock token 可偽造）
 - [ ] 密鑰啟動守衛 `server/plugins/00.security-guard.ts` 的 `REQUIRED_SECRETS` 已登記全部真密鑰（§4b①）
 - [ ] 敏感端點限流已套：login；fileUpload 專案含 upload／presign（§4b②）
 - [ ] 三個基礎安全標頭在 `nuxt.config.ts` 的 `routeRules`（§4b③）

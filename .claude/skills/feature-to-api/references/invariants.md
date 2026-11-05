@@ -104,7 +104,7 @@ export const {GROUP_B} = {
 5. **改 spec**：assertion 改用常數 import
 6. **改 UI**：對應 hardcode 改用常數 import
 7. **驗證**：跑 `npx playwright test` 全綠
-8. **TS 編譯**：跑 `npx tsc --noEmit` 確認沒有殘留字面 mismatch
+8. **型別檢查**：跑 `npm run typelint` 確認沒有殘留字面 mismatch（Nuxt 4 的根 tsconfig 只有 references，直接跑 tsc 不檢查任何檔）
 
 ## 為什麼放在 feature-to-api 而非 feature-to-ui
 

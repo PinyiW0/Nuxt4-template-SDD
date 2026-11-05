@@ -205,7 +205,7 @@ spec/api/api-spec.yml 變更
 
 > **「自動修復」的誠實版本**：自動的只有「重生 `_schema`」。breaking change（改名 / 刪欄位）的呼叫端修復
 > **不自動**——這是刻意的：要編譯器尖叫，不要它默默編過（默默編過 = 把真實破綻藏起來，更危險）。
-> codegen + `typelint` 紅燈 + AI 逐點修，就是逼近「自動修復」的正解，機制已全備（hash diff、sync-report、合約測試）。
+> codegen + `typelint` 紅燈 + AI 逐點修，就是逼近「自動修復」的正解，機制已全備（Sync 的端點差集、sync-report、合約測試）。
 
 ---
 
