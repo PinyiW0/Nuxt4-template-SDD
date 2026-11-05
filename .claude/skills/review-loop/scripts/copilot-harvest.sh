@@ -189,7 +189,9 @@ require_cmd jq "解析與合併四個來源都要它。請先安裝（brew insta
 out=""
 case "${1:-}" in
   -h | --help) usage; exit 0 ;;
-  -o) [ $# -ge 2 ] || { usage >&2; exit 2; }; out="$2"; shift 2 ;;
+  -o) { [ $# -ge 2 ] && [ -n "$2" ]; } || { usage >&2; exit 2; }; out="$2"; shift 2
+      # 不含斜線的檔名補 ./：awk 會把 `out=1.tsv` 這種參數當成變數設定、不讀檔，而暫存檔名由它衍生，也要一起帶斜線。
+      case "$out" in */*) ;; *) out="./$out" ;; esac ;;
 esac
 [ $# -ge 1 ] || { usage >&2; exit 2; }
 for p in "$@"; do require_num "PR 編號" "$p"; done
@@ -211,13 +213,12 @@ tmp="$(mktemp "${out}.XXXXXX")" || die 1 "建不了暫存檔（$out 所在目錄
 }
 # 舊檔已填的 verdict（第 11 欄）依鍵帶過來：鍵是第 1–5 欄與第 8 欄（body_excerpt），
 # 用 FILENAME 辨識舊檔、不用 NR == FNR：舊檔是空檔時後者對新檔也成立，新資料會全被 next 丟掉。
-# 同一 path:line 的兩個不同缺陷靠第 8 欄分開。舊檔名不含斜線時補 ./：awk 會把 `out=1.tsv` 這種參數當成變數設定、不讀檔。舊的「未回覆」在新列已有回覆（第 9 欄）時不帶，留空重判。
+# 同一 path:line 的兩個不同缺陷靠第 8 欄分開。舊的「未回覆」在新列已有回覆（第 9 欄）時不帶，留空重判。
 if [ -f "$out" ]; then
-  case "$out" in */*) old="$out" ;; *) old="./$out" ;; esac
   if ! awk -F'\t' -v OFS='\t' '
         FILENAME == ARGV[1] { if (FNR > 1 && $11 != "") v[$1 FS $2 FS $3 FS $4 FS $5 FS $8] = $11; next }
         FNR > 1 { k = $1 FS $2 FS $3 FS $4 FS $5 FS $8; if ((k in v) && !(v[k] == "未回覆" && $9 != "")) $11 = v[k] }
-        { print }' "$old" "$tmp" > "$tmp.merged"; then
+        { print }' "$out" "$tmp" > "$tmp.merged"; then
     rm -f "$tmp" "$tmp.merged"; die 1 "帶入舊 verdict 失敗，$out 沒有改動。"
   fi
   mv "$tmp.merged" "$tmp"
