@@ -135,6 +135,7 @@ api_contract:
 
 - OpenAPI：有「收憑證換 token」的端點（如 `/auth/login`、`/sessions`、`/oauth/token`），或 `securitySchemes` 有 bearer／oauth2／cookie
 - `.feature` / `.flow.md`：有登入 scenario（登入 / login / 帳號+密碼 / 未登入導向）
+- 例外：spec 只有 cookie 認證（`securitySchemes` 是 `in: cookie`、登入回應沒有 token）→ **不寫 `route-map.auth`**，下游就不會套 Bearer 範本；在回報列「待確認：cookie session 認證，scaffold 未支援（需要 CSRF 防護）」
 
 **偵測到 → 寫入 `route-map.yaml > auth` 區塊**（`required: true` + `login_path` / `home_path` / `public_paths` / `token_endpoints`，格式見 auth-scaffold.md §2）。`public_paths` 推導：login ＋ `.feature` 中**無需登入即可用的場景**（賓客／訪客／公開瀏覽）對應的路由——漏列會被 middleware 誤擋，多列會漏守門，判準是「這個場景的操作者有沒有登入過」。**middleware 對 public_paths 採逐段比對**（段數不同即不命中，子路由不會被連帶放行）——要注意的是 `public_paths` 若含動態段（`[id]` 或 `:id`），該段會吃任意非空值，需確認不會吃到受保護資源的路徑，並依 auth-scaffold.md §3a 套用 API 層範本（提供 `useHttpAuth` handler 即啟用攔截，**useHttp.ts 不覆蓋**；`nuxt.config` 追加 auth 路徑）。
 

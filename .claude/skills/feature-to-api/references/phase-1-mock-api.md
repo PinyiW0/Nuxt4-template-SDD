@@ -126,7 +126,7 @@ Phase 1 增量更新完成
    > ⚠️ 違反此規則會導致 `.flow.md` 預期值與 mock 不一致，E2E 測試被迫偏離 SSoT 鏈（`.feature` → `.flow.md` → `.spec.ts`）
 
 6. **建立 API 端點**（回傳格式必須嚴格符合 `types/api/` 合約）
-   - **登入守門（route-map 有 `auth` 區塊時，不論有無 `rbac`）**：除了下面列的例外，所有端點的 handler **首行** `requireAuth(event)`（`auth.public_paths` 是頁面路由，不是端點清單；公開頁面要打的端點仍要看 spec 的 `security: []` 才算公開；沒有 OpenAPI、從 `.feature` 推導時，`.feature` 寫明不登入也能用的端點才算公開，並列進回報）——無 token 或查無使用者 → **401**（不是 403；前端靠 401 才會換發 token 或導去登入頁）。`auth.token_endpoints` 的 login／refresh／logout 不加；`/auth/me` 本身就用 `requireAuth` 反查。`server/mock/auth-context.ts` 範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a；無 `rbac` 時只建 `getMockCurrentUser` ＋ `requireAuth` 兩個函式，不做 ownership 過濾。
+   - **登入守門（route-map 有 `auth` 區塊時，不論有無 `rbac`）**：除了下面列的例外，所有端點的 handler **首行** `requireAuth(event)`（`auth.public_paths` 是頁面路由，不是端點清單；公開判定照 OpenAPI 的有效 security：先看 operation 自己的 `security`，沒寫就用全域 `security`；結果是空陣列、含 `{}` 選項、或全域也沒設定 → 公開，不加 `requireAuth`；沒有 OpenAPI、從 `.feature` 推導時，`.feature` 寫明不登入也能用的端點才算公開，並列進回報）——無 token 或查無使用者 → **401**（不是 403；前端靠 401 才會換發 token 或導去登入頁）。`auth.token_endpoints` 的 login／refresh／logout 不加；`/auth/me` 本身就用 `requireAuth` 反查。`server/mock/auth-context.ts` 範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a；無 `rbac` 時只建 `getMockCurrentUser` ＋ `requireAuth` 兩個函式，不做 ownership 過濾。
    - **角色守門（`rbac` 區塊存在時，疊在登入守門之上；讀 `route-map.rbac`，非臨場猜）**：phase-0 授權偵測已把角色規則萃取進 `route-map.yaml > rbac`（單一 SoT）。此處**一律讀該區塊套用**，不再從 `.feature` 散文重新偵測（避免漂移）。範本見 [rbac-scaffold.md](rbac-scaffold.md) §3a：
      1. **先建橋接 util** `server/mock/auth-context.ts`（`getMockCurrentUser` / `requireAuth` / `requireRole` / `requireOwnership`，由 Bearer mock-token 反查當前使用者 roles）——這是 token → 角色的唯一橋樑
      2. **多角色種子**：`mockUsers` 帶 `roles: string[]`，`rbac.roles` 每個角色**至少一帳號**（否則無從以該角色登入看差異）
@@ -167,6 +167,7 @@ server/
 │   └── data/
 │       ├── index.ts
 │       ├── users.ts
+│       ├── revoked-tokens.ts  # auth 命中時（auth-scaffold.md §3a）
 │       ├── sites.ts
 │       └── stations.ts
 ├── validation/
@@ -467,21 +468,31 @@ setResponseStatus(event, 204)
 import type { H3Event } from 'h3'
 import { z } from 'zod'
 
-import { requireAuth } from '../../../mock/auth-context' // 無 auth 專案刪掉這行與首行呼叫
+import { requireAuth, requireOwnership } from '../../../mock/auth-context' // 無 auth 專案刪掉這行與 handler 內的守門
 import { mockNotes } from '../../../mock/data/notes'
 
 // schema 照慣例放 server/validation/notes.ts，此處內嵌示意
 const sortNotesSchema = z.object({
   // id 型別跟資源實際 ID 一致（notes 用字串）；features.md DraggableList 的 sorted payload 同型別
-  ids: z.array(z.string().min(1, 'id 不可為空')).min(1, '排序清單不可為空').max(500, '排序清單過長')
+  ids: z.array(z.string().min(1, 'id 不可為空'))
+    .min(1, '排序清單不可為空')
+    .max(500, '排序清單過長')
     .refine(ids => new Set(ids).size === ids.length, '排序清單有重複 id'),
 })
 
 export default defineEventHandler(async (event: H3Event) => {
-  requireAuth(event)
+  const me = requireAuth(event)
   const parsed = await readValidatedBody(event, sortNotesSchema.safeParse)
   if (!parsed.success)
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message ?? '輸入格式錯誤' })
+
+  // 批次寫入也要逐筆驗歸屬：只靠 /{id} 端點的檢查，A 就能重排 B 的筆記
+  for (const id of parsed.data.ids) {
+    const note = mockNotes.find(n => n.noteId === id && !n.deletedAt)
+    if (!note)
+      throw createError({ statusCode: 404, message: '筆記不存在' })
+    requireOwnership(me, note.createdBy, ['member']) // 角色照 route-map.rbac.object_ownership；無 rbac 時刪掉這行
+  }
 
   const order = new Map(parsed.data.ids.map((id, index) => [id, index]))
   // 清單外的項目排在最後、維持原相對順序
@@ -506,6 +517,10 @@ export default defineEventHandler(async (event: H3Event) => {
   const key = `upload:${getRequestIP(event)}`
   assertNotRateLimited(key, 30, 60 * 1000)
   recordFailure(key) // 上傳每次都記一筆（登入只記失敗），沒記就永遠不會觸發 429
+  // 讀 body 前先擋大小：readMultipartFormData 會把整包讀進記憶體，沒有 content-length 或超過上限 → 413
+  const length = Number(getRequestHeader(event, 'content-length'))
+  if (!length || length > MAX_BYTES + 64 * 1024)
+    throw createError({ statusCode: 413, message: '檔案過大' })
   const parts = await readMultipartFormData(event)
   const file = parts?.find(part => part.name === 'file' && part.filename)
   if (!file)

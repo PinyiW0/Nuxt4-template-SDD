@@ -54,6 +54,7 @@ auth:
 | `app/api/auth.api.ts` | §3a | feature-to-api Phase 1.5 | 登入/refresh/logout/me，全 `handleUnauthorized:false`。**auth 命中時本檔是唯一來源**：Phase 1.5 照本範本產，不照一般命名規則另產 `token_endpoints`，函式名以本檔為準（store 依賴） |
 | `app/api/index.ts` | §3a | feature-to-api Phase 1.5 | re-export（已存在則合併） |
 | `server/api/v1/auth/*`（`path_prefix` 去掉開頭的 `/api` 再對應到資料夾；`/api/v1` → `server/api/v1/`） | §3a（login 在 phase-1-mock-api「API 端點範例」） | feature-to-api Phase 1 | login／refresh／logout／me 四個 mock 端點，auth 命中時一定要生（store 的 `login()` 必打 me、換發必打 refresh），不看 spec 有沒有寫 |
+| `server/mock/data/revoked-tokens.ts` | §3a | feature-to-api Phase 1 | 已失效的 refresh token 清單；auth 命中時一定要生（refresh／logout 都 import 它） |
 | `nuxt.config.ts` 追加 | §3a | feature-to-api | auth 路徑設定（編輯，非新檔） |
 | `app/middleware/auth.global.ts` | §3b → feature-to-ui `phase-2-skeleton.md` | feature-to-ui | 全域守門（白名單 + never-nav-current） |
 | `app/pages/login.vue` | §3b → feature-to-ui `page-builder.md` | feature-to-ui | 登入頁（**不得發 authed fetch**） |
@@ -61,7 +62,7 @@ auth:
 | `server/utils/rate-limit.ts` | §4b | feature-to-api Phase 1 | 登入限流（僅計失敗、成功清零；fileUpload 時同套 presign） |
 | `nuxt.config.ts` 安全標頭 | §4b | feature-to-api Phase 1 | 三個零調校標頭（編輯，非新檔） |
 
-**端點前綴**：路徑一律寫 `{path_prefix}/auth/*`。下列範本假設 `path_prefix = /api/v1`，依 `route-map.yaml > api_contract.path_prefix` 換掉；不可寫裸 `/auth/*`（`apiBase` 是 `/api`，裸路徑會打到 `/api/auth/login`）。
+**端點路徑**：路徑與 method 照 `route-map.yaml > auth.token_endpoints` 的實際值（後端是 `POST /api/v1/sessions` 就打 `/api/v1/sessions`）。下列範本的 `/api/v1/auth/*` 只是預設命名，假設 `path_prefix = /api/v1`；mock 檔案路徑跟著實際端點走。`auth.api.ts` 的函式名（`loginUser`／`refreshAuthToken`／`logoutUser`／`fetchMe`）固定不改，store 靠這些名字呼叫。不可寫裸 `/auth/*`（`apiBase` 是 `/api`，裸路徑會打到 `/api/auth/login`）。
 
 ### 3a. API 層範本（feature-to-api 套用）
 
@@ -360,6 +361,7 @@ export default defineEventHandler((event: H3Event): MeResponse => {
 // mock 登入發的 refresh token 形如 `mock-refresh-${accountId}-${timestamp}`（見 phase-1-mock-api.md 登入範例）
 import type { H3Event } from 'h3'
 import type { RefreshResponse } from '../../../../app/types/api/auth'
+import { revokedRefreshTokens } from '../../../mock/data/revoked-tokens'
 import { mockUsers } from '../../../mock/data/users'
 import { refreshSchema } from '../../../validation/auth' // 範本見 phase-1-mock-api.md 登入範例
 
@@ -367,10 +369,13 @@ const MOCK_REFRESH_RE = /^mock-refresh-(.+)-\d+$/
 
 export default defineEventHandler(async (event: H3Event): Promise<RefreshResponse> => {
   const parsed = await readValidatedBody(event, refreshSchema.safeParse)
-  const accountId = parsed.success ? parsed.data.refreshToken.match(MOCK_REFRESH_RE)?.[1] : undefined
+  const oldToken = parsed.success ? parsed.data.refreshToken : undefined
+  // 已登出或已換發過的 refresh token 一律拒絕
+  const accountId = oldToken && !revokedRefreshTokens.has(oldToken) ? oldToken.match(MOCK_REFRESH_RE)?.[1] : undefined
   const user = mockUsers.find(u => u.accountId === accountId && !u.deletedAt)
-  if (!user)
+  if (!oldToken || !user)
     throw createError({ statusCode: 401, message: '登入已過期，請重新登入' })
+  revokedRefreshTokens.add(oldToken) // 換發後舊 token 失效
   return {
     accessToken: `mock-token-${user.accountId}-${Date.now()}`,
     tokenType: 'Bearer',
@@ -383,11 +388,21 @@ export default defineEventHandler(async (event: H3Event): Promise<RefreshRespons
 ```
 
 ```ts
-// server/api/v1/auth/logout.post.ts —— mock 沒有 server 端 session，直接回 204
+// server/mock/data/revoked-tokens.ts —— 已失效的 refresh token（mock 單一實例，重啟就清空）
+export const revokedRefreshTokens = new Set<string>()
+```
+
+```ts
+// server/api/v1/auth/logout.post.ts —— 讓 refresh token 失效後回 204
 // 不加 requireAuth：token 過期的人也要能登出
 import type { H3Event } from 'h3'
+import { revokedRefreshTokens } from '../../../mock/data/revoked-tokens'
+import { refreshSchema } from '../../../validation/auth'
 
-export default defineEventHandler((event: H3Event) => {
+export default defineEventHandler(async (event: H3Event) => {
+  const parsed = await readValidatedBody(event, refreshSchema.safeParse)
+  if (parsed.success)
+    revokedRefreshTokens.add(parsed.data.refreshToken)
   setResponseStatus(event, 204)
 })
 ```
@@ -477,6 +492,22 @@ export default defineNitroPlugin(() => {
 ```ts
 // server/utils/rate-limit.ts —— in-memory 滑動視窗（單實例；serverless 多實例需共享儲存，出現濫用再升級）
 const buckets = new Map<string, number[]>()
+const MAX_KEYS = 10_000
+const SWEEP_WINDOW_MS = 15 * 60 * 1000 // 取各端點最長的視窗（登入 15 分）
+
+// key 數超過上限時：先刪全部過期的 key，仍超過就從最舊的刪起（Map 依寫入順序）
+function sweep(): void {
+  const now = Date.now()
+  for (const [key, hits] of buckets) {
+    if (!hits.some(t => now - t < SWEEP_WINDOW_MS))
+      buckets.delete(key)
+  }
+  for (const key of buckets.keys()) {
+    if (buckets.size < MAX_KEYS) // 留一個位子給接下來要寫入的 key
+      break
+    buckets.delete(key)
+  }
+}
 
 export function assertNotRateLimited(key: string, max: number, windowMs: number): void {
   const now = Date.now()
@@ -490,6 +521,9 @@ export function assertNotRateLimited(key: string, max: number, windowMs: number)
     throw createError({ statusCode: 429, message: '嘗試次數過多，請稍後再試' })
 }
 export function recordFailure(key: string): void {
+  // 不清理的話，每換一個帳號就多一筆，記憶體只增不減
+  if (buckets.size >= MAX_KEYS)
+    sweep()
   const hits = buckets.get(key) ?? []
   hits.push(Date.now())
   buckets.set(key, hits)
@@ -553,6 +587,7 @@ routeRules: {
 - [ ] persist cookie 已設 `maxAge` 且 ≥ 後端 refresh token 存活期（不設＝session cookie → 閒置被登出）
 - [ ] `refresh()` 有跨分頁鎖（`navigator.locks`）且搶到鎖後先重讀 cookie 再決定是否打 API（§3a 三層併發防護）
 - [ ] 登出後飛行中 refresh 的結果會被丟棄（`sessionEpoch` guard，§3a）
+- [ ] mock refresh 拒絕已換發或已登出的 refresh token；mock logout 會讓 body 的 `refreshToken` 失效（`revoked-tokens.ts`，§3a）
 - [ ] 專案有 SSE/WebSocket 時：refresh 成功後長連線以新 token 重建、連線前驗 exp（近）過期先 refresh——見 realtime skill 鐵律 4、5
 
 ---

@@ -40,6 +40,7 @@ useHttp().post/put/patch/delete ← 寫入，$fetch，回 Promise
 | **GET 列表 / 詳情**（頁面載入時呼叫） | `useHttp().get` | useFetch：SSR、reactive url、auto-cancel |
 | **POST / PATCH / DELETE**（寫入） | `useHttp().{method}` | 寫入永遠用 `$fetch`，不可用 `useFetch`（會在 SSR 重複觸發） |
 | **登入 / 換發 / 登出 / me** | 不照本表命名 | route-map 有 `auth` 時，本 Phase 照 [auth-scaffold.md](auth-scaffold.md) §3a 範本產 `auth.api.ts`（函式名照範本），不照一般規則產 `auth.token_endpoints` |
+| **離群端點**（route-map 標 `outside_prefix: true`，如 `/upload-data`） | 不產 client | `useHttp` 一律加上 `apiBase`（`/api`），離群端點會被打成 `/api/upload-data`。本 Phase 不產這些端點的函式，在回報列出，由使用者決定改 `useHttp` 支援換前綴，或請後端把端點搬進前綴 |
 | **Blob 下載 / 二進位、event handler 內抓一次** | `useHttp().getOnce` + `responseType: 'blob'` | imperative GET 走 `$fetch`，`useFetch` 不能在 handler 內呼叫 |
 
 > ⚠️ **嚴禁** 在產出的 `*.api.ts` 中：
