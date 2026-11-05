@@ -330,4 +330,5 @@ export default defineEventHandler(async (event: H3Event) => {
 
 - spec 後來才出現角色限制端點（新增 `roles` 欄位 / 「僅 X」散文）→ phase-0 偵測補寫 route-map.rbac，sync-report 標「新增角色守門」，mock / ui 補套範本。
 - spec 移除某端點的角色限制 → **不自動拆守門**（避免誤刪自訂邏輯），sync-report 標為待人工確認的 rbac 孤兒。
+- spec 收緊某端點的角色限制（`allow` 變少、新增 `restricted_roles`）→ 照新規格更新原條目，該端點列「修改」交給 Phase 1 增量模式（[phase-0-sync.md](phase-0-sync.md) 步驟 7.7）。
 - 角色全集變動（新增 / 移除 role）→ 更新 `rbac.roles`，提示檢查 mock 種子是否仍每角色至少一帳號、UI v-if 是否涵蓋新角色。
