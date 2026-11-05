@@ -34,16 +34,16 @@ disable-model-invocation: true
 
 停的是**決策**：唯一那次是 Phase 4 的送出確認。**失敗停點不受此限，而且刻意不受限**——完整清單如下，不要只承諾前三類：
 
-| # | 會停的情況 | 在哪個 Phase |
-|---|-----------|-------------|
-| 1 | 硬關卡不通過：人在 default branch、`gh` 未認證、要動凍結區 | 0 |
-| 2 | `test/e2e/vibe/` 紅燈——`../vibe-check/SKILL.md` 明訂「即使刪掉那支 spec 就全綠也不可代為刪改」，必須讓使用者在四個選項間決定 | 3 |
-| 3 | 自動修 2 輪仍紅，附完整失敗軌跡交還 | 3 |
-| 4 | 命中 `.claude/ops/judgment-rubrics.md` 第 4 節換路訊號（不等第 2 輪跑完） | 3 |
-| 5 | AC 要動 issue 的「範圍外」清單 | 3 |
-| 6 | 整支 spec 從沒綠過／大量紅燈＝功能還沒做完 | 3 |
-| **7** | **送出確認（唯一的「決策」停點）** | **4** |
-| 8 | `git push` 被 pre-push 的煙霧 spec 擋下，或 push 被拒（non-fast-forward）；PR 開了之後 CI 的 e2e job（production 全量）紅 | 5 |
+| # | 會停的情況 | 路線 A | 路線 B |
+|---|-----------|-------------|-------|
+| 1 | 硬關卡不通過：人在 default branch、`gh` 未認證、要動凍結區；路線 B 另含「`feedback` 強制但沒有 OPEN PR」 | 0 | B0 |
+| 2 | `test/e2e/vibe/` 紅燈——`../vibe-check/SKILL.md` 明訂「即使刪掉那支 spec 就全綠也不可代為刪改」，必須讓使用者在四個選項間決定 | 3 | B2 |
+| 3 | 自動修 2 輪仍紅，附完整失敗軌跡交還 | 3 | B2 |
+| 4 | 命中 `.claude/ops/judgment-rubrics.md` 第 4 節換路訊號（不等第 2 輪跑完） | 3 | B2 |
+| 5 | AC 要動 issue 的「範圍外」清單 | 3 | — |
+| 6 | 整支 spec 從沒綠過／大量紅燈＝功能還沒做完 | 3 | B2 |
+| **7** | **送出確認（唯一的「決策」停點）** | **4** | **B1** |
+| 8 | `git push` 被 pre-push 的煙霧 spec 擋下，或 push 被拒（non-fast-forward）；PR 開了之後 CI 的 e2e job（production 全量）紅 | 5 | B3 |
 
 **第 8 項要特別講**：它發生在使用者已經按下確認**之後**。所以「只停一次」的正確理解是
 「**只有一次是要你做決定的**」，不是「打完 `/ship` 最多被打擾一次」。草案裡要照實說。
@@ -63,7 +63,7 @@ disable-model-invocation: true
 **分流前先解析 issue 編號，判完路線再處理殘留的決策檔**：路線 A／B 都先照 `../pr/SKILL.md` 步驟 2 解析 issue 編號（Phase 0 的那一步提前到這裡做，A 路線不重做）。`.claude/tmp/ship/decisions-<issue 編號>.md` 存在，代表上一輪 Phase 5 沒走完——commit、push、開 PR、打勾、驗收記錄、決策留言任一步失敗都會留下它。依路線處理：
 
 - **走 A** → 不補發。本輪 Phase 3／4 追加寫進同一檔，Phase 5 照「打勾 → 驗收記錄留言 → 決策留言」的順序一起發
-- **走 B** → 分流時不發，到 B4 才照 Phase 5 那條 `if [ -f … ]; then gh issue comment … && rm …; fi` 補發：本輪有 push 的，`git push` 成功後才發；本輪沒改動、不 push 的，當前分支有 `state=OPEN` 的 PR 且 `git log @{u}..HEAD` 為空（本地沒有還沒推上去的 commit；取不到上游也算不為空）才發。上一輪 A 可能 commit 成功、push 失敗，工作區乾淨就會被判成 B——分流時就發，決策會早於它所屬的改動公開。路線 B 沒有其他步驟會消費這個檔，B4 不發就永久殘留
+- **走 B** → 分流時不發，到 B3 才照 Phase 5 那條 `if [ -f … ]; then gh issue comment … && rm …; fi` 補發：本輪有 push 的，`git push` 成功後才發；本輪沒改動、不 push 的，當前分支有 `state=OPEN` 的 PR 且 `git log @{u}..HEAD` 為空（本地沒有還沒推上去的 commit；取不到上游也算不為空）才發。上一輪 A 可能 commit 成功、push 失敗，工作區乾淨就會被判成 B——分流時就發，決策會早於它所屬的改動公開。路線 B 沒有其他步驟會消費這個檔，B3 不發就永久殘留
 - 解析不到 issue 編號 → 不補發，檔案留著
 
 **為什麼「有未 commit 改動一律走 A」**：本 repo 開 PR 預設掛 Copilot，PR 上有沒人 resolve 的留言是常態。
@@ -132,7 +132,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments" --jq '.[] | select(
 | L2 | `/vibe-check --full`（gate config **dev 全量**；預設模式的定向綠不算 L2） | 主線自跑 |
 | L3 | `/sdd-review` | **派 fresh subagent（sonnet）** |
 | L4 | **read-back**：派 fresh subagent 讀改動的規範檔，回答「這條規則誰會讀、何時載入、指得出消費點嗎」；回報格式與檢查清單疊加 `.claude/ops/delegation-templates.md` 第 5 節審查範本（原三問不變；第一行 `判定：PASS｜BLOCKING`；model 照本表 sonnet，不跟範本的 opus）；prompt 附 Phase 0 抓到的 issue `## 範圍`、`## 驗收標準` 原文與「決策：」留言，三者合為任務宣告——Conformance／Minimality 對照它判，缺了範圍與 AC 這兩項檢查形同虛設（同 Phase 2） | **派 fresh subagent（sonnet）** |
-| L5 | `/code-review`＋文件與實作一致性專項檢查（diff 含 `.md` 時） | `/code-review` 用 Skill tool 直接呼叫；專項檢查派 fresh subagent（sonnet），prompt 照 `../review-loop/references/doc-impl-check.md` |
+| L5 | `/code-review medium`＋文件與實作一致性專項檢查（diff 含 `.md` 時） | `/code-review` 用 Skill tool 直接呼叫；專項檢查派 fresh subagent（sonnet），prompt 照 `../review-loop/references/doc-impl-check.md` |
 
 **順序是硬約束**：L1 先單獨跑到綠，再開 L2／L3／L4／L5。型別還紅的時候跑 gate 與語意審查是浪費時間，
 findings 也會被型別錯誤污染。L2／L3／L4／L5 之間無依賴，同一輪並行發出。
@@ -165,9 +165,10 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 - **L3 一定要派出去**，不可主線自己讀 diff 判斷——`.claude/ops/model-dispatch.md` 第 1 節表格末列：語意審查／第二意見一律派 fresh subagent。
   同節也明文「機械檢查由產出者自跑並附輸出」，所以 L1／L15／L2 主線自己跑是對的。
   派工 prompt 要寫：「讀 `.claude/skills/sdd-review/SKILL.md` 與 `references/checks.md`，只審這幾個檔：<清單>」。
-- **L5 用 Skill tool 呼叫內建 `/code-review`**，它自己會 fan-out 成多個審查 agent，不要再包一層。
-  它的 `REVIEW.md` 設定只對託管版生效，所以**沒有辦法指定檢查焦點**；目標（分支／PR／路徑）與 `--max-findings` 可以指定。**不要帶 `--fix`**——審的人不動手，這是「驗證不自驗」。
-  因為指定不了焦點，diff 含 `.md` 時接著派一個 fresh subagent 跑 `../review-loop/references/doc-impl-check.md` 的專項檢查（eval 顯示 `/code-review` 漏抓的一半是文件與實作不一致）。L5 的綠燈＝兩者都沒有必修，兩邊的必修都照下方「L3／L5 的必修」處理。
+- **L5 用 Skill tool 呼叫內建 `/code-review medium`**，它自己會 fan-out 成多個審查 agent，不要再包一層。
+  level 一律明帶 `medium`（與 `../review-loop/SKILL.md` 同一個）：不帶會沿用使用者上次手打的 level，可能是 `max`／`ultra`。**不要帶 `--max-findings`**——它會黏到使用者之後的手動呼叫。**也不要帶 `--fix`**——審的人不動手，這是「驗證不自驗」。
+  它的 `REVIEW.md` 設定只對託管版生效，所以**沒有辦法指定檢查焦點**。diff 含 `.md` 時接著派一個 fresh subagent 跑 `../review-loop/references/doc-impl-check.md` 的專項檢查（eval 顯示 `/code-review` 漏抓的一半是文件與實作不一致），目標 diff 是 `git diff <merge-base>`（到工作區，含還沒 commit 的改動）。L5 的綠燈＝兩者都沒有必修，兩邊的必修都照下方「L3／L5 的必修」處理。
+  **派兩者之前先處理未追蹤的新檔**：`git diff` 看不到它們，ledger 指紋卻算進去，不處理的話綠燈會蓋到沒審過的新檔上。先把清單追加存起來：`git ls-files -o --exclude-standard >> .claude/tmp/ship/intent-to-add.txt && sort -u -o .claude/tmp/ship/intent-to-add.txt .claude/tmp/ship/intent-to-add.txt`，再對清單 `git add -N`（只登記路徑、不 stage 內容，指紋不變）。要追加不能覆寫：登記過的檔已不算未追蹤，L5 第 2 輪重跑這行時會從清單消失、之後就漏還原。副作用是之後 `git stash push` 會失敗、`git commit -a` 會把它們帶進去，所以停點表任一列停下交還前，以及 Phase 5 結束後沒進任何一群的檔，都要照清單 `git reset -- <檔>` 還原成未追蹤，再刪清單檔（已 commit 的檔 reset 不會有作用，照清單全跑即可；清單檔不存在就略過）。
 - **L4 最容易被整層忘掉**：動到 `.claude/`、`spec/ui-config/` 時它就該跑。那類改動 L3 scope 落空，只改 `.md` 時 L2 通常也不跑（實際以 `ledger.sh plan` 為準）；
   L1／L5 雖然會跑（L5 自 #176 起含 `.claude/`，但不含 `spec/ui-config/`），L1 查寫法、`/code-review` 抓正確性、doc-impl-check 比對文件與實作是否一致，都不問規則有沒有消費點（誰會讀、何時載入）——
   沒有 L4 的話，改 skill 本身走一趟 `/ship` 看起來像全綠，其實制度內容沒被驗過。
@@ -211,11 +212,11 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 |---------|------|
 | L1 eslint 可自動修 | 主線 `npx eslint . --fix`（`.claude/rules/code-quality.md`：`--fix` 僅為修復手段，不作驗證依據） |
 | L1 typecheck、L15 unit 紅 | 派 fixer subagent（sonnet） |
-| L2 `test/e2e/specs/` 紅 | 對照 `.flow.md` 的 invariant 找出破壞點 → 派 fixer 改 **UI**（修的是 `app/`，不是凍結的 spec） |
+| L2 `test/e2e/specs/` 紅 | 對照 `.flow.md` 的 invariant 找出破壞點 → 派 fixer（sonnet）改 **UI**（修的是 `app/`，不是凍結的 spec） |
 | L2 `test/e2e/vibe/` 紅 | **不修**，停下來給四個選項（見上方停點表第 2 列） |
 | L3／L5 的「必修」類 finding | 派 fixer subagent（sonnet） |
 | L3「建議」、L5「重用／簡化／效能」類 | **不修**，列進 Phase 4 草案 |
-| AC Fail | 派 fixer；授權邊界逐字照 `../verify-ac/SKILL.md` 步驟 4 那張表，**一字不放寬** |
+| AC Fail | 派 fixer（sonnet）；授權邊界逐字照 `../verify-ac/SKILL.md` 步驟 4 那張表，**一字不放寬** |
 | AC「無法判定」、要動 issue 範圍外 | **不修**。範圍外命中 `.claude/ops/judgment-rubrics.md` 必停清單 → 停 |
 | L4 BLOCKING | **不自動修**（fixer 不可動 `.claude/`，見下方不可動表）。`mark L4 red "<fp>"`，**不得記 green**——ledger 只沿用 green／skipped，記錯下一輪會假綠。列進 Phase 4 草案「需你確認」區並標「未完成」：BLOCKING ＝ 未完成，確認語要明列接受的取捨才可送出 |
 | verify-ac 步驟 2 盤點出範圍外改動，或回報「未執行（附原因）」 | **不修**，列進 Phase 4 草案「需你確認」區（「未執行」要照抄原因：缺 `## 範圍`、算不出 merge-base、fetch 失敗，任一都不當成安全結果）。這是回溯盤點（已經改了什麼）；上一列的「要動 issue 範圍外」是前瞻判斷（修 Fail 需不需要超編），兩者不同列 |
@@ -268,8 +269,7 @@ Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatc
 成本上有兩件事要做對：
 
 - **L3／L5 第 2 輪只審本輪改的檔**，不整個 diff 重審。
-- **L2 修復輪用定向、收尾用全量**：修完先跑「煙霧＋上輪紅的檔名」一條指令（位置參數聯集、加 `--reporter=line`，例
-  `npx playwright test --config playwright.gate.config.ts --reporter=line 'specs/(00-hydration|01-auth-guard|02-authz-scope)' test/e2e/specs/07-xxx.spec.ts`；
+- **L2 修復輪用定向、收尾用全量**：修完先跑「煙霧＋上輪紅的檔名」一條指令（指令照 `../vibe-check/SKILL.md` Step 3「定向」那段（`SMOKE_PATTERN` 從 `.husky/pre-push` 抽，不寫死），位置參數換成上輪紅的檔名；
   **不用 `--last-failed`**——它與檔名篩選是 AND、缺 `.last-run.json` 時靜默跑全量），紅的修到綠；
   然後**至少再跑一次 `/vibe-check --full`** 才能 `mark L2 green "<fp>" full`（定向那次要記就記 `targeted`）。仍然把同一輪的待修項合併成一份任務清單一次修完，不要一條 finding 修一次、跑一次。
 
@@ -285,7 +285,7 @@ Phase 3 停點經使用者裁決的決策，當場以 `.claude/ops/model-dispatc
   （session 一被 compact 就沒了），存進 ledger 才算數——這是「隨做隨存」
 - 第 2 輪派工前：**錯法相同** → 帶完整失敗軌跡升 opus；**錯法不同** → 不升級，補驗收條件重派
 - 第 2 輪仍紅 → 停，附完整失敗軌跡。**禁止第 3 輪同法重試**
-- **送出完成才歸零**：路線 A 的 Phase 5 寫完 issue、路線 B 的 B4 該送出的都成功（有 push 看 push、沒改動不 push 的看補發留言），最後一步跑 `sh .claude/skills/ship/scripts/ledger.sh close`（兩處的指令清單都已列入）。
+- **送出完成才歸零**：路線 A 的 Phase 5 寫完 issue、路線 B 的 B3 該送出的都成功（有 push 看 push、沒改動不 push 的看補發留言），最後一步跑 `sh .claude/skills/ship/scripts/ledger.sh close`（兩處的指令清單都已列入）。
   **停點表任一列停下交還時不跑**——第 3、4 列本身就是上限觸發的停點，停下就清等於上限形同虛設；停下的回報要附一句「輪次帳未歸零；確認要重新給額度，請自己跑 `sh .claude/skills/ship/scripts/ledger.sh close`」，由使用者決定。
   中途切分支、`--fresh`、session 被 compact 也都不跑
 
@@ -307,7 +307,7 @@ E2E 紅燈要分兩種：
 commit 分群與 PR 內文各派一個 subagent（sonnet）產生：
 
 - 分群：「讀 `../commit/SKILL.md`，執行步驟 1–4，**不要執行步驟 5 的 `git commit`、不要等確認**，把草案回傳。」
-- PR 內文：「讀 `../pr/SKILL.md` 步驟 3、4，依 `git log origin/<default>..HEAD` 產繁中標題與內文，**不要執行步驟 5、6**。」
+- PR 內文：「讀 `../pr/SKILL.md` 步驟 3、4（issue 編號已由編排層解析：#<Phase 0 解析值>／無，不重解析；沒有就不寫 `Closes`），依 `git log origin/<default>..HEAD` 產繁中標題與內文，**不要執行步驟 2.5、5、6**。」
 
 label／assignee／reviewer 由主線**預選**後填進草案（規則見 `../new-issue/references/label-assignee.md` 的編排模式那節），
 不再各發一次 AskUserQuestion。猜不到就填「略過」，**不硬湊**。
@@ -387,6 +387,8 @@ gh pr view --web
 > 收尾提示：PR 開完後可用 **`/review-loop`** 自動跟催 Copilot review——輪詢、修「必修」、
 > 回覆留言、重新請 review，直到共識才回報。它不會 merge。
 
+**逐群 commit 完（路線 B 是 B3），照 `.claude/tmp/ship/intent-to-add.txt` 把沒進任何一群的檔 `git reset --` 還原成未追蹤，再刪清單檔；清單檔不存在就略過**（Phase 1 L5 登記過 `git add -N` 的檔，見那節）。
+
 **暫存檔一律寫在 `.claude/tmp/ship/`**，不要寫在 repo 根目錄——那裡沒被 gitignore，會被算進 AC 指紋，
 也可能被 `git add` 帶進 commit。
 
@@ -412,8 +414,8 @@ sh .claude/skills/ship/scripts/ledger.sh close
 ```
 
 **pre-push 紅燈時停，不進自動修迴圈**——L2 dev 全量綠、煙霧卻紅，屬於「假設被證偽」，
-該換路不該重試（`.claude/ops/judgment-rubrics.md` 第 4 節）。PR 開了之後 CI 的 e2e job（production 全量）紅，
-交給 `/review-loop`（它把 CI 紅列為必修）或路線 B 處理。
+該換路不該重試（`.claude/ops/judgment-rubrics.md` 第 4 節）。PR 開了之後 CI 的 e2e job（production 全量）紅 →
+停下回報，請使用者打 `/review-loop <PR編號>`（它把 CI 紅列為必修；它關閉自動觸發，模型叫不動）。不要交給路線 B：路線 B 只讀 review 留言，`../pr-feedback/SKILL.md` 會把 CI 留言當噪音濾掉，最後報「可以 merge」。
 
 ---
 
@@ -423,11 +425,10 @@ sh .claude/skills/ship/scripts/ledger.sh close
 
 | Phase | 做什麼 |
 |-------|--------|
-| B0 | 照 `../pr-feedback/SKILL.md` 步驟 1–4 找 PR、四路抓留言、濾噪音、分類。**派 subagent**（四路 API 是粗活且產物長） |
-| B1 | 「必修」類**在 B3 草案上預先勾選，確認後才動手改**；「可選／不修」列進草案不預選 |
-| B2 | 改完照 `../pr-feedback/SKILL.md` 步驟 6 自查 diff → 跑品質關卡（scope 只含本次改的檔）→ 自動修迴圈 |
-| B3 | **唯一停點**：改了哪幾條、每條改在哪個檔、沒改的可選項、commit 分群、要不要 push |
-| B4 | 逐群 commit → `git push`（**不重開 PR**，`../pr/SKILL.md` 步驟 1 已定義「已有 OPEN PR → 只 push 更新」）→ 有殘留決策檔時照「路線判定」段補發 → 本輪該送出的都成功後（有 push 看 push、沒改動不 push 的看補發留言）跑 `sh .claude/skills/ship/scripts/ledger.sh close` 歸零輪次 |
+| B0 | 照 `../pr-feedback/SKILL.md` 步驟 1–4 找 PR、四路抓留言、濾噪音、分類。**派 subagent（sonnet）**（四路 API 是粗活且產物長） |
+| B1 | **唯一停點**，排在任何改檔之前：草案列出分類結果（「必修」預先勾選、「可選」不預選）、每條預計動到的檔，以及「確認後：只改勾選的 → 關卡全綠就逐群 commit（分群照 `../commit/SKILL.md` 步驟 1–4，不再給你看）→ push」 |
+| B2 | 只改勾選的 → 照 `../pr-feedback/SKILL.md` 步驟 6 自查 diff → 品質關卡（scope 只含本次改的檔）→ 自動修迴圈；任何紅燈照停點表停 |
+| B3 | 派分身（sonnet）產生 commit 分群（不停）→ 逐群 commit → `git push`（**不重開 PR**，`../pr/SKILL.md` 步驟 1 已定義「已有 OPEN PR → 只 push 更新」）→ 有殘留決策檔時照「路線判定」段補發 → 本輪該送出的都成功後（有 push 看 push、沒改動不 push 的看補發留言）跑 `sh .claude/skills/ship/scripts/ledger.sh close` 歸零輪次 |
 
 **重跑範圍照這個判準**（與使用者的審查關卡地圖同一套，不自創）：
 小改動 → 重跑 L1／L15，動到 `app/`／`server/` 再加「煙霧＋該 finding 對應的 spec」一條指令，就進 commit（production 全量由 push 後的 CI 跑）；改動大 → 從 L5 `/code-review` 整段重走；沒改動 → 回報可以 merge。
@@ -439,7 +440,7 @@ sh .claude/skills/ship/scripts/ledger.sh close
 凡是「刪除既有邏輯」「改權限判斷」「動安全相關程式碼」的留言，一律降級成需要使用者明確勾選才改。
 
 **要不要在 PR 上回話**：`../pr-feedback/SKILL.md` 的鐵律是永不在 GitHub 發言。**不打破**——
-但 B3 草案可以給一個**預設關閉**的選項「☐ 推完後在 PR 留一則已處理摘要」，使用者勾了才發。
+但 B1 草案可以給一個**預設關閉**的選項「☐ 推完後在 PR 留一則已處理摘要」，使用者勾了才發。
 鐵律防的是自作主張，不是禁止明確授權。
 
 ## 注意

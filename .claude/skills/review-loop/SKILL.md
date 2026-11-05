@@ -24,7 +24,7 @@ disable-model-invocation: true
 | | `/ship feedback` | 本 skill |
 |---|---|---|
 | 前提 | 使用者在旁邊 | 使用者不在 |
-| 停點 | B3 唯一停點，使用者拍板修哪幾條 | 不能有停點——有停點輪詢就沒意義 |
+| 停點 | B1 唯一停點，使用者拍板修哪幾條 | 不能有停點——有停點輪詢就沒意義 |
 | 處理範圍 | 使用者勾選的都改 | 只自動處理 Copilot 的「必修」，其餘累積 |
 
 「無人值守」是上面所有保守設定的來源。
@@ -41,25 +41,43 @@ disable-model-invocation: true
 | 工作區乾淨（`git status --porcelain` 空） | 停，引導先跑 `/commit`。本 skill 只 commit 迴圈內自己產生的修正 |
 | `gh pr view --json number,state,url` 存在且 `state=OPEN` | 停，引導先跑 `/pr` |
 | `sh .claude/skills/review-loop/scripts/copilot.sh bot-id` 解得出 id | 停。先讓 Copilot review 過任一個 PR（開 PR 時帶 REST `requested_reviewers` 可觸發**初次** review，見 quirks 第 1 節），之後 re-request 才有 id 可用 |
-| 狀態檔 `.claude/tmp/review-loop/pr-<N>.md`（這列不是 fail 條件，是分流） | **不存在 → 新建，走起手流程**。**已存在 → 讀取續跑，絕不覆蓋**；若上次是撞煞車停的，停下來要使用者明確授權才續——輪次上限是這隻 skill 唯一的總量安全閥，覆蓋等於重置它。`停下原因` 已填、使用者明說續跑時（例如 `/review-loop <N> 續跑`），先重設：`最近一輪開始時刻` 記現在；`最近 request` 只在使用者已在網頁按過 Re-request（例如 quota 停下後的指示）時記現在，否則照第 2 節第 4 步判斷這一輪要不要請（HEAD 上已有 review 就不請、不改這一欄）；`停下原因` 清空、`靜默階段: 1`、`連續靜默輪次: 0`、`下次間隔: 300`，`停下原因` 是「quota」時，先把同一批裡 `id` 比撞配額那則小、還沒處理的 review 照第 3 節第 3–9 步處理完，再把 `review 基準線` 移到撞配額那則的 `id`（只跳過它，否則下一輪又讀到它、馬上再停；之後才送達的 review 照常處理，不可直接移到最新一則），其他停下原因不動基準線，本輪跳過第 3 節第 0 步的去抖。不重設的話，舊的 request 時刻會讓第一個空輪就撞上 90 分靜默煞車。**`停下原因` 是「上限」時不支援續跑**：輪次上限是總量安全閥，續跑不會加額度，照樣立刻再停；要繼續就請使用者自己處理，或另開新的迴圈 |
+| 狀態檔 `.claude/tmp/review-loop/pr-<N>.md`（這列不是 fail 條件，是分流） | **不存在 → 新建，走第 2 節起手**。**已存在 → 照下方「續跑」，絕不覆蓋**：輪次上限是這隻 skill 唯一的總量安全閥，覆蓋等於重置它 |
 | Bash 已預先核准（`.claude/settings*.json` 的 `permissions.allow` 含 Bash） | 停下說明。每輪要跑 `git push`、`gh api` mutation，逐一跳權限詢問時無人可按——寧可現在講清楚，不要半夜靜靜卡住 |
+
+### 續跑（狀態檔已存在）
+
+先判能不能續跑，判完才動任何欄位：
+
+1. `停下原因` 未填 → 迴圈還在跑或被中斷（例如關過終端機），直接走第 3 節
+2. `停下原因` 是「上限」→ 不支援續跑。續跑不會加額度，照樣立刻再停；要繼續就請使用者自己處理，或另開新的迴圈
+3. 其他停下原因 → 要使用者明說續跑（例如 `/review-loop <N> 續跑`），**且這一輪一定會送出新 request**，否則拒絕續跑，不改狀態檔，說明「沒有新輸入，再跑也不會有新 review」並給下一步：quota 停下的，請使用者到網頁按 Re-request 後打 `/review-loop <N> 續跑 已重請`；其他停下原因，也可以改成處理待決定清單、push 新 commit 後打 `/review-loop <N> 續跑`。會送出新 request 指下面其一：
+   - 使用者說已在網頁按過 Re-request（`續跑 已重請`）
+   - 停下原因不是「quota」，且 HEAD 上沒有非 quota 的 Copilot review（例如使用者處理完待決定清單、push 了新 commit）。quota 停下的只認上一條：腳本請會再撞配額
+
+可以續跑時，重設：`停下原因` 清空、`最近一輪開始時刻` 記現在、`靜默階段: 1`、`連續靜默輪次: 0`、`下次間隔: 300`；再依情況：
+
+- `續跑 已重請` → `最近 request` 記 `現在 @<HEAD>`、`request 已收到: 否`、`待請 review: 否`，本 skill 不再請（同一個 commit 請兩次只會多扣額度）
+- 沒帶 `已重請`（HEAD 上沒有 review）→ 在續跑當場處理，不受第 3 節第 10 步「本輪有 push」前提限制：上次 request 的 commit 到 HEAD 之間改到 `app/`／`server/` 時，記 `待請 review: 是`，由第 1b 步等 CI 綠再請；否則當場 `copilot.sh request`，照第 10 步末段更新狀態檔、`待請 review: 否`
+- 停下原因是「quota」→ 先把同一批裡 `id` 比撞配額那則小、還沒處理的 review 照第 3 節第 3–9 步處理完，再把 `review 基準線` 移到撞配額那則的 `id`（只跳過它，否則下一輪又讀到它、馬上再停；之後才送達的 review 照常處理，不可直接移到最新一則）。其他停下原因不動基準線
+
+然後跑第 3 節，第 0 步只跳過去抖那一條，其餘照做。
 
 ## 2. 起手
 
-0. **本地先審（1b）**：跑 `sh .claude/skills/ship/scripts/ledger.sh plan`，看 L5 那行。
+0. **本地先審**：先記下 `git rev-parse HEAD`（第 2 步取基準線要用），再跑 `sh .claude/skills/ship/scripts/ledger.sh plan`，看 L5 那行。
    - 顯示「沿用」→ 跳過。`/ship` Phase 1 已審過同一份內容（ledger 指紋錨在 merge-base，commit／push 後仍有效），再審是重工
-   - 顯示「要跑」→ 先記下 `sh .claude/skills/ship/scripts/ledger.sh fp L5` 的輸出，再用 Skill tool 跑 `/code-review <當前分支> --max-findings 5`；diff 含 `.md` 時接著照 [references/doc-impl-check.md](references/doc-impl-check.md) 派專項檢查。兩邊的必修**只修落在本 PR diff 內的檔案**，走第 3 節第 7 步驗證、commit，其餘歸「待使用者決定」。都處理完跑 `sh .claude/skills/ship/scripts/ledger.sh mark L5 green "<剛才記下的 fp>"`
+   - 顯示「要跑」→ 先記下 `sh .claude/skills/ship/scripts/ledger.sh fp L5` 的輸出，再用 Skill tool 跑 `/code-review medium <當前分支>`（level 與 `/ship` L5 同一個：不帶會沿用使用者上次手打的 level，可能是 `max`／`ultra`；不帶 `--max-findings`：它會黏到使用者之後的手動呼叫。必修超過 5 條時依嚴重度只修前 5 條，其餘歸「待使用者決定」）；diff 含 `.md` 時接著照 [references/doc-impl-check.md](references/doc-impl-check.md) 派專項檢查。兩邊的必修**只修落在本 PR diff 內的檔案**，走第 3 節第 7 步驗證、commit，其餘歸「待使用者決定」。都處理完跑 `sh .claude/skills/ship/scripts/ledger.sh mark L5 green "<剛才記下的 fp>"`
    - 顯示「略過」→ 本 PR 不在 L5 範圍，直接往下
 
-   這一步要在第一次 push 之前：Copilot 每請一次就扣一次額度，本地先擋掉的問題就不必由它來抓。#173 的 eval 顯示本地能先擋掉約三分之一。
+   這一步要在第一次 push 之前：Copilot 每請一次就扣一次額度，本地先擋掉的問題就不必由它來抓。#173 的 eval 顯示本地能先擋掉約四成（`/code-review`＋doc-impl-check，`evals/README.md` 2026-10-12 段）。
 1. `git push`（PR 已存在，**不要**照 `../pr/SKILL.md` 步驟 6——那步含 `gh pr create` 與開瀏覽器）。被拒（non-fast-forward）→ 停下引導 `git pull --rebase`，**絕不 `--force`**
-2. **取基準線初值**：`sh .claude/skills/review-loop/scripts/copilot.sh reviews <PR編號>`，取**錨在「非目前 HEAD」的 review 中的最大 `id`**（都沒有則 0）。
+2. **取基準線初值**：`sh .claude/skills/review-loop/scripts/copilot.sh reviews <PR編號>`，錨在「第 0 步記下的 HEAD」或「目前 HEAD」的 review 有的話，**取其中最小 `id` 減 1**；都沒有就取全部 review 的最大 `id`（沒有 review 則 0）。第 0 步本地先審會產生新 commit，兩個 HEAD 上的 review 都還沒處理；不取「其他 review 的最大 id」，因為晚到的舊 commit review id 可能比它們大，會把它們跳過。落在基準線以上的舊 commit review，由第 3 節第 3 步照錨點處理。
    不設初值會在第一輪把所有歷史 review 重跑一次；但**不能單純取最大 id**——正常工作流是「開 PR（`/pr` 順手請了 review）→ 才啟動迴圈」，
    那時第一則 review 已經到了且錨在目前 HEAD，取最大 id 會把它整個吞掉，迴圈開場就漏掉唯一該處理的東西。
    錨在目前 HEAD 的 review 一律視為待處理
 3. **算類別與輪數上限**：`git diff --name-only origin/<default>...HEAD` 任一路徑命中 `^app/|^server/` → **程式類，上限 6 輪**；否則 → **制度類，上限 3 輪**。寫進狀態檔，並在第 6 步的起手通知明講「本 PR 是 X 類，最多 N 輪」。
    上限依類別分，是因為制度類（skill、ops、hook、腳本）的 PR 實測都跑滿 12 輪仍未共識（#135、#149、#151）：Copilot 對規則文件總挑得出邊界，數量不會降到零。
-4. **要不要請 review**：目前 HEAD 上**已經有** Copilot review（`commit_id` 等於 HEAD）→ 直接把它當第 1 輪處理，**不 request**——同一個 commit 再請只會拿到重複留言、多扣一次額度。沒有才 `sh .claude/skills/review-loop/scripts/copilot.sh request <PR編號>`。狀態檔的 `最近 request` 記 request 的時刻；沒有 request 就記起手時刻（第 6 節的靜默計時從這裡起算）
+4. **要不要請 review**：目前 HEAD 上**已經有**非 quota 的 Copilot review（`commit_id` 等於 HEAD、`quota` 為 false）→ 直接把它當第 1 輪處理，**不 request**——同一個 commit 再請只會拿到重複留言、多扣一次額度。沒有才 `sh .claude/skills/review-loop/scripts/copilot.sh request <PR編號>`。狀態檔的 `最近 request` 記 request 的時刻與當時的 HEAD（`<epoch> @<sha>`），`request 已收到: 否`；沒有 request 就記起手時刻與 HEAD，`request 已收到: 是`（HEAD 上那則 review 就是回覆；第 6 節的靜默計時從這裡起算）
 5. 建狀態檔（格式見末節）：`驅動: wakeup`、`最近一輪開始時刻` 記起手時刻、`靜默階段: 1`、`連續靜默輪次: 0`、`最近 review: 0`；第 4 步有 request → `下次間隔` 填 300，然後照第 4 節排 `ScheduleWakeup`。第 4 步沒 request（HEAD 已有 review）→ 當場跑第 3 節的第 1 輪，**跳過第 0 步的去抖**（同一次叫起，不是重複觸發），`下次間隔` 由該輪決定
 6. **發起手通知**（建完狀態檔、排完 `ScheduleWakeup` 後，對使用者說一次）：本 PR 是哪一類、最多幾輪（第 3 步）；迴圈跑著時別再手動打 `/review-loop`（第 3 節第 0 步的去抖只擋得住幾乎同時到的觸發，手動插隊會多跑一輪）；wakeup 綁在 session 上，關掉終端機迴圈就停（第 4 節）
 
@@ -68,7 +86,8 @@ disable-model-invocation: true
 0. **重驗分支、擋 `/loop`、遷移、去抖、讀驅動**（照這個順序）：
    - `git branch --show-current` 與狀態檔的 `branch` 不符 → **立刻停下報告，不做任何 commit**。共享工作目錄的並行 session 會在兩次 wakeup 之間切分支
    - 本輪是被 `/loop` 帶起的（觸發訊息是 `/loop … /review-loop …`）→ 本輪直接結束：不改狀態檔、不呼叫任何 API、不排 `ScheduleWakeup`，只告訴使用者停掉 `/loop`、改打 `/review-loop <PR編號>`（理由見第 4 節）。這條要在去抖之前：去抖會寫入開始時刻，`/loop` 輪寫了就會讓 60 秒內到的真 wakeup 被擋掉，排程鏈就斷了
-   - 舊狀態檔（沒有 `驅動` 欄，#172 之前建的）→ 先補齊：`驅動: wakeup`、`下次間隔` 300、`最近 request` 與 `最近一輪開始時刻` 記現在、`最近 review: 0`，刪掉舊的 `目前間隔(秒)`；本輪跳過下一條的去抖
+   - 舊狀態檔（沒有 `驅動` 欄，#172 之前建的）→ 先補齊：`驅動: wakeup`、`下次間隔` 300、`最近 request` 記 `現在 @<HEAD>`、`request 已收到: 否`、`最近一輪開始時刻` 記現在、`最近 review: 0`，刪掉舊的 `目前間隔(秒)`；照第 2 節第 3 步算類別、補 `類別` 欄，把 `輪次` 的上限從 12 改成該類別的上限，已用輪次達上限就停，停下原因記「上限」；本輪跳過下一條的去抖
+   - 沒有 `request 已收到` 欄（本格式之前建的狀態檔）→ `最近 request` 沒有 `@<sha>` 就補成 `<原 epoch> @<HEAD>`，再補 `request 已收到: 否`。第 6 節「待決定」要等下一則回覆才可能成立，最差退回 90 分靜默
    - 狀態檔的 `最近一輪開始時刻` 距現在不到 60 秒 → 本輪直接結束：不改狀態檔、不排下一輪。兩個觸發幾乎同時到時（例如 wakeup 剛觸發、使用者同時手動打一次），後到的那一輪在這裡被擋掉。相隔超過 60 秒的手動插隊擋不住，會多跑一整輪，但不會變成兩條排程鏈：重排 `ScheduleWakeup` 會取代還沒觸發的那一次（2026-11-02 實測：先排 60 秒、再排 120 秒，只有 120 秒那次觸發）。第 2 節第 6 步的起手通知仍要提醒迴圈跑著時別再手動打，免得多跑一輪、多回覆一次。超過 60 秒 → 先把現在時刻寫進去，再往下走
    - 讀 `驅動`：是 `wakeup` → 往下走，本輪結尾照第 4 節排 `ScheduleWakeup`。不是 `wakeup`（狀態檔被手動改壞）→ 停下報告狀態檔異常，不排 `ScheduleWakeup`
 1. `sh .claude/skills/review-loop/scripts/copilot.sh reviews <PR編號> <基準線>`，依結束碼分流：
@@ -81,7 +100,7 @@ disable-model-invocation: true
    | 3 | 需人工介入（缺 `gh`／`jq`、找不到或撈到多個 reviewer bot） | 停下報告，重試無用 |
    | 其他 | 契約外的結束碼，代表腳本本身出了沒預期的狀況 | 停下報告。**不要當成 0 也不要當成可重試** |
 
-   結束碼 0 且有新 review → 先把現在時刻記進 `最近 review`（要在第 10 步 request 之前記，記在第 11 步會晚於本輪的 request，讓第 6 節誤判成「送出的 request 都已收到 review」）。
+   結束碼 0 且有新 review → 先把現在時刻記進 `最近 review`（只給第 6 節的靜默計時用）。這批裡有錨在 `最近 request` 那個 commit、且 `submitted_at` 晚於 `最近 request` 時刻的 review → `request 已收到: 是`。兩件事分兩欄：晚到的舊 commit review 只重設計時，不會讓「已收到」成立。要在第 10 步 request 之前做，第 10 步會把它改回 `否`。
 
    結束碼 0 之後再看每則的 `quota` 欄：**任一則 `quota == true` → 視同結束碼 3，停下**，停下原因記「quota」，**不呼叫 `copilot.sh request`**。告訴使用者：到 PR 網頁手動按 Copilot 旁的 Re-request（實測腳本請會撞配額、網頁手動按可能可以），按完再打 `/review-loop <PR編號> 續跑`。
    這條要先於第 5 節判斷：撞配額的 review 是零留言的 `COMMENTED`，不攔下來就會被當成「這輪沒有新問題」而假共識收工。
@@ -91,13 +110,15 @@ disable-model-invocation: true
    | `bucket` | 動作 |
    |---|---|
    | 空結果、沒有 `e2e (shard` 開頭的 check、或最新 run 的 `headSha` ≠ 目前 HEAD | 當 `pending`：本輪照常處理 review 留言，共識判定不成立 |
-   | 全部 `pass`（`skipping` 視同 pass）且 run 錨在目前 HEAD | 往下走 |
+   | 全部 `pass`（`skipping` 視同 pass）且 run 錨在目前 HEAD | `待請 review: 是` → 先請 review（`copilot.sh request`，照第 10 步末段更新狀態檔），改回 `否`。然後往下走 |
    | 有 `pending` | 本輪照常處理 review 留言；共識判定（第 5 節）在 CI 跑完前不成立 |
    | `cancel`（被 workflow 的 concurrency 取消，因為又 push 了一次） | 當「等新的 run」，不是紅燈，不計入煞車與問題指紋 |
    | 任一 `e2e (shard N/4)` 的 `fail` | **列為本輪「必修」**（一個 shard 紅就算，不等其他 shard），與 Copilot 留言一起走 4–9 步：讀該 shard 的 job log（或下載 `merge-e2e-report` 合併後的 artifact `playwright-report-gate`）找紅的 spec；修法照 `../vibe-check/SKILL.md` Step 4 分流——`specs/` 紅＝修 UI 不改 spec，`vibe/` 紅＝歸「待使用者決定」（鐵律 4）。**不重跑 CI 等它變綠**：CI 跑的 `playwright.gate.config.ts` 沿用 `playwright.config.ts` 的 `retries`（CI 下重試幾次以該檔為準），重試用完仍紅才會 `fail`，紅就是紅 |
    | 其他 check 的 `fail`（lint／typecheck／unit、`build-e2e`、`merge-e2e-report`） | 同上列為必修 |
 
-2. 沒有新 review 且 CI 無新 `fail` → CI 已跑完（不是 `pending`）時，先重驗第 5 節共識與第 6 節「待決定」：最新一則 review 的 `findings_none`／`quota`／`commit_id` 用不帶基準線的 `copilot.sh reviews <PR編號>` 重抓（帶基準線的第 1 步會回空陣列），留言是否都已處理看狀態檔的「已處理 comment id」與「待使用者決定」。成立就照該節收工或停下，不要只看靜默計時白等 90 分（上一輪 CI 還在跑而不能收工，這一輪 CI 跑完時就在這裡收）。不成立 → `連續靜默輪次` 加 1、照第 4 節的間隔序列算 `下次間隔`、檢查第 6 節的靜默計時、照第 4 節排 `ScheduleWakeup`，安靜結束。空輪只做第 0、1、1b 步。本輪在第 1b 步補請過 review → `連續靜默輪次` 不加 1、`下次間隔` 維持 300（第 10 步剛設的值，不要被空輪序列蓋掉）
+2. **空輪**＝第 1 步回空陣列，且第 1b 步沒有新 `fail`。空輪不走第 3–10 步，只做下面其中一條就結束：
+   - CI 已跑完（不是 `pending`、也不是 `cancel`）→ 用不帶基準線的 `copilot.sh reviews <PR編號>` 抓最新一則非 quota 的 review（帶基準線的第 1 步會回空陣列），照第 5 節判共識、照第 6 節判「待決定」（留言是否已處理看狀態檔的「已處理 comment id」「已處理 body 項目」與「待使用者決定」）。成立就照該節收工或停下，不要只看靜默計時白等 90 分（上一輪 CI 還在跑而不能收工的，在這裡收）
+   - 不成立，或 CI 還沒跑完 → `連續靜默輪次` 加 1、照第 4 節「空輪」列算 `下次間隔`、檢查第 6 節的靜默計時、照第 4 節排 `ScheduleWakeup`，安靜結束。本輪請過 review（續跑時、或第 1b 步補請）→ `連續靜默輪次` 不加 1、`下次間隔` 維持 300（剛請完的值，不要被空輪序列蓋掉）
 3. **逐則**（不是整輪）判斷錨點：某則的 `commit_id` 不等於目前 HEAD 時，**一律先 `git fetch origin '<branch>'`**，再用 `git show 'origin/<branch>:<path>'` 讀遠端實際內容確認問題是否已修掉。已修掉 → 該則只列進第 9 步的回覆清單，**不重改也不重 commit**，且**不計入煞車計數**；其餘各則照 4–7 步走。一輪常同時收到多則 review，整輪跳過會漏掉新問題
 
    **fetch 不可省。** 自己剛 push 過的 `origin/<branch>` 確實是新的（git 會把該次更新記成 `update by push`，拿空 repo 就能複現），但別人或並行 session 推過、換 clone、換機器時就會過期——而這一步判錯的代價是把「還沒修」當成「已修」然後只回覆不修。fetch 一次的成本遠低於此。
@@ -106,25 +127,23 @@ disable-model-invocation: true
 4. 抓留言：派 subagent（`model: sonnet`）讀 `../pr-feedback/SKILL.md` 步驟 1–2，**另外**解析 review body。本輪留言集合＝下面三個容器的**聯集**，漏任一個都會變成下一輪再花一次 review 才看到：
    - inline 留言（有 comment id、有 thread）
    - v1 body 的 `### Suppressed comments (N)`／`**Previously missed (N)**`：每條是 `**path:line**` 接一行 `* 說明`
-   - v2 body（開頭 `<!-- ccr-overview-v2 -->`）的 `<strong>Open (N)</strong>` 清單（每條帶嚴重度圖示與 `#discussion_r<id>`）與 `<strong>Previously missed (N)</strong>`（巢狀 `<details>`，含嚴重度、標題、`` `path:line` ``、完整建議）
+   - v2 body（開頭 `<!-- ccr-overview-v2 -->`）的開放問題清單（標頭 `Open (N)` 或 `N open issues`；每條帶嚴重度圖示與 `#discussion_r<id>`）與 Previously missed 清單（標頭 `Previously missed (N)` 或 `N previously missed issues`；巢狀 `<details>`，含嚴重度、標題、`` `path:line` ``、完整建議）
 
-   兩種格式的樣本見 [references/copilot-quirks.md](references/copilot-quirks.md) 第 3 節。**跳過狀態檔「已處理 comment id」裡的留言**——`pr-feedback` 明說它不記帳，不自己記就會每輪重新回覆刷版。body 裡的項目沒有 comment id，以 `<review_id>:<path>:<line>` 當已處理的鍵
+   各格式的樣本見 [references/copilot-quirks.md](references/copilot-quirks.md) 第 3 節。**跳過狀態檔「已處理 comment id」與「已處理 body 項目」裡的留言**——`pr-feedback` 明說它不記帳，不自己記就會每輪重新回覆刷版。body 裡的項目沒有 comment id，以 `<path>:<line>:<缺陷>` 當已處理的鍵，寫進狀態檔的 `## 已處理 body 項目` 段、一行一個（缺陷文字可能含逗號，不能放進逗號分隔的 `已處理 comment id`）：path 先去掉零寬空白，缺陷取 v2 的標題、v1 的說明全文（與 `scripts/copilot-harvest.sh` 的去重鍵同一套）。鍵不可含 review id：同一則 Previously missed 會在之後每一則 review 重列，含 review id 就每次都對不上而重複回覆
 5. 濾噪音與分類：照 `../pr-feedback/SKILL.md` 步驟 3–4。再套鐵律 2、3、4 篩一次，被篩掉的進「待使用者決定」
 6. 修「必修」。逐則先讀檔驗證指控是否成立再動手——不成立就歸「誤判」並在回覆說明理由。能實測就實測（起假伺服器、跑腳本），比推理可靠
 
    判成「誤判」，或回覆「已裁決不修／範圍外」時，把它濃縮成一句寫進狀態檔的 `## 政策檔候補`，格式 `<一句話主張> | <證據或裁決出處> | 第 N 次`，例如 `macOS grep 不支援 --include | /usr/bin/grep 2.6.0 實測支援 | 第 1 次`。**本 skill 永遠不改 `.github/copilot-instructions.md`**——那是使用者的決定（見 `.claude/ops/maintenance.md` 第 1 節）
 7. 驗證，依改到什麼決定跑哪幾層：
    - 一律：`npm run eslint` + `npm run typelint`
-   - 改到 `app/`／`server/`：另跑**煙霧＋該則留言對應的 spec**一條指令（位置參數聯集、加 `--reporter=line`，例
-     `npx playwright test --config playwright.gate.config.ts --reporter=line 'specs/(00-hydration|01-auth-guard|02-authz-scope)' test/e2e/specs/07-xxx.spec.ts`；
-     spec 怎麼挑見 `../vibe-check/SKILL.md`「定向查法」）。**不在本機跑全量**——production 全量由第 8 步 push 後的 CI e2e job 跑，第 1b 步會把結果收回來
+   - 改到 `app/`／`server/`：另跑**煙霧＋該則留言對應的 spec**一條指令（指令照 `../vibe-check/SKILL.md` Step 3「定向」那段：`SMOKE_PATTERN` 從 `.husky/pre-push` 抽，不寫死；spec 怎麼挑見同檔 Step 2「定向查法」）。**不在本機跑全量**——production 全量由第 8 步 push 後的 CI e2e job 跑，第 1b 步會把結果收回來
    - 改到 `.vue`／store／server 且非純格式：另跑 `/sdd-review`
    紅燈修到綠才往下。這幾層不是可選的——`.husky/pre-push` 對 `app/`／`server/` 會跑煙霧 spec，不先跑就會在第 8 步 push 時才炸
-7b. **每輪覆審（只做一次）**：本輪有改動 → 用 Skill tool 跑 `/code-review --max-findings 5`（不帶目標＝工作區 diff，也就是本輪的修正）；本輪改到 `.md` 時接著照 [references/doc-impl-check.md](references/doc-impl-check.md) 派專項檢查，目標 diff 填工作區 diff。必修且落在**本輪已動的檔案** → 當場修，重跑第 7 步；其餘歸「待使用者決定」。修完**不再覆審一次**——自己審自己的修法會無限循環。
+7b. **每輪覆審（只做一次）**：本輪有改動 → 本輪新增的檔先 `git add -N`（不然 `git diff` 看不到；第 8 步會把它們 commit 掉），再用 Skill tool 跑 `/code-review medium`（不帶目標＝工作區 diff，也就是本輪的修正；level 與截斷規則同第 2 節第 0 步）；本輪改到 `.md` 時接著照 [references/doc-impl-check.md](references/doc-impl-check.md) 派專項檢查，目標 diff 填工作區 diff。必修且落在**本輪已動的檔案** → 當場修，重跑第 7 步；其餘歸「待使用者決定」。修完**不再覆審一次**——自己審自己的修法會無限循環。
    這一步攔的是「修 A 帶出 B」：#151 輪 7→10→11→12 的四則留言都在同一段 curl 迴圈，每輪修一處又引出下一處，Copilot 每輪各收一次費。
 8. commit + push。分群與訊息照 `../commit/SKILL.md` 步驟 2–4（**跳過它的確認停點**，commit skill 已把本 skill 列入例外），**commitlint header ≤ 72 字元**。commit 指令要把分支驗證綁在同一條：`[ "$(git branch --show-current)" = "<branch>" ] && git commit …`。本輪無實際改動就跳過。
    **pre-push 紅燈 → 不進自動修迴圈**：本地定向綠、煙霧紅屬於「假設被證偽」，還原本輪改動、停下報告
-9. 逐則回覆，並把 comment id 寫進狀態檔的「已處理」。內容要能被第三者驗證（附 commit 對照、遠端實際內容或實測數據）。
+9. 逐則回覆，並把 comment id 寫進狀態檔的「已處理 comment id」、body 項目的鍵寫進「已處理 body 項目」（鍵見第 4 步）。內容要能被第三者驗證（附 commit 對照、遠端實際內容或實測數據）。
 
    **先把回覆內容寫成檔案，再用 `--body-file` / `-F body=@` 送出**——兩個理由，都踩過：
    - `gh pr comment <N>` **不帶 body 會進互動模式等你打字**（`gh` 自己的說明就這樣寫），無人值守時直接卡死
@@ -141,8 +160,8 @@ disable-model-invocation: true
     - 第 6 節的停下條件都沒觸發（上限、補字、只剩 Low）
     - 本輪改到 `app/`／`server/` → 等 CI 錨在新 HEAD 且全綠再請：狀態檔記 `待請 review: 是`，下一輪第 1b 步看到 CI 錨在 HEAD 且全綠時才請，請完改回 `否`。CI 不扣 Copilot 額度，別讓 Copilot 審一個 CI 會退回的 commit
 
-    每次呼叫 `copilot.sh request`（含第 1b 步看到 CI 綠後補請的那次），都要同時更新狀態檔：`最近 request` 記現在時刻、`下次間隔` 重設 300、`連續靜默輪次` 歸 0、`靜默階段` 回 1（不回 1 的話，第 4 節「靜默階段 2 → 600 優先」會蓋掉這裡的 300）
-11. 更新狀態檔（基準線、輪次、問題指紋、已處理 comment id），排下一輪。本輪收到新 review → `連續靜默輪次` 歸 0、`靜默階段` 回 1。本輪有處理（新 review 或 CI `fail`）但沒有 request → `下次間隔` 填 120（第 4 節表）。本輪新增的政策檔候補，拿去搜 `evals/copilot-cases.tsv` 與 `.github/copilot-instructions.md`：cases 裡已有同一件事被判「誤判」或「範圍外」→ 次數加一；政策檔已經寫了還被提 → 在候補後面標「政策檔已寫仍被提」
+    每次呼叫 `copilot.sh request`（含第 1b 步看到 CI 綠後補請的那次），都要同時更新狀態檔：`最近 request` 記 `現在 @<HEAD>`、`request 已收到: 否`、`下次間隔` 重設 300、`連續靜默輪次` 歸 0、`靜默階段` 回 1（不回 1 的話，第 4 節「靜默階段 2 → 600 優先」會蓋掉這裡的 300）
+11. 更新狀態檔（基準線、輪次、問題指紋、已處理 comment id 與 body 項目），排下一輪。本輪收到新 review → `連續靜默輪次` 歸 0、`靜默階段` 回 1。本輪有處理（新 review 或 CI `fail`）但沒有 request → `下次間隔` 填 120（第 4 節表）。本輪新增的政策檔候補，拿去搜 `evals/copilot-cases.tsv` 與 `.github/copilot-instructions.md`：cases 裡已有同一件事被判「誤判」或「範圍外」→ 次數加一；政策檔已經寫了還被提 → 在候補後面標「政策檔已寫仍被提」
 
 ## 4. 輪詢驅動
 
@@ -169,8 +188,8 @@ disable-model-invocation: true
 
 ## 5. 共識判定（1 或 2 任一成立，**且** 3 成立，才收工通知）
 
-1. Copilot review 是 `APPROVED`，或 body 明確表示沒問題（🟢 Approval recommended、No issues found），**且無新的 actionable 留言／suppressed comment，且該 review 錨在目前 HEAD**
-2. **一輪即成立**：最新一則 review 錨在目前 HEAD、`copilot.sh reviews` 標 `findings_none`、`quota` 為 false，且第 3 步的三個容器全空。body 只有一句沒有檔案行號的模糊總結（例如 v2 的 🔵 Needs a closer look 卻 Findings: None）→ 同樣成立，那句話列進「待使用者決定」
+1. Copilot review 是 `APPROVED`，或 body 明確表示沒問題（🟢 Approval recommended、No issues found、No open issues），**且第 3 節第 4 步的三個容器全空（含 Previously missed），且該 review 錨在目前 HEAD**
+2. **一輪即成立**：最新一則 review 錨在目前 HEAD、`copilot.sh reviews` 標 `findings_none`、`quota` 為 false，且第 3 節第 4 步的三個容器全空。body 只有一句沒有檔案行號的模糊總結（例如 v2 的 🔵 Needs a closer look 卻 Findings: None 或 No open issues）→ 同樣成立，那句話列進「待使用者決定」
 3. **CI 全部 `pass`、錨在目前 HEAD**（第 1b 步：先用 `gh run list … --json headSha` 驗錨點，再看 `gh pr checks`；空結果或錨在舊 commit 都算 `pending`，再等一輪；`cancel` 等新的 run）——review 共識但 CI 紅，不算共識，e2e 紅是必修
 
 條件 2 不能省——Copilot 不保證會給 approve，可能一直停在 `COMMENTED`。
@@ -187,7 +206,7 @@ disable-model-invocation: true
 | 同一問題指紋第 **3** 次出現，且第 2 次時我方已 push 修正並確認在遠端 | 停，避免鬼打牆 |
 | 距靜默計時起點超過 30 分，仍沒有新 review | `下次間隔` 改 600，靜默階段標 2 |
 | 距靜默計時起點超過 90 分，仍沒有新 review | 停，停下原因記「靜默」，告知需要人工介入 |
-| 本輪沒有 push、沒有 request、`待請 review: 否`，`最近 review` 晚於 `最近 request`（送出的 request 都已收到 review），CI 已跑完（不是 `pending`），共識（第 5 節）卻不成立 | 停，停下原因記「待決定」。這時沒有送出中的 request，再等也不會有新 review；空輪在等 Copilot 回覆時 `最近 review` 早於 `最近 request`，不會誤停；常見於本輪留言全判誤判或全歸「待使用者決定」。HEAD 上還沒有 Copilot review 時，報告裡提醒使用者要不要手動請。不停的話會空等到 90 分才以「靜默」停下，原因也報錯 |
+| 本輪沒有 push、沒有 request、`待請 review: 否`，`request 已收到: 是`（送出的 request 已收到錨在同一個 commit 的 review），CI 已跑完（不是 `pending`、也不是 `cancel`：被取消的 run 會有新的 run 接手），共識（第 5 節）卻不成立 | 停，停下原因記「待決定」。這時沒有送出中的 request，再等也不會有新 review；空輪在等 Copilot 回覆時 `request 已收到` 是 `否`，不會誤停；常見於本輪留言全判誤判或全歸「待使用者決定」。HEAD 上還沒有 Copilot review 時，報告裡提醒使用者要不要手動請。不停的話會空等到 90 分才以「靜默」停下，原因也報錯 |
 
 **靜默計時起點**＝下面幾個時刻裡最晚的那個：
 - 狀態檔的 `最近 request`
@@ -201,8 +220,10 @@ disable-model-invocation: true
 | 幅度 | 判準 |
 |---|---|
 | 重寫 | 任一檔改動 ≥ 30 行，或新增檔 |
-| 改設計 | 新增或刪除了分支、函式、流程步驟（diff 新增行裡出現 `if`／`case`／函式定義，或新的編號步驟） |
-| 補字 | 其餘。機械判準：`git diff --numstat HEAD~1` 合計 ≤ 10 行，且不符合上面兩級 |
+| 改設計 | 新增或刪除了分支、函式、流程步驟（diff 新增行裡出現 `if`／`case`／函式定義，或新的編號步驟），或不符合重寫但合計超過 10 行 |
+| 補字 | 其餘：合計 ≤ 10 行，且不符合上面兩級 |
+
+行數一律算整輪：第 8 步一輪可能分群成好幾個 commit，所以第 8 步 commit 前先記下 HEAD，判幅度時用 `git diff --numstat <記下的 HEAD>..HEAD` 合計，不要只看 `HEAD~1`。
 
 收斂的訊號是**幅度遞減**（重寫 → 改設計 → 補字），不是條數變少。連續兩輪都在補字，代表 Copilot 已經在挑措辭，再請只是燒額度。用「連續兩輪」是緩衝：一行但關鍵的邏輯修正會被機械判準誤判成補字，單輪不停。收尾通知要附本輪 diff 行數，讓使用者自己看。
 
@@ -210,7 +231,7 @@ disable-model-invocation: true
 
 ## 7. 收尾通知
 
-回報：**停下原因**（共識／上限／Low／補字／quota／靜默／待決定 七選一，撞其他煞車就寫該煞車）、跑了幾輪、每輪改了什麼（附 commit sha、幅度與 diff 行數）、哪些判定為誤判或舊 commit 已修（附理由）、**「待使用者決定」清單**（可選／不修／人類與 CI bot 的留言／被鐵律 2–4 篩掉的）、**政策檔候補**（第 2 次以上的列在最前面，附一句建議寫進 `.github/copilot-instructions.md` 的英文，讓使用者決定要不要加）、PR 連結。
+回報：**停下原因**（共識／上限／Low／補字／quota／靜默／待決定 七選一，撞其他煞車就寫該煞車）、**目前 HEAD 的 CI 狀態**（Low、補字、上限是在本輪 push 之後立刻停，CI 多半還沒跑完：照第 1b 步驗錨點，錨在目前 HEAD 才報結果，沒跑完就寫「CI 仍在跑 @<sha>」並附 PR 的 checks 連結，不要報上一個 commit 的結果）、跑了幾輪、每輪改了什麼（附 commit sha、幅度與 diff 行數）、哪些判定為誤判或舊 commit 已修（附理由）、**「待使用者決定」清單**（可選／不修／人類與 CI bot 的留言／被鐵律 2–4 篩掉的）、**政策檔候補**（第 2 次以上的列在最前面，附一句建議寫進 `.github/copilot-instructions.md` 的英文，讓使用者決定要不要加）、PR 連結。
 
 末尾附 `sh .claude/skills/review-loop/scripts/copilot-metrics.sh pr <PR編號>` 的輸出，逐欄對照第 8 節「單一 PR 目標」，超標的欄位標出來。跨 PR 的目標不在這裡判。這是這隻 skill 唯一會留下的度量，不附就沒人知道這輪比 baseline 好還是差。
 
@@ -226,7 +247,7 @@ baseline 用 `copilot-metrics.sh since 2026-08-20` 在 2026-10-07 算得（22 �
 |---|---|---|
 | `reviews`（制度類） | ≤ 3 | 第 6 節的制度類輪數上限 |
 | `reviews`（程式類） | ≤ 6 | 第 6 節的程式類輪數上限 |
-| `comments_per_review` | ≥ 2（`reviews` − `quota_hits` ≥ 2 才判此欄） | baseline 1.3；一輪只拿到一兩則＝沒把 Previously missed 消化完。只有一次 review 且 0 則＝一次乾淨通過，不是沒消化，不計 |
+| `comments_per_review` | ≥ 2（`reviews` − `quota_hits` ≥ 2 才判此欄；分子含 body 裡的 Previously missed、分母不含撞配額的 review） | baseline 1.3（舊算法：只算 inline、分母含撞配額）；一輪只拿到一兩則＝沒把 Previously missed 消化完。只有一次 review 且 0 則＝一次乾淨通過，不是沒消化，不計 |
 | `high_first` | ≤ 2 | 本地先審上線後，High 應該在 push 前就被抓掉 |
 | `quota_hits` | 0 | 撞牆就該停，不該再請 |
 | `span_min`（制度類） | ≤ 60 | baseline 166 |
@@ -250,11 +271,14 @@ botId: BOT_kgDOCnlnWA
 類別: 制度類 | 輪次: 3 / 3
 驅動: wakeup（目前只支援 wakeup，見第 4 節） | 下次間隔(秒): 300 | 靜默階段: 1 | 連續靜默輪次: 0
 最近一輪開始時刻: 1793602800（2026-11-02 15:00）
-最近 request: 1793602500（2026-11-02 14:55） | 最近 review: 0（還沒收到）
+最近 request: 1793602500 @95c3faf（2026-11-02 14:55） | request 已收到: 否 | 最近 review: 0（還沒收到）
 最近 CI: pass @95c3faf（bucket 之一：pass / fail / pending / cancel）
 已處理 comment id: 3905342813, 3905475800
 待請 review: 否
 停下原因: （未停；停下時填 共識／上限／Low／補字／quota／靜默／待決定）
+
+## 已處理 body 項目
+- .husky/pre-push:82:Correct inaccurate ledger synchronization claim
 
 ## 問題指紋
 - references/sse.md:import 不完整 | 第 2 次 | 已修 95c3faf

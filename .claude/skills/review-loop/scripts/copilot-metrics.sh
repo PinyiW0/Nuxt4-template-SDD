@@ -32,15 +32,16 @@ usage() {
   reviews             Copilot 回的 review 數（含撞配額的空 review）
   quota_hits          其中「已達配額上限」的 review 數
   inline_comments     Copilot 的 inline 留言數
-  comments_per_review inline_comments ÷ reviews（一位小數；reviews 為 0 時是 -）
+  comments_per_review （inline_comments＋去重後的 Previously missed 條數）÷（reviews − quota_hits），一位小數；
+                      分母為 0 時是 -。Previously missed 只在 body、沒有 inline 留言，不算會低估；
+                      撞配額的空 review 不算一輪，算進分母會灌水。去重鍵同 copilot-harvest.sh
   first_review_at, last_review_at, span_min
                       第一則／最後一則 Copilot review 的時刻，與兩者相隔的分鐘數
-  first_clean_round   第一則「無新問題」review 是第幾則；沒有則空。判準：v2 寫 Findings: None；
-                      或 v1 寫 0 new／Approval recommended／No issues found，且同時沒有 Comments generated ≥ 1、
-                      沒有 Suppressed comments、沒有 Open (≥1)。只寫 Approval recommended 卻還帶留言的不算
-  high_first          第一則 review 摘要行（v2 的 Findings:）上的 High 個數；沒有摘要行（v1、撞配額的空 review）
-                      為空，代表「無此資訊」，不是 0
-  effort_first        第一則 review 標的 effort（Lite／Balanced）；v2 寫 Review effort:，v1 寫 Review effort level:
+  first_clean_round   第一則「沒有任何待處理問題」的 review 是第幾則；沒有則空。判準與 copilot.sh 的
+                      findings_none 同一份（copilot-body.jq 的 is_clean，Previously missed 不算乾淨）
+  high_first          第一則 review 開放問題清單裡 High 的條數；沒有開放清單也沒寫「無問題」
+                      （v1、撞配額的空 review）為空，代表「無此資訊」，不是 0
+  effort_first        第一則 review 標的 effort（Lite／Balanced）；三種寫法見 copilot-body.jq
 
 結束碼：0 成功／1 可重試的執行失敗／2 參數錯誤／3 需人工介入。
 USAGE
@@ -149,18 +150,12 @@ metrics_row() {
   fi
   [ -n "$raw" ] || die 1 "gh api 回 0 但沒有輸出，狀態不明。可重試。"
 
-  if ! printf '%s' "$raw" | jq -r -s \
+  if ! printf '%s' "$raw" | jq -L "$(dirname "$0")" -r -s \
         --arg pr "$pr" --arg category "$category" --argjson meta "$meta" \
         --argjson requests "$requests" --argjson inline "$inline" \
         --argjson logins "$COPILOT_LOGINS" '
-    # 「無新問題」：v2 明寫 Findings: None；v1 寫 0 new／Approval recommended／No issues found 時，
-    # 還要確定沒有夾帶留言——實測 v1 會同時寫「Approval recommended」與「Comments generated: 1」或 Suppressed comments。
-    def is_clean:
-      test("\\*\\*Findings:\\*\\* None")
-      or ( test("Comments generated:\\*\\* 0 new|Approval recommended|No issues found")
-           and (test("Comments generated:\\*\\* [1-9]") | not)
-           and (test("Suppressed comments") | not)
-           and (test("<strong>Open \\([1-9]") | not) );
+    # is_quota／is_clean／open_high／review_effort 都在 copilot-body.jq（與 copilot.sh 共用一份）。
+    include "copilot-body";
     [ .[]
       | if type == "array" then . else error("GitHub API 回傳非陣列：" + tostring) end
       | .[]
@@ -176,27 +171,20 @@ metrics_row() {
         $meta.merged,
         $requests,
         $n,
-        ([$r[] | select(.body | test("reached their quota limit"))] | length),
+        ([$r[] | select(.body | is_quota)] | length),
         $inline,
-        (if $n > 0 then (($inline / $n * 10 | round) / 10) else "-" end),
+        (([$r[] | select(.body | is_quota)] | length) as $q
+         | ([$r[].body | missed_items[] | missed_key] | unique | length) as $missed
+         | if $n - $q > 0 then ((($inline + $missed) / ($n - $q) * 10 | round) / 10) else "-" end),
         (if $n > 0 then $r[0].submitted_at else "" end),
         (if $n > 0 then $r[-1].submitted_at else "" end),
         (if $n > 0 then ((($r[-1].submitted_at | fromdateiso8601) - ($r[0].submitted_at | fromdateiso8601)) / 60 | floor) else "" end),
         ((first(range($n) as $i
                 | select($r[$i].body | is_clean)
                 | $i + 1)) // ""),
-        # v2 body 的摘要行長這樣：**Findings:** 3 <picture…alt="High severity"…> · 2 <picture…alt="Medium severity"…>
-        # 要讀的是數字，不是數 alt="High severity" 出現幾次——Open 清單每條也各帶一個同樣的圖示，會重複計。
-        # 沒有摘要行（v1 格式、撞配額的空 review）→ 空，代表「無此資訊」，不是 0。
-        (if $n > 0 then
-           (($r[0].body | [scan("\\*\\*Findings:\\*\\*[^\\n]*")] | first) // "") as $fl
-           | if $fl == "" then ""
-             else ($fl | ltrimstr("**Findings:** ") | split(" · ")
-                   | map(capture("^(?<n>[0-9]+) .*alt=\"(?<s>High|Medium|Low) severity\"")? // empty)
-                   | map(select(.s == "High") | .n | tonumber) | first) // 0
-             end
-         else "" end),
-        (if $n > 0 then (($r[0].body | capture("\\*\\*Review effort( level)?:\\*\\* (?<e>[A-Za-z]+)") | .e) // "") else "" end)
+        # null（無此資訊）輸出成空欄，不是 0。
+        (if $n > 0 then ($r[0].body | open_high) // "" else "" end),
+        (if $n > 0 then ($r[0].body | review_effort) // "" else "" end)
       ] | @tsv'; then
     die 1 "review 資料解析失敗（回應不是預期的陣列）。可重試。"
   fi
@@ -226,6 +214,7 @@ require_cmd gh "本腳本全部查詢都透過它。請先安裝並 gh auth logi
 require_cmd jq "合併 --paginate 的分頁輸出與算欄位都要它。請先安裝（brew install jq／apt install jq）。"
 
 case "${1:-}" in
+  -h | --help) usage; exit 0 ;;
   pr)     [ $# -eq 2 ] || { usage >&2; exit 2; }; cmd_pr "$2" ;;
   since)  [ $# -eq 2 ] || { usage >&2; exit 2; }; cmd_since "$2" ;;
   *)      usage >&2; exit 2 ;;

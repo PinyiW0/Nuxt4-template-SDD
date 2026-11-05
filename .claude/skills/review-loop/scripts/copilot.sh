@@ -27,7 +27,8 @@ usage() {
 
   copilot.sh reviews <PR編號> [since-review-id]
       列出 Copilot reviewer 的 review。輸出：JSON 陣列，含 body、commit_id，
-      以及 quota（撞配額的空 review）與 findings_none（無新問題）兩個布林欄。
+      以及 quota（撞配額的空 review）與 findings_none（沒有任何待處理問題，含 Previously missed）
+      兩個布林欄，判準見 copilot-body.jq。
       給了 since-review-id 就只列 id 大於它的。
 
 結束碼：0 成功／1 可重試的執行失敗／2 參數錯誤／3 需人工介入。
@@ -148,7 +149,9 @@ list_reviews() {
 
   # --paginate 會把每頁各吐一個陣列，所以要 -s 併起來。
   # since 走 --argjson 傳參，不做字串內插——內插會讓狀態檔的內容變成可執行的 jq 運算式。
-  if ! printf '%s' "$raw" | jq -s --argjson since "$since" --argjson logins "$COPILOT_LOGINS" '
+  # quota／findings_none 的判準在 copilot-body.jq（與 copilot-metrics.sh 共用一份）。
+  if ! printf '%s' "$raw" | jq -L "$(dirname "$0")" -s --argjson since "$since" --argjson logins "$COPILOT_LOGINS" '
+        include "copilot-body";
         [ .[]
           | if type == "array" then . else error("GitHub API 回傳非陣列：" + tostring) end
           | .[]
@@ -157,11 +160,9 @@ list_reviews() {
                    and .id > $since)
           | (.body // "") as $b
           # quota：撞配額時 Copilot 回一則零留言的 COMMENTED review，不可當成「沒有新問題」。
-          # findings_none：v2 寫 Findings: None；v1 寫 0 new 且沒有 Suppressed comments。
+          # findings_none：沒有任何待處理問題（含 Previously missed）。
           | {id, state, submitted_at, commit_id, body,
-             quota: ($b | test("reached their quota limit")),
-             findings_none: (($b | test("\\*\\*Findings:\\*\\* None"))
-                             or (($b | test("Comments generated:\\*\\* 0 new")) and ($b | test("Suppressed comments") | not)))} ]'; then
+             quota: ($b | is_quota), findings_none: ($b | is_clean)} ]'; then
     die 1 "review 資料解析失敗（回應不是預期的陣列）。可重試。"
   fi
 }
@@ -170,6 +171,7 @@ list_reviews() {
 require_cmd gh "本腳本全部操作都透過它。請先安裝並 gh auth login。"
 
 case "${1:-}" in
+  -h | --help) usage; exit 0 ;;
   bot-id)   [ $# -eq 1 ] || die 2 "bot-id 不吃參數。"; bot_id ;;
   request)  { [ $# -ge 2 ] && [ $# -le 3 ]; } || { usage >&2; exit 2; }; request_review "$2" "${3:-}" ;;
   reviews)  { [ $# -ge 2 ] && [ $# -le 3 ]; } || { usage >&2; exit 2; }; list_reviews "$2" "${3:-0}" ;;
