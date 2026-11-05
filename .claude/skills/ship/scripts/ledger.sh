@@ -49,7 +49,8 @@ layer_pattern() {
     # 只看 app/server 等於讓 Copilot 當第一個 reviewer。scope 與 judgment-rubrics 第 5 節、CLAUDE.md 紅線同一份。
     L5)  echo '^app/|^server/|^\.claude/|^\.github/|^\.husky/|^scripts/|\.sh$|\.mjs$' ;;
     # L4 = judgment-rubrics 第 5 節的制度層，驗法是 fresh subagent read-back。
-    # 漏了它，只改 .claude/ 下的 .md（例如改 skill 本身）時只剩 L1／L5 查寫法與正確性，規則本身沒人讀回驗證。
+    # 漏了它，只改 .claude/ 下的 .md（例如改 skill 本身）時只剩 L1／L5，沒有一層驗規則有沒有消費點；
+    # spec/ui-config/ 不在 L5 scope，只改其中 .md 時更是只剩 L1。
     L4)  echo '^\.claude/|^spec/ui-config/' ;;
     # L2 用全 diff 當 scope：「這輪要不要跑」由 l2_should_run 依 pre-push 判準決定，
     # 「跑過的還算不算數」則看指紋。gate 是最貴的一層，沒有去重等於每輪都全量重跑。
