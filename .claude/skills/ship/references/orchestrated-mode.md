@@ -30,7 +30,7 @@
 | skill | 執行哪幾步 | 不做什麼 |
 |-------|-----------|---------|
 | `commit` | 步驟 1–4（盤點、分群、定 type/scope、寫 message） | 不執行步驟 5 的 `git commit`、不等確認、不印「要發 PR 就跑 `/pr`」 |
-| `pr` | 步驟 2（收素材、解析 issue 編號）、3、4（標題與內文） | 不執行步驟 5 的等待與步驟 6；步驟 2 的「AC 驗收提醒」整段跳過（編排層有本輪實際驗收結果，不必回頭讀 issue checkbox 的舊快照）；步驟 2.5 的 label／assignee／reviewer 改填預設進草案，不發 AskUserQuestion |
+| `pr` | 步驟 3、4（標題與內文）；issue 編號由編排層在 Phase 0 照步驟 2 解析好，寫進派工 prompt | 不執行步驟 2（編排層已解析；「AC 驗收提醒」也不需要，編排層有本輪實際驗收結果）；步驟 2.5 由編排層做（label／assignee／reviewer 預選填進草案，不發 AskUserQuestion）；不執行步驟 5 的等待與步驟 6 |
 | `verify-ac` | 步驟 1–3（前置檢查、取條目、逐條驗收給三態＋證據） | **不執行步驟 4 的自動修**、不執行步驟 5 的寫回 issue、「無法判定」不停下來 |
 | `pr-feedback` | 步驟 1–4（找 PR、四路抓留言、濾噪音、分類） | 步驟 5 的 AskUserQuestion 改為回傳分類結果（**分類結果進草案讓使用者勾，不是直接開始改**）；步驟 6 的 lint／gate／sdd-review 交編排層調度 |
 
