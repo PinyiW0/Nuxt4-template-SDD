@@ -296,6 +296,8 @@ api_contract:
 
    流程與輸出見 [phase-0-sync.md 步驟 7.6](phase-0-sync.md#步驟-76孤兒偵測反向-audit-必跑)。產出寫入 `spec/report/initial-report.md` 的「🗑️ 孤兒清單」段（不可寫 `sync-report.md`：下游以它存在與否判斷增量模式）。沒有孤兒也要寫這個檔，該段寫「無」，讓下游知道偵測跑過。
 
+   已有舊的 `sync-report.md`（例如重置 route-map 後重建）→ 把舊檔改名為 `sync-report.<YYYY-MM-DD>.bak.md`（同日已存在加 `-2`、`-3`），並在回報列出舊檔裡的待 PM 處理項目；孤兒由本次 7.6 重新偵測。不改名的話，Phase 1 會看到 `sync-report.md` 存在而進增量模式，重播舊清單、漏建本次端點。
+
 8. **依「輸出格式：路由規劃」回報對照表（含孤兒清單，若有）後結束，不自動進 Phase 1**（型別檔與 `spec/report/route-map.yaml` 在前面步驟已寫入磁碟，本步只回報、不再寫檔；使用者要求調整時直接修改 `spec/report/route-map.yaml` 後再進 Phase 1）
 
 ---

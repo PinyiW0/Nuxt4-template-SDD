@@ -71,13 +71,13 @@
 ### 第一段：寫匯流清單後結束（本次 `/feature-to-ui 5` 呼叫的最後一步）
 
 1. 收集每個分身回報的 worktree 路徑、分支名與 commit sha（交辦已要求分身先 commit）
-2. **寫匯流清單** `.claude/tmp/feature-to-ui/fanout-<YYYY-MM-DD>.md`（主線 repo 內；同日已存在就加 `-2`、`-3`）。每個模組一段：模組名、頁面對照表（頁面、spec 結果、關鍵取捨）、worktree 路徑、分支名、commit sha。不 merge，回報清單路徑後結束，結尾提示：「看完清單後執行 `/feature-to-ui 5 --merge`；要否決某些模組就在後面列出模組名，例如 `/feature-to-ui 5 --merge 否決 billing`」
+2. **寫匯流清單** `.claude/tmp/feature-to-ui/fanout-<YYYY-MM-DD>.md`（主線 repo 內；同日已存在就加 `-2`、`-3`）。每個模組一段：模組名、頁面對照表（頁面、spec 結果、關鍵取捨）、worktree 路徑、分支名、commit sha。清單開頭另記合併目標：主線分支名（`git branch --show-current`；輸出為空代表 detached HEAD，停下回報、不寫清單）。不 merge，回報清單路徑後結束，結尾提示：「看完清單後執行 `/feature-to-ui 5 --merge`；要否決某些模組就在後面列出模組名，例如 `/feature-to-ui 5 --merge 否決 billing`」
 
 分身的 commit 只落在它自己的分支，還沒進主線，所以使用者這時否決沒有回滾成本。
 
 ### 第二段：`/feature-to-ui 5 --merge`
 
-讀最新的一份匯流清單 `fanout-<YYYY-MM-DD>*.md`（先比日期；同一天取 `-N` 數字最大的，沒有後綴的算第 1 份；不要照檔名排序，`-2.md` 會排在 `.md` 前面），依使用者這次呼叫帶的參數決定每個模組：
+讀最新的一份匯流清單 `fanout-<YYYY-MM-DD>*.md`（先比日期；同一天取 `-N` 數字最大的，沒有後綴的算第 1 份；不要照檔名排序，`-2.md` 會排在 `.md` 前面），先看 `git status`：有 rebase 進行中（上次衝突停下）就停下回報。再驗合併目標：`git branch --show-current` 要等於清單記的主線分支名，不同或為空就停下回報、請使用者切回去，不 merge。再依使用者這次呼叫帶的參數決定每個模組：
 
 - 沒被列為否決的模組 → 進第 3 步 merge
 - 否決的模組 → **不 merge、不刪**：worktree 與分支原樣保留，要改幾頁再 merge、還是整條 `git branch -D` 丟掉，由使用者決定。不要替使用者刪，整個模組重做比修幾頁貴得多
