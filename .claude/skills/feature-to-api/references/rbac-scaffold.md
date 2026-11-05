@@ -186,7 +186,7 @@ export function getMockCurrentUser(event: H3Event): MockCurrentUser | null {
 }
 
 // 登入守門：沒帶 token、token 解析不出、或查無使用者 → 401（401＝不知道你是誰；403＝知道你是誰但不准）。
-// route-map 有 auth 時，所有非 auth.public_paths 的端點首行呼叫（auth.token_endpoints 的 login／refresh／logout 除外）。
+// route-map 有 auth 時，依 phase-1-mock-api.md 步驟 6 的公開判定，非公開端點首行呼叫（auth.token_endpoints 的 login／refresh／logout 除外）。
 export function requireAuth(event: H3Event): MockCurrentUser {
   const user = getMockCurrentUser(event)
   if (!user)
@@ -320,7 +320,7 @@ export default defineEventHandler(async (event: H3Event) => {
 |---|---|---|
 | `business_guards`（如「不得刪最後一個全權角色」409、「全權角色不得以此 API 改自己密碼」） | 規則高度 domain-specific，無通用範本；硬塞會猜錯 | 只登錄在 route-map.rbac.business_guards，實作邏輯留 feature/spec 散文，由 spec 撰寫者確保有測 |
 | self-vs-others **疊加條件**（`member` 改自己密碼**且需 oldPassword**、`workspace_owner` 改他人免帶） | 屬端點內部商業邏輯；**純「是不是自己這筆」已由 `object_ownership` 自動生**，這裡只剩歸屬之上**再疊條件**（舊密碼、狀態…）的部分 | mock 端點內手寫條件分支，本 scaffold 不代勞 |
-| field-level 角色可見性（同端點依角色回不同欄位） | OpenAPI 本身無法表達，自動猜必錯（多給＝洩漏、少給＝壞 UI） | **不默默略過**：偵測到「PII 語意欄位（電話／地址／證件／內部備註等，範例非白名單）× 多角色讀同一資源」→ **停下來問操作者**各角色可見哪些欄位，確認後在 mock 端點依角色白名單挑欄位（wedding-host 實戰：接待員拿到全賓客電話／住址，實際工作只需姓名＋桌次） |
+| field-level 角色可見性（同端點依角色回不同欄位） | OpenAPI 本身無法表達，自動猜必錯（多給＝洩漏、少給＝壞 UI） | **不默默略過**：偵測到「PII 語意欄位（電話／地址／證件／內部備註等，範例非白名單）× 多角色讀同一資源」→ **停下來問操作者**各角色可見哪些欄位，確認後在 mock 端點依角色白名單挑欄位（分身內問不了：確認前只回非 PII 欄位給受限角色，並列待確認）（wedding-host 實戰：接待員拿到全賓客電話／住址，實際工作只需姓名＋桌次） |
 
 > 未來若後端在 OpenAPI 補機器可讀的 `x-required-roles` vendor extension，§1 偵測可從「散文語意萃取」升級為「直接讀標註」，route-map.rbac schema 不變、下游無感。
 

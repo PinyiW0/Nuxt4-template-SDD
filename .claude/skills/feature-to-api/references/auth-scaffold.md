@@ -496,6 +496,11 @@ export default defineNitroPlugin(() => {
   if (import.meta.dev)
     return
   const config = useRuntimeConfig()
+  // mock 認證的 token 可偽造：換成真認證後把 MOCK_AUTH 改成 false。CI 的 E2E 以 NUXT_E2E_RESET=true 跑 production build，不擋
+  // 刻意用 mock 版做展示部署（docker compose、npm run preview）也會被擋：確認「登入可被偽造」可以接受，才改成 false
+  const MOCK_AUTH = true
+  if (MOCK_AUTH && !config.e2eReset)
+    throw new Error('[security] 仍是 mock 認證（token 可偽造），拒絕在 production 啟動')
   const REQUIRED_SECRETS: Array<[key: string, devDefault: string]> = [
     // ['jwtSecret', 'dev-only-change-me'],
   ]

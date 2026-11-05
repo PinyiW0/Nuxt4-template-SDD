@@ -219,6 +219,12 @@ grep -rnE "from '~/types/api" app/
 
 填入步驟 8 的「🗑️ 孤兒清單」表格（見變更報告格式）。
 
+### 步驟 7.7：重跑 auth／rbac 偵測（⚠️ 必跑）
+
+- 照 [phase-0-prep.md](phase-0-prep.md)「Auth 偵測」「授權（RBAC）偵測」，用新版規格重跑一次，結果與 `route-map.yaml` 的 `auth`／`rbac` 區塊比對
+- 新出現的守門規則（新的登入端點、新的角色限制端點、新角色）→ 步驟 9 寫進 `route-map.yaml`，報告標「新增 auth 守門」或「新增角色守門」（同 auth-scaffold.md §6、rbac-scaffold.md §5 的用詞）
+- 新版規格拿掉的守門規則 → **不刪**，報告列待確認（寧可多擋，不可漏擋；見 auth-scaffold.md §6、rbac-scaffold.md §5）
+
 ### 步驟 8：產出變更報告
 
 先做步驟 8.5（讀取舊版報告、合併未解決的孤兒；模式切換時另遞延待 PM 處理清單），再把分析結果寫入 **`spec/report/sync-report.md`**。直接寫入會覆蓋舊版，舊版的孤兒清單就遺失了。
@@ -263,6 +269,7 @@ grep -rnE "from '~/types/api" app/
 - **`api_contract.path_prefix` 維持步驟 2.5 結果**（使用者未確認 (a) 升版前，不可變動）
 - **同步更新 `api_contract`**：新增/修改的型別 → 更新 `api_contract.types`（鏡像 `app/types/api/*.ts` 的欄位）；新增/修改的端點 → 更新 `api_contract.endpoints`（`path:` 以 `path_prefix` 開頭。OpenAPI 模式下只有少數端點不在前綴底下時，照 phase-0-prep「Path 前綴偵測」的離群端點條款保留原始路徑並標 `outside_prefix: true`；步驟 2 的前綴狀態是 ⚠️ 時，先照步驟 3b 換成既有前綴，不標 `outside_prefix`）
 - **同步更新 `enabled_features`**：反映 PM yaml 最新的 `additionalFeatures`
+- **同步更新 `auth`／`rbac` 區塊**：只加步驟 7.7 的新增守門，不刪既有規則
 - 更新 `generated_at` 為今天日期
 
 ### 步驟 10：回報後結束
@@ -273,6 +280,7 @@ grep -rnE "from '~/types/api" app/
 3. 待刪除項目（提醒使用者手動處理）
 4. **🗑️ 孤兒清單**（步驟 7.6 + 8.5 產出）——分 `UI` / `Backend` / `兼容` 三類明確標示
 5. 更新後的 `spec/report/route-map.yaml` 變更
+6. 步驟 7.7 的「新增 auth 守門」「新增角色守門」與待確認的 auth／rbac 孤兒
 
 **⚠️ 孤兒清單必須在回報裡強調**：不能只放進報告就算數。若 `UI` 類孤兒存在，必須在回報中明確提示「下一步：清除 UI 層孤兒 [列項目]」，否則 claude 容易跳過此步直接進 Phase 1。
 
