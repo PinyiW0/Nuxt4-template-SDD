@@ -4,9 +4,8 @@
 #
 # 一則「意見」有兩種來源，都要收，漏任一種 eval 就會低估 Copilot 的產出：
 #   1. inline 留言（REST /pulls/N/comments）：有 comment_id、有 thread、有我方回覆。
-#   2. review body 裡的「Previously missed」：沒有 comment_id。v1 格式在 `### Suppressed comments`
-#      底下用 `**path:line**` 列；v2 格式在 `<strong>Previously missed (N)</strong>` 底下用巢狀 <details>。
-#      兩種都解析；v2 的路徑夾著零寬空白（U+200B），要先清掉。
+#   2. review body 裡的「Previously missed」：沒有 comment_id。解析與去重鍵在 copilot-body.jq
+#      （missed_items／missed_key，與 copilot-metrics.sh 共用）。
 #
 # 結束碼契約（與 copilot.sh 一字不差）：0 成功／1 可重試的執行失敗／2 參數錯誤／3 需人工介入（缺 gh／jq）。
 # 不用 pipefail、不把 gh 接進管線，理由見 copilot.sh 檔頭。
@@ -15,8 +14,12 @@ set -eu
 usage() {
   cat <<'USAGE'
 用法：
-  copilot-harvest.sh <PR編號> [<PR編號> ...]
+  copilot-harvest.sh [-o <輸出檔>] <PR編號> [<PR編號> ...]
       每個 PR 的每則 Copilot 意見印一列 TSV（第一行是欄名），依 PR 參數順序、再依時間排。
+      帶 -o：全部 PR 都成功才換掉輸出檔（失敗時舊檔原封不動），並把舊檔已填的 verdict
+      依「pr＋review_id＋comment_id＋path＋line＋body_excerpt」帶到新檔；舊 verdict 是「未回覆」
+      而新的一列已有回覆時不帶，留空重判。不要用 `> 檔案`：
+      shell 會先清空舊檔，harvest 中途失敗就只剩空檔或半截，已填的 verdict 也會被清掉。
 
 欄位（11 欄，固定順序）：
   pr             PR 編號
@@ -27,7 +30,8 @@ usage() {
   created_at     留言或 review 的時刻
   body_excerpt   意見內容前 200 字（換行與 tab 換成空白）
   reply_excerpt  我方第一則回覆前 600 字（結論常在後段）。inline 取 thread 內第一則非 Bot 回覆；
-                 Previously missed 取 PR 留言中第一則提到該路徑的非 Bot 留言。沒有就空
+                 Previously missed 取 review 之後第一則寫到同一個 path:line 的非 Bot 留言。沒有就空
+                 （只寫到同一個 path 的不算：常是回覆同檔另一則意見，會把「未回覆」藏起來）
   is_resolved    thread 是否已 Resolved（true／false）；Previously missed 沒有 thread，留空
   verdict        留空，之後填 必修已修／誤判／範圍外／可選／未回覆
 
@@ -101,18 +105,18 @@ harvest_pr() {
   trap 'rm -rf "$dir"' EXIT
   fetch_sources "$slug" "$pr" "$dir"
 
-  if ! jq -r -n --arg pr "$pr" --argjson logins "$COPILOT_LOGINS" \
+  if ! jq -L "$(dirname "$0")" -r -n --arg pr "$pr" --argjson logins "$COPILOT_LOGINS" \
         --slurpfile comments "$dir/comments.json" \
         --slurpfile reviews "$dir/reviews.json" \
         --slurpfile issues "$dir/issue_comments.json" \
         --slurpfile threads "$dir/threads.json" '
+    include "copilot-body";
     # --paginate 每頁一個陣列；--slurpfile 再包一層。攤成一層並拒絕非陣列（gh 失敗時可能吐物件）。
     def flat: [ .[] | if type == "array" then . else error("GitHub API 回傳非陣列：" + tostring) end | .[] ];
     def oneline: (. // "") | gsub("\r"; "") | gsub("\n+"; " ") | gsub("\t"; " ");
     def excerpt: oneline | .[0:200];
     # 回覆常以「指控成立，已實測驗證…」開頭，結論在 200 字之後；verdict 靠這欄判，所以放寬到 600。
     def reply_excerpt: oneline | .[0:600];
-    def strip_zw: gsub("​"; "");
     def is_copilot: (.user.type == "Bot") and (.user.login | IN($logins[]));
 
     ($comments | flat) as $c
@@ -145,17 +149,11 @@ harvest_pr() {
         verdict: ""
       })) as $rows_inline
 
-    # 來源 2：review body 的 Previously missed。v2 巢狀 <details>（有嚴重度與標題）；v1 `**path:line**` 接 `* 說明`。
-    # 同一條會在後續 review 重複列到修掉為止，依 path:line 去重、留最早那次。
-    | ([ $r[] | . as $rv | (.body // "")
-        | ( [ match("<details>\\s*<summary><picture>[\\s\\S]*?alt=\"(High|Medium|Low) severity\"[\\s\\S]*?</picture>\\s*([^<\\n]*?)</summary>\\s*`([^`\\n]+?):([0-9]+)`\\s*([\\s\\S]*?)\\s*</details>"; "g")
-              | { sev: .captures[0].string, title: .captures[1].string,
-                  path: (.captures[2].string | strip_zw), line: .captures[3].string, text: .captures[4].string } ]
-          + [ match("\\*\\*([^*\\n]+?):([0-9]+)\\*\\*\\s*\\n\\* ([^\\n]+)"; "g")
-              | { sev: "", title: "",
-                  path: (.captures[0].string | strip_zw), line: .captures[1].string, text: .captures[2].string } ] )
-        | .[] | . + { review_id: ($rv.id | tostring), created_at: $rv.submitted_at } ]
-      | sort_by(.created_at) | group_by(.path + ":" + .line) | map(.[0])
+    # 來源 2：review body 的 Previously missed（解析見 copilot-body.jq 的 missed_items）。
+    # 同一條會在後續 review 重複列到修掉為止，依 missed_key 去重、留最早那次。
+    | ([ $r[] | . as $rv | (.body // "") | missed_items[]
+        | . + { review_id: ($rv.id | tostring), created_at: $rv.submitted_at } ]
+      | sort_by(.created_at) | group_by(missed_key) | map(.[0])
       | map(. as $m | {
           pr: $pr,
           review_id,
@@ -164,10 +162,10 @@ harvest_pr() {
           severity: .sev,
           created_at,
           body_excerpt: ((if .title != "" then .title + " — " else "" end) + .text | excerpt),
-          # 只認 review 送出之後的留言；有寫到 path:line 的優先，其次才是只寫到 path 的。
-          # 不加時間條件會把「這個問題被提出之前」的留言當成回覆。
-          reply_excerpt: (( [ $ic[] | select(.created_at >= $m.created_at and (.body | contains($m.path))) ] | sort_by(.created_at) ) as $cand
-            | (([ $cand[] | select(.body | contains($m.path + ":" + $m.line)) ] + $cand) | .[0].body // "") | reply_excerpt),
+          # 只認 review 送出之後、寫到同一個 path:line 的留言。不加時間條件會把「這個問題被提出之前」的留言當成回覆；
+          # 不退回「只寫到 path」：那常是回覆同檔另一則意見，會把這則的「未回覆」藏起來。
+          reply_excerpt: ([ $ic[] | select(.created_at >= $m.created_at and (.body | contains($m.path + ":" + $m.line))) ]
+            | sort_by(.created_at) | .[0].body // "" | reply_excerpt),
           is_resolved: "",
           verdict: ""
         })) as $rows_missed
@@ -184,11 +182,38 @@ harvest_pr() {
 require_cmd gh "本腳本全部查詢都透過它。請先安裝並 gh auth login。"
 require_cmd jq "解析與合併四個來源都要它。請先安裝（brew install jq／apt install jq）。"
 
+out=""
+case "${1:-}" in
+  -h | --help) usage; exit 0 ;;
+  -o) [ $# -ge 2 ] || { usage >&2; exit 2; }; out="$2"; shift 2 ;;
+esac
 [ $# -ge 1 ] || { usage >&2; exit 2; }
 for p in "$@"; do require_num "PR 編號" "$p"; done
 
 slug="$(repo_slug)" || exit $?
-header
-for p in "$@"; do
-  harvest_pr "$p" "$slug" || exit $?
-done
+if [ -z "$out" ]; then
+  header
+  for p in "$@"; do
+    harvest_pr "$p" "$slug" || exit $?
+  done
+  exit 0
+fi
+
+# -o：先寫到同目錄的暫存檔，全部成功才換上。harvest_pr 自己會設 EXIT trap，所以放進子 shell 跑，
+# 失敗時由這裡刪暫存檔。不寫成 `if ! (…)`：`!` 之後的 $? 一律是 0，結束碼契約會被吃掉。
+tmp="$(mktemp "${out}.XXXXXX")" || die 1 "建不了暫存檔（$out 所在目錄可寫嗎？）。"
+( header; for p in "$@"; do harvest_pr "$p" "$slug" || exit $?; done ) > "$tmp" || {
+  rc=$?; rm -f "$tmp"; exit "$rc"
+}
+# 舊檔已填的 verdict（第 11 欄）依鍵帶過來：鍵是第 1–5 欄與第 8 欄（body_excerpt），
+# 同一 path:line 的兩個不同缺陷靠第 8 欄分開。舊的「未回覆」在新列已有回覆（第 9 欄）時不帶，留空重判。
+if [ -f "$out" ]; then
+  if ! awk -F'\t' -v OFS='\t' '
+        NR == FNR { if (FNR > 1 && $11 != "") v[$1 FS $2 FS $3 FS $4 FS $5 FS $8] = $11; next }
+        FNR > 1 { k = $1 FS $2 FS $3 FS $4 FS $5 FS $8; if ((k in v) && !(v[k] == "未回覆" && $9 != "")) $11 = v[k] }
+        { print }' "$out" "$tmp" > "$tmp.merged"; then
+    rm -f "$tmp" "$tmp.merged"; die 1 "帶入舊 verdict 失敗，$out 沒有改動。"
+  fi
+  mv "$tmp.merged" "$tmp"
+fi
+mv "$tmp" "$out"

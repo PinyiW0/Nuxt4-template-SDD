@@ -12,11 +12,11 @@
 
 ## 流程
 
-1. **收 case**（在 repo 根目錄執行）：`sh .claude/skills/review-loop/scripts/copilot-harvest.sh <PR…> > .claude/skills/review-loop/evals/copilot-cases.tsv`。
+1. **收 case**（在 repo 根目錄執行）：`sh .claude/skills/review-loop/scripts/copilot-harvest.sh -o .claude/skills/review-loop/evals/copilot-cases.tsv <PR…>`。用 `-o` 不用 `>`：`>` 會先清空正式檔，harvest 中途失敗就只剩空檔或半截；`-o` 全部成功才換檔，並把已填的 verdict 帶到新檔。`-o` 會整檔換掉，PR 清單要列全。
 2. **填 verdict**，分兩步：
    - reply_excerpt 為空 → 直接用 awk 填 `未回覆`，**不交給模型**。2026-10-07 第一版把 55 則判成未回覆，其中 34 則其實有回覆——讓模型自己決定「有沒有回覆」會出錯。
    - 其餘派 **sonnet** subagent 四選一（必修已修／誤判／範圍外／可選），**禁止輸出未回覆**，並要求「以最終結論為準，不是開頭」。輸出「行號 TAB verdict TAB 理由」後用 awk 填回第 11 欄。評分模型要與產生者不同：Copilot 不是 Claude，本地 `/code-review` 是主線模型。haiku 在這一步誤判率太高，不用。
-3. **(a) 抓取率**：對每個 PR 取**第一則 Copilot review 的 `commit_id`**：`sh .claude/skills/review-loop/scripts/copilot.sh reviews <N> | jq -r 'sort_by(.id) | .[0].commit_id'`。不要直接打 `/pulls/<N>/reviews` 取第一則——那會拿到人類或 `sdd-review.yml` 的 review，`git branch -f eval/pr-<N> <sha>`，用 Skill tool 跑 `/code-review eval/pr-<N> --max-findings all`，findings 存 `runs/<日期>/pr-<N>.md`。再派 haiku 對每條 verdict＝必修已修 的 case（這一步是「同 path 且同缺陷」的比對，haiku 夠用） 判「本地 findings 有沒有同 path 且同一缺陷」→ 抓取率寫 `summary.tsv`。跑完 `git branch -D eval/pr-<N>`。
+3. **(a) 抓取率**：對每個 PR 取**第一則 Copilot review 的 `commit_id`**：`sh .claude/skills/review-loop/scripts/copilot.sh reviews <N> | jq -r 'sort_by(.id) | .[0].commit_id'`。不要直接打 `/pulls/<N>/reviews` 取第一則——那會拿到人類或 `sdd-review.yml` 的 review。接著 `git fetch origin pull/<N>/head`（PR 合併、分支刪掉後本機可能沒有那個 commit），`git branch -f eval/pr-<N> <sha>`，用 Skill tool 跑 `/code-review medium eval/pr-<N> --max-findings all`（level 與 `SKILL.md` 第 2 節第 0 步相同，量到的才是它的抓取率；`--max-findings all` 會黏到之後的手動呼叫，整批跑完後第一次手動跑 `/code-review` 時帶 `--max-findings default`）。findings 存 `runs/<日期>/pr-<N>.md`。再派 haiku 對每條 verdict＝必修已修 的 case（這一步是「同 path 且同缺陷」的比對，haiku 夠用） 判「本地 findings 有沒有同 path 且同一缺陷」→ 抓取率寫 `summary.tsv`。跑完 `git branch -D eval/pr-<N>`。
 4. **(b) 政策檔效果**：政策檔上線後對新 PR 再跑 1–2，比 `(誤判＋範圍外) ÷ 總數` 與 baseline。
 
 ## baseline（2026-10-07，#151、#135、#141）
@@ -55,8 +55,8 @@
 
 ## 注意
 
-- Previously missed 沒有 thread，harvest 只能用「review 之後、提到同 path（優先 path:line）的第一則留言」當回覆，偶爾會對到處理另一則意見的總結留言（2026-10-07 重判時 sonnet 指出 12 則）。這類 case 的 verdict 可信度較低。
+- Previously missed 沒有 thread，harvest 只能用「review 之後、寫到同一個 path:line 的第一則留言」當回覆。只寫到同 path 的不算（2026-10-07 重判時 sonnet 指出 12 則對到處理另一則意見的總結留言），所以行號被 Copilot 標偏時會留空、落到「未回覆」，填 verdict 時要人工確認。
 - **不可用 PR 編號當 `/code-review` 的目標**——那會審修完後的 head，抓取率沒意義。
 - Copilot 給的行號會差 2–4 行（`references/copilot-quirks.md` §4），判定看 path＋描述。
-- 同一條 Previously missed 會在後續 review 重複列到修掉為止，harvest 已依 path:line 去重。
+- 同一條 Previously missed 會在後續 review 重複列到修掉為止，harvest 已依 path:line＋缺陷（v2 標題、v1 說明全文）去重。Copilot 在後續 review 改了措辭時會變成另一筆，填 verdict 時要合併。
 - 誰消費這份數字：#173 的驗收、`SKILL.md` 第 8 節的目標、`.claude/ops/maintenance.md` §5 的定期健檢。

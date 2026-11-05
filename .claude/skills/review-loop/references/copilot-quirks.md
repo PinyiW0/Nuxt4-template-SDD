@@ -1,6 +1,6 @@
 # Copilot review 的行為與踩坑
 
-來源：PinyiW0/Nuxt4-template-SDD PR #132 實跑，2026-09-01。七輪 review 才收斂，以下每一條都對應真實付出的代價。
+來源：PinyiW0/Nuxt4-template-SDD PR #132 實跑，2026-09-01。七輪 review 才收斂，以下每一條都對應真實付出的代價。第 3 節的 body 格式另有後續樣本：#151（2026-09-23）、#185（2026-10-28）、#190／#192（2026-11-02）、#203（2026-11-05）。
 
 ## 1. re-request 必須走 GraphQL
 
@@ -52,7 +52,7 @@ Copilot 的 review body 可能夾帶結構化的 `Suppressed comments (N)` 區�
 
 review body 一定要讀完，不能只當摘要跳過。`copilot.sh reviews` 的輸出含 `body` 就是為了這個。
 
-body 有兩種格式，**兩種都要認**（2026-09-23 起出現 v2，之後的 review 全是 v2）。
+body 有三種格式，**都要認**：v1、v2（2026-09-23 起）、v2 新寫法（2026-11-02 起，同樣以 `<!-- ccr-overview-v2 -->` 開頭）。腳本的判準只有一份：`../scripts/copilot-body.jq`，Copilot 再換格式時改那個檔。
 
 **v1**（#135 review 5085821819，節錄）——項目在 `Suppressed comments` 底下，每條是粗體 `path:line` 接一行 `*` 說明，沒有嚴重度：
 
@@ -113,14 +113,54 @@ This message is inaccurate: `ledger.sh` does not read `SMOKE_PATTERN`……
 </details>
 ```
 
+**v2 新寫法**（#203 review 5780011484，節錄）——沒有 `**Findings:**` 摘要行，清單標頭改成「數字＋小寫名詞」，effort 移到頁尾 `<sub>`：
+
+```markdown
+<!-- ccr-overview-v2 -->
+### 🟡 Changes recommended
+…
+<details open>
+<summary><strong>7 open issues</strong></summary>
+
+- [High] [批次重排未驗證每筆筆記的修改權限](…#discussion_r4476719538) · New
+…
+</details>
+
+<details>
+<summary><strong>4 previously missed issues</strong></summary>
+
+In code that hasn't changed since last review
+
+<details>
+<summary>[Medium] …</summary>
+
+`.claude/​skills/​feature-to-api/​references/​auth-scaffold.md:391`
+
+[P2] 讓 mock 登出撤銷 refresh token。……
+</details>
+…
+</details>
+
+<details>
+<summary><strong>3 resolved since last review</strong></summary>
+…
+</details>
+
+<sub>Review effort: Balanced</sub>
+```
+
+沒有問題時是 `### 🟢 Approval recommended` 加 `**No open issues** 🎉`（#190 review 5733005762）。
+
 讀法：
 
 | 區塊 | 要不要處理 | 怎麼對到留言 |
 |---|---|---|
-| `Open (N)` | 要 | `#discussion_r<id>` 就是 inline 留言的 comment id；嚴重度看圖示的 `alt` |
-| `Resolved since last review (N)` | 不用，只是對帳 | 同上 |
-| `Previously missed (N)` | 要，沒有 thread | 路徑在反引號裡，**夾著零寬空白（U+200B）**，比對前要先去掉；回覆走第 5 節的 `gh pr comment` |
-| `**Findings:** None` | 這一則沒有新問題 | `copilot.sh reviews` 的 `findings_none` 欄已判好 |
+| `Open (N)`／`N open issues` | 要 | `#discussion_r<id>` 就是 inline 留言的 comment id；嚴重度看圖示的 `alt` |
+| `Resolved since last review (N)`／`N resolved since last review` | 不用，只是對帳 | 同上 |
+| `Previously missed (N)`／`N previously missed issues` | 要，沒有 thread | 路徑在反引號裡，**夾著零寬空白（U+200B）**，比對前要先去掉；回覆走第 5 節的 `gh pr comment` |
+| `**Findings:** None`（v2）／`**No open issues**`（v2 新寫法） | 只代表沒有新的 Open，**同一則可能還帶 Previously missed** | `copilot.sh reviews` 的 `findings_none` 已把這種情況排除 |
+
+撞配額的 review 是零留言的 `COMMENTED`，body 只有一句「Copilot was unable to review this pull request because the user who requested the review has …」。句尾在 2026-10-28 從「reached their quota limit.」換成「insufficient remaining quota.」（#185 review 5678618127），所以 `is_quota` 只認「body 以 Copilot was unable to review 開頭」＋「含 quota」，不綁整句。
 
 `/pr-feedback` 步驟 2 的四路抓法只涵蓋 inline 留言與 review 總結本體，未特別處理這個區塊——它把 (c) review 當「沒有 file:line 的總結」，而 suppressed 區塊**自己帶著 file:line 與完整建議**，照那個指引會被當純摘要略過。委派它抓留言時要自己另外補這一步。
 

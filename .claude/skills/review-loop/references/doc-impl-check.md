@@ -6,9 +6,9 @@
 
 | 呼叫端 | 時機 | 目標 diff |
 |---|---|---|
-| `/ship` Phase 1 L5 | `/code-review` 之後 | `<merge-base>...HEAD` |
-| `/review-loop` 起手 1b | `/code-review` 之後、第一次 push 之前 | `<merge-base>...HEAD` |
-| `/review-loop` 每輪 7b | `/code-review` 之後、第 8 步 commit 之前 | 工作區 diff（本輪修正） |
+| `/ship` Phase 1 L5 | `/code-review` 之後 | `<merge-base>`（到工作區：路線 A 這時還沒 commit；未追蹤新檔先照 ship L5 段 `git add -N`） |
+| `/review-loop` 第 2 節第 0 步（本地先審） | `/code-review` 之後、第一次 push 之前 | `<merge-base>`（前置檢查已要求工作區乾淨，等於全部已 commit 的改動） |
+| `/review-loop` 每輪 7b | `/code-review` 之後、第 8 步 commit 之前 | 工作區 diff（本輪修正；本輪新增的檔先 `git add -N`，否則 `git diff` 看不到） |
 
 **diff 不含任何 `.md` 檔 → 跳過**，不派分身。L5 的綠燈＝`/code-review` 與本檢查都沒有必修。
 
@@ -40,4 +40,4 @@
 ## 結果怎麼用
 
 - 回來的每筆照 `/code-review` 的 findings 同樣處理：落在本 PR diff 內的檔案、講得出具體改法的 → 當必修修掉；其餘歸「待使用者決定」。
-- 1b 與 7b 只跑一次，不因為修了又重跑，避免自己審自己的修法無限循環。
+- 起手的本地先審與 7b 只跑一次，不因為修了又重跑，避免自己審自己的修法無限循環。
