@@ -56,8 +56,8 @@ disable-model-invocation: true
 
 可以續跑時，重設：`停下原因` 清空、`最近一輪開始時刻` 記現在、`靜默階段: 1`、`連續靜默輪次: 0`、`下次間隔: 300`；再依情況：
 
-- `續跑 已重請` → `最近 request` 記 `現在 @<HEAD>`，本 skill 不再請（同一個 commit 請兩次只會多扣額度）
-- 沒帶 `已重請`（HEAD 上沒有 review）→ 在續跑當場處理，不受第 3 節第 10 步「本輪有 push」前提限制：上次 request 的 commit 到 HEAD 之間改到 `app/`／`server/` 時，記 `待請 review: 是`，由第 1b 步等 CI 綠再請；否則當場 `copilot.sh request`，照第 10 步末段更新狀態檔
+- `續跑 已重請` → `最近 request` 記 `現在 @<HEAD>`、`待請 review: 否`，本 skill 不再請（同一個 commit 請兩次只會多扣額度）
+- 沒帶 `已重請`（HEAD 上沒有 review）→ 在續跑當場處理，不受第 3 節第 10 步「本輪有 push」前提限制：上次 request 的 commit 到 HEAD 之間改到 `app/`／`server/` 時，記 `待請 review: 是`，由第 1b 步等 CI 綠再請；否則當場 `copilot.sh request`，照第 10 步末段更新狀態檔、`待請 review: 否`
 - 停下原因是「quota」→ 先把同一批裡 `id` 比撞配額那則小、還沒處理的 review 照第 3 節第 3–9 步處理完，再把 `review 基準線` 移到撞配額那則的 `id`（只跳過它，否則下一輪又讀到它、馬上再停；之後才送達的 review 照常處理，不可直接移到最新一則）。其他停下原因不動基準線
 
 然後跑第 3 節，第 0 步只跳過去抖那一條，其餘照做。
@@ -100,7 +100,7 @@ disable-model-invocation: true
    | 3 | 需人工介入（缺 `gh`／`jq`、找不到或撈到多個 reviewer bot） | 停下報告，重試無用 |
    | 其他 | 契約外的結束碼，代表腳本本身出了沒預期的狀況 | 停下報告。**不要當成 0 也不要當成可重試** |
 
-   結束碼 0 且有新 review → 先把現在時刻與最新一則的 `commit_id` 記進 `最近 review`（`<epoch> @<sha>`；要在第 10 步 request 之前記，記在第 11 步會晚於本輪的 request，讓第 6 節誤判成「送出的 request 都已收到 review」）。
+   結束碼 0 且有新 review → 先把現在時刻與 commit 記進 `最近 review`（`<epoch> @<sha>`）：這批新 review 有任一則錨在 `最近 request` 的 commit，或 `最近 review` 的 commit 已等於它，就記那個 commit；否則記最新一則的 `commit_id`。晚到的舊 commit review 才不會蓋掉「已收到」（要在第 10 步 request 之前記，記在第 11 步會晚於本輪的 request，讓第 6 節誤判成「送出的 request 都已收到 review」）。
 
    結束碼 0 之後再看每則的 `quota` 欄：**任一則 `quota == true` → 視同結束碼 3，停下**，停下原因記「quota」，**不呼叫 `copilot.sh request`**。告訴使用者：到 PR 網頁手動按 Copilot 旁的 Re-request（實測腳本請會撞配額、網頁手動按可能可以），按完再打 `/review-loop <PR編號> 續跑`。
    這條要先於第 5 節判斷：撞配額的 review 是零留言的 `COMMENTED`，不攔下來就會被當成「這輪沒有新問題」而假共識收工。
@@ -220,7 +220,7 @@ disable-model-invocation: true
 | 幅度 | 判準 |
 |---|---|
 | 重寫 | 任一檔改動 ≥ 30 行，或新增檔 |
-| 改設計 | 新增或刪除了分支、函式、流程步驟（diff 新增行裡出現 `if`／`case`／函式定義，或新的編號步驟），或合計 11–29 行 |
+| 改設計 | 新增或刪除了分支、函式、流程步驟（diff 新增行裡出現 `if`／`case`／函式定義，或新的編號步驟），或不符合重寫但合計超過 10 行 |
 | 補字 | 其餘：合計 ≤ 10 行，且不符合上面兩級 |
 
 行數一律算整輪：第 8 步一輪可能分群成好幾個 commit，所以第 8 步 commit 前先記下 HEAD，判幅度時用 `git diff --numstat <記下的 HEAD>..HEAD` 合計，不要只看 `HEAD~1`。

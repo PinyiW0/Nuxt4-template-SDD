@@ -164,7 +164,11 @@ harvest_pr() {
           body_excerpt: ((if .title != "" then .title + " — " else "" end) + .text | excerpt),
           # 只認 review 送出之後、寫到同一個 path:line 的留言。不加時間條件會把「這個問題被提出之前」的留言當成回覆；
           # 不退回「只寫到 path」：那常是回覆同檔另一則意見，會把這則的「未回覆」藏起來。
-          reply_excerpt: ([ $ic[] | select(.created_at >= $m.created_at and (.body | contains($m.path + ":" + $m.line))) ]
+          # path:line 兩邊都要是邊界：前面不能接路徑字元（`a.md:8` 不可配到 `doc/a.md:8`），
+          # 後面不能接數字或「-」（不可配到 `a.md:80`、`a.md:8-10`）。正則每條只算一次。
+          # 用正則的前後瞻、不用 indices 切字串：jq 1.7 的字串 indices 回位元組位置，遇到中文會切錯。
+          reply_excerpt: (("(?<![A-Za-z0-9_./-])" + (($m.path + ":" + $m.line) | gsub("(?<c>[.*+?^$()\\[\\]{}|\\\\])"; "\\\(.c)")) + "(?![0-9-])") as $re
+            | [ $ic[] | select(.created_at >= $m.created_at and (.body | test($re))) ]
             | sort_by(.created_at) | .[0].body // "" | reply_excerpt),
           is_resolved: "",
           verdict: ""
@@ -206,12 +210,14 @@ tmp="$(mktemp "${out}.XXXXXX")" || die 1 "建不了暫存檔（$out 所在目錄
   rc=$?; rm -f "$tmp"; exit "$rc"
 }
 # 舊檔已填的 verdict（第 11 欄）依鍵帶過來：鍵是第 1–5 欄與第 8 欄（body_excerpt），
-# 同一 path:line 的兩個不同缺陷靠第 8 欄分開。舊的「未回覆」在新列已有回覆（第 9 欄）時不帶，留空重判。
+# 用 FILENAME 辨識舊檔、不用 NR == FNR：舊檔是空檔時後者對新檔也成立，新資料會全被 next 丟掉。
+# 同一 path:line 的兩個不同缺陷靠第 8 欄分開。舊檔名不含斜線時補 ./：awk 會把 `out=1.tsv` 這種參數當成變數設定、不讀檔。舊的「未回覆」在新列已有回覆（第 9 欄）時不帶，留空重判。
 if [ -f "$out" ]; then
+  case "$out" in */*) old="$out" ;; *) old="./$out" ;; esac
   if ! awk -F'\t' -v OFS='\t' '
-        NR == FNR { if (FNR > 1 && $11 != "") v[$1 FS $2 FS $3 FS $4 FS $5 FS $8] = $11; next }
+        FILENAME == ARGV[1] { if (FNR > 1 && $11 != "") v[$1 FS $2 FS $3 FS $4 FS $5 FS $8] = $11; next }
         FNR > 1 { k = $1 FS $2 FS $3 FS $4 FS $5 FS $8; if ((k in v) && !(v[k] == "未回覆" && $9 != "")) $11 = v[k] }
-        { print }' "$out" "$tmp" > "$tmp.merged"; then
+        { print }' "$old" "$tmp" > "$tmp.merged"; then
     rm -f "$tmp" "$tmp.merged"; die 1 "帶入舊 verdict 失敗，$out 沒有改動。"
   fi
   mv "$tmp.merged" "$tmp"
