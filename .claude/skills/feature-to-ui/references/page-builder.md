@@ -69,7 +69,7 @@ And 系統顯示 "帳號或密碼錯誤"
 | `篩選 XXX` | USelect / USelectMenu | 篩選條件選項 |
 | `批次刪除` / `批次操作` | UTable checkbox + 批次按鈕 | 全選/取消全選 |
 | `上傳 XXX` | UInput type="file" / 拖放區 | 檔案格式提示 |
-| `切換狀態` / `啟用/停用` | UToggle / USwitch | 狀態標籤文字 |
+| `切換狀態` / `啟用/停用` | USwitch | 狀態標籤文字 |
 | `匯出 XXX` | UButton（下載觸發） | loading 狀態 |
 
 > **重要**：**list 類**頁面（依語意判斷，不限「查詢」二字）→ UI 必須包含搜尋框
@@ -228,13 +228,15 @@ const { data: site, status, error, refresh } = getSite(() => route.params.id as 
 > 防迴圈：login 頁與其 layout **不得發 authed fetch**；只呼叫 `authStore.login`（內部端點 `handleUnauthorized:false`）。
 
 ```vue
+<!-- app/pages/login.vue -->
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { z } from 'zod'
-// ⚠️ 必須明確 import store，不可依賴 auto-import
-import { useAuthStore } from '~/stores/auth'
 import { readApiError } from '~/utils/api-error'
 
+definePageMeta({ layout: 'auth' })
+
+// useAuthStore 由 @pinia/nuxt auto-import（rules/framework-skills.md），不必手動 import
 const authStore = useAuthStore()
 const config = useRuntimeConfig().public
 const toast = useToast()
@@ -254,7 +256,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     return // 防止重複提交
   isSubmitting.value = true
   try {
-    await authStore.login(event.data) // login(body)，登入後內部補抓 /auth/me
+    await authStore.login(event.data) // 簽名 login(body: LoginBody)，見 auth-scaffold.md §3a；登入後內部補抓 me
     toast.add({ title: '登入成功', color: 'success' })
     await navigateTo(config.authHomePath || '/') // 導向設定的登入後首頁
   }
@@ -319,83 +321,68 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 >
 > **改動此範本的 label／按鈕文案時，要同步 `setup.md` 的 `login()` helper**——兩者是一對耦合。
 
-### 一般表單
+### 一般表單（建立資料）
+
+> 非登入的通用表單：送出走 client 層的寫入函式（`app/api/*.api.ts`），不直接 `$fetch`。notes 為假想資源，函式名與欄位以實際產出為準。
 
 ```vue
+<!-- app/pages/notes/new.vue -->
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { z } from 'zod'
+import { createNote } from '~/api'
 import { readApiError } from '~/utils/api-error'
 
-const schema = z.object({
-  account: z.string().trim().min(1, '請輸入帳號'),
-  password: z.string().min(1, '請輸入密碼'),
-})
+definePageMeta({ layout: 'default' })
 
+// 前端 schema 只做即時提示；權威驗證在 server 端的 readValidatedBody
+const schema = z.object({
+  title: z.string().trim().min(1, '請輸入標題').max(50, '標題過長'),
+})
 type Schema = z.output<typeof schema>
 
-const state = reactive<Schema>({
-  account: '',
-  password: '',
-})
-
-const loading = ref(false)
+const state = reactive<Schema>({ title: '' })
+const isSubmitting = ref(false)
 const toast = useToast()
 
 async function onSubmit(event: FormSubmitEvent<Schema>) {
-  loading.value = true
+  if (isSubmitting.value)
+    return // 防止重複提交
+  isSubmitting.value = true
   try {
-    await $fetch('/api/auth/login', {
-      method: 'POST',
-      body: event.data,
-    })
-    toast.add({ title: '登入成功', color: 'success' })
-    await navigateTo('/')
+    await createNote(event.data)
+    toast.add({ title: '建立成功', color: 'success' })
+    await navigateTo('/notes') // 跨頁回列表：列表頁重新掛載會重抓（見「資料新鮮度」）
   }
   catch (error) {
-    toast.add({ title: '登入失敗', description: readApiError(error, '操作失敗'), color: 'error' })
+    toast.add({ title: '建立失敗', description: readApiError(error, '操作失敗'), color: 'error' })
   }
   finally {
-    loading.value = false
+    isSubmitting.value = false
   }
 }
 </script>
 
 <template>
-  <UForm
-    :schema="schema"
-    :state="state"
-    class="space-y-4"
-    @submit="onSubmit"
-  >
-    <!-- UFormField 用法依 /nuxt-ui MCP 文檔為準 -->
-    <!-- 不放 testid：label 與按鈕文字即 accessible name，helpers 的 login() 靠它定位 -->
-    <UFormField
-      label="帳號"
-      name="account"
+  <main class="mx-auto w-full max-w-lg">
+    <h1 class="mb-6 text-2xl font-bold">
+      新增筆記
+    </h1>
+    <UForm
+      :schema="schema"
+      :state="state"
+      class="space-y-4"
+      @submit="onSubmit"
     >
-      <UInput
-        v-model="state.account"
-        class="w-full"
-      />
-    </UFormField>
-    <UFormField
-      label="密碼"
-      name="password"
-    >
-      <UInput
-        v-model="state.password"
-        type="password"
-        class="w-full"
-      />
-    </UFormField>
-    <UButton
-      type="submit"
-      :loading="loading"
-    >
-      登入
-    </UButton>
-  </UForm>
+      <!-- UFormField 用法依 /nuxt-ui MCP 文檔為準；label 即 accessible name，不放 testid -->
+      <UFormField label="標題" name="title">
+        <UInput v-model="state.title" class="w-full" />
+      </UFormField>
+      <UButton type="submit" :loading="isSubmitting">
+        建立
+      </UButton>
+    </UForm>
+  </main>
 </template>
 ```
 
@@ -404,7 +391,9 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 ## 密碼欄位範本
 
 ```vue
-<script setup>
+<script setup lang="ts">
+// 示意用：實際頁面沿用外層 UForm 的 state，不另宣告
+const state = reactive({ password: '' })
 const showPassword = ref(false)
 </script>
 
@@ -428,7 +417,6 @@ const showPassword = ref(false)
           color="neutral"
           variant="link"
           size="sm"
-          :padded="false"
           :aria-label="showPassword ? '隱藏' : '顯示'"
           aria-controls="password-input"
           :aria-pressed="showPassword"
