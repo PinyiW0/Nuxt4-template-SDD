@@ -133,7 +133,7 @@ api_contract:
 
 判準：有沒有登入主體。主訊號與命名範例（範例不是必要字串，命名不同但語意相同一樣命中）：
 
-- OpenAPI：有「收憑證換 token」的端點（如 `/auth/login`、`/sessions`、`/oauth/token`），或 `securitySchemes` 有 bearer／oauth2／cookie
+- OpenAPI：有「收憑證換 token」的端點（如 `/auth/login`、`/sessions`、`/oauth/token`），或 `securitySchemes` 有 bearer／oauth2／cookie（只有 cookie 的例外見下方）
 - `.feature` / `.flow.md`：有登入 scenario（登入 / login / 帳號+密碼 / 未登入導向）
 - 例外：spec 只有 cookie 認證（`securitySchemes` 是 `in: cookie`、登入回應沒有 token）→ **不寫 `route-map.auth`**，下游就不會套 Bearer 範本；在回報列「待確認：cookie session 認證，scaffold 未支援（需要 CSRF 防護）」
 
