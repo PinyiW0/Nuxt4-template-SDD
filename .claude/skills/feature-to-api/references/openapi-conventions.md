@@ -141,7 +141,7 @@ return createdEvent   // → SiteCreatedEvent（POST 201）
 import { getErrorCode, readApiError } from '~/utils/api-error'
 
 try {
-  await useHttp().post('/auth/login', { body })
+  await useHttp().post('/api/v1/auth/login', { body }) // 路徑 = {path_prefix}/auth/login，不寫裸 /auth/*
 }
 catch (e) {
   toast.add({ title: '登入失敗', description: readApiError(e, '帳號或密碼錯誤'), color: 'error' })

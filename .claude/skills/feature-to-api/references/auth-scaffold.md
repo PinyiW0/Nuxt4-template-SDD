@@ -47,22 +47,25 @@ auth:
 
 | 檔案 | 範本位置 | 套用者 | 說明 |
 |---|---|---|---|
-| `app/types/api/auth.ts` | §3a | feature-to-api | TokenPairData / LoginBody / MeResponse… |
-| `app/composables/useHttpAuth.ts` | §3a | feature-to-api | **覆蓋**中立 stub（回 null）→ 從 store + force-logout 組 handler。**useHttp.ts 不動**（已內建 Authorization / 401→refresh→retry 注入點） |
-| `app/stores/auth.ts` | §3a | feature-to-api | 三層併發防護 refresh（single-flight＋跨分頁鎖＋cookie 重讀）、cookie persist（含 maxAge）、login/logout/clearAuth |
-| `app/utils/force-logout.ts` | §3a | feature-to-api | **冪等單飛**登出出口（防並發導頁，§4） |
-| `app/api/auth.api.ts` | §3a | feature-to-api | 登入/refresh/logout/me，全 `handleUnauthorized:false` |
-| `app/api/index.ts` | §3a | feature-to-api | re-export（已存在則合併） |
+| `app/types/api/auth.ts` | §3a | feature-to-api Phase 0 | TokenPairData / LoginBody / MeResponse… |
+| `app/composables/useHttpAuth.ts` | §3a | feature-to-api Phase 1.5 | **覆蓋**中立 stub（回 null）→ 從 store + force-logout 組 handler。**useHttp.ts 不動**（已內建 Authorization / 401→refresh→retry 注入點） |
+| `app/stores/auth.ts` | §3a | feature-to-api Phase 1.5 | 三層併發防護 refresh（single-flight＋跨分頁鎖＋cookie 重讀）、cookie persist（含 maxAge）、login/logout/clearAuth |
+| `app/utils/force-logout.ts` | §3a | feature-to-api Phase 1.5 | **冪等單飛**登出出口（防並發導頁，§4） |
+| `app/api/auth.api.ts` | §3a | feature-to-api Phase 1.5 | 登入/refresh/logout/me，全 `handleUnauthorized:false`。**auth 命中時本檔是唯一來源**：Phase 1.5 照本範本產，不照一般命名規則另產 `token_endpoints`，函式名以本檔為準（store 依賴） |
+| `app/api/index.ts` | §3a | feature-to-api Phase 1.5 | re-export（已存在則合併） |
+| `server/api/v1/auth/*`（`path_prefix` 去掉開頭的 `/api` 再對應到資料夾；`/api/v1` → `server/api/v1/`） | §3a（login 在 phase-1-mock-api「API 端點範例」） | feature-to-api Phase 1 | login／refresh／logout／me 四個 mock 端點，auth 命中時一定要生（store 的 `login()` 必打 me、換發必打 refresh），不看 spec 有沒有寫 |
 | `nuxt.config.ts` 追加 | §3a | feature-to-api | auth 路徑設定（編輯，非新檔） |
 | `app/middleware/auth.global.ts` | §3b → feature-to-ui `phase-2-skeleton.md` | feature-to-ui | 全域守門（白名單 + never-nav-current） |
 | `app/pages/login.vue` | §3b → feature-to-ui `page-builder.md` | feature-to-ui | 登入頁（**不得發 authed fetch**） |
-| `server/plugins/00.security-guard.ts` | §4b | feature-to-api | production 啟動守衛（密鑰為 dev 預設值 → 拒絕啟動） |
-| `server/utils/rate-limit.ts` | §4b | feature-to-api | 登入限流（僅計失敗、成功清零；fileUpload 時同套 presign） |
-| `nuxt.config.ts` 安全標頭 | §4b | feature-to-api | 三個零調校標頭（編輯，非新檔） |
+| `server/plugins/00.security-guard.ts` | §4b | feature-to-api Phase 1 | production 啟動守衛（密鑰為 dev 預設值 → 拒絕啟動） |
+| `server/utils/rate-limit.ts` | §4b | feature-to-api Phase 1 | 登入限流（僅計失敗、成功清零；fileUpload 時同套 presign） |
+| `nuxt.config.ts` 安全標頭 | §4b | feature-to-api Phase 1 | 三個零調校標頭（編輯，非新檔） |
 
-**端點前綴**：範本用裸 `/auth/*`；若專案前綴為 `/api/v1`，比照 `openapi-conventions.md` §6 調整（或交給 `useHttp` baseURL）。
+**端點前綴**：路徑一律寫 `{path_prefix}/auth/*`。下列範本假設 `path_prefix = /api/v1`，依 `route-map.yaml > api_contract.path_prefix` 換掉；不可寫裸 `/auth/*`（`apiBase` 是 `/api`，裸路徑會打到 `/api/auth/login`）。
 
 ### 3a. API 層範本（feature-to-api 套用）
+
+> **欄位名以 spec 為準**：下方型別是 Feature 模式的預設形狀。OpenAPI 模式下 token 回應的欄位名照 spec（例如 spec 叫 `token` 而不是 `accessToken`），store 裡讀 `data.accessToken` 的地方要一起改，否則 typelint 會紅。
 
 ```ts
 // app/types/api/auth.ts —— 認證型別（envelope 的 data 取具名 schema）
@@ -94,7 +97,7 @@ export interface MeResponse {
 // app/composables/useHttpAuth.ts —— auth 版，覆蓋中立 stub（從 store + force-logout 組出 handler）
 // 重點：useHttp.ts **不覆蓋**——中立版已內建 auth 注入點（Authorization / 401→refresh→retry），
 //       只要本檔回傳真實 handler 即啟用。envelope / get / request 核心維持單一編譯來源，不複製。
-import { useAuthStore } from '~/stores/auth'
+// useAuthStore 由 @pinia/nuxt auto-import，不手動 import
 import { forceLogout } from '~/utils/force-logout'
 
 export interface HttpAuthHandler {
@@ -283,7 +286,7 @@ export const useAuthStore = defineStore(
 ```ts
 // app/utils/force-logout.ts —— 冪等單飛登出出口（防並發導頁，§4 第 1 道）
 import type { NuxtApp } from 'nuxt/app'
-import { useAuthStore } from '~/stores/auth'
+// useAuthStore 由 @pinia/nuxt auto-import，不手動 import
 
 // 並發 401 收斂旗標：同時多個 401 只允許一次「登出 + 導頁」→ 根治 Vue Router 重複導向錯誤
 let loggingOut = false
@@ -322,16 +325,16 @@ import type {
 import { useHttp } from '~/composables/useHttp'
 
 export function loginUser(body: LoginBody) {
-  return useHttp().post<LoginResponse>('/auth/login', { body, handleUnauthorized: false })
+  return useHttp().post<LoginResponse>('/api/v1/auth/login', { body, handleUnauthorized: false })
 }
 export function refreshAuthToken(body: RefreshBody) {
-  return useHttp().post<RefreshResponse>('/auth/refresh', { body, handleUnauthorized: false })
+  return useHttp().post<RefreshResponse>('/api/v1/auth/refresh', { body, handleUnauthorized: false })
 }
 export function logoutUser(refreshToken?: string) {
-  return useHttp().post<null>('/auth/logout', { body: { refreshToken }, handleUnauthorized: false })
+  return useHttp().post<null>('/api/v1/auth/logout', { body: { refreshToken }, handleUnauthorized: false })
 }
 export function fetchMe() {
-  return useHttp().getOnce<MeResponse>('/auth/me', { handleUnauthorized: false })
+  return useHttp().getOnce<MeResponse>('/api/v1/auth/me', { handleUnauthorized: false })
 }
 ```
 
@@ -341,11 +344,58 @@ export * from './auth.api'
 ```
 
 ```ts
-// nuxt.config.ts 追加（apiEnvelope 已由 envelope 功能提供；以下值依 route-map.auth）
+// server/api/v1/auth/me.get.ts —— Bearer 反查當前使用者；無 token 或查無使用者 → 401
+import type { H3Event } from 'h3'
+import type { MeResponse } from '../../../../app/types/api/auth'
+import { requireAuth } from '../../../mock/auth-context'
+
+export default defineEventHandler((event: H3Event): MeResponse => {
+  const me = requireAuth(event)
+  return { accountId: me.accountId, account: me.account, name: me.name, roles: me.roles }
+})
+```
+
+```ts
+// server/api/v1/auth/refresh.post.ts —— 解析 mock refresh token 後重發一組（形狀同 login）
+// mock 登入發的 refresh token 形如 `mock-refresh-${accountId}-${timestamp}`（見 phase-1-mock-api.md 登入範例）
+import type { H3Event } from 'h3'
+import type { RefreshResponse } from '../../../../app/types/api/auth'
+import { mockUsers } from '../../../mock/data/users'
+import { refreshSchema } from '../../../validation/auth' // 範本見 phase-1-mock-api.md 登入範例
+
+const MOCK_REFRESH_RE = /^mock-refresh-(.+)-\d+$/
+
+export default defineEventHandler(async (event: H3Event): Promise<RefreshResponse> => {
+  const parsed = await readValidatedBody(event, refreshSchema.safeParse)
+  const accountId = parsed.success ? parsed.data.refreshToken.match(MOCK_REFRESH_RE)?.[1] : undefined
+  const user = mockUsers.find(u => u.accountId === accountId && !u.deletedAt)
+  if (!user)
+    throw createError({ statusCode: 401, message: '登入已過期，請重新登入' })
+  return {
+    accessToken: `mock-token-${user.accountId}-${Date.now()}`,
+    tokenType: 'Bearer',
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    accountId: user.accountId,
+    refreshToken: `mock-refresh-${user.accountId}-${Date.now()}`,
+    refreshExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  }
+})
+```
+
+```ts
+// server/api/v1/auth/logout.post.ts —— mock 沒有 server 端 session，直接回 204
+// 不加 requireAuth：token 過期的人也要能登出
+import type { H3Event } from 'h3'
+
+export default defineEventHandler((event: H3Event) => {
+  setResponseStatus(event, 204)
+})
+```
+
+```ts
+// nuxt.config.ts 追加（apiBase／apiEnvelope 模板已有，不要重複寫；以下值依 route-map.auth）
 runtimeConfig: {
   public: {
-    apiBase: '/api',
-    apiEnvelope: true,
     authLoginPath: '/login',
     authHomePath: '/',
     // = route-map.auth.public_paths：login ＋賓客端/公開場景路由，不只 login（漏列會被 middleware 誤擋）
@@ -431,7 +481,11 @@ const buckets = new Map<string, number[]>()
 export function assertNotRateLimited(key: string, max: number, windowMs: number): void {
   const now = Date.now()
   const hits = (buckets.get(key) ?? []).filter(t => now - t < windowMs)
-  buckets.set(key, hits)
+  // 清空就刪 key：沒失敗過的 key 不留空陣列，記憶體才不會只增不減
+  if (hits.length)
+    buckets.set(key, hits)
+  else
+    buckets.delete(key)
   if (hits.length >= max)
     throw createError({ statusCode: 429, message: '嘗試次數過多，請稍後再試' })
 }
@@ -447,7 +501,8 @@ export function clearFailures(key: string): void {
 
 ```ts
 // login handler 套用（15 分鐘 10 次失敗上限）
-const key = `login:${getRequestIP(event, { xForwardedFor: true })}:${body.account}`
+// 不讀 X-Forwarded-For：client 可自填、換值即繞過；部署在反向代理後面時才改讀代理設定的可信 header
+const key = `login:${getRequestIP(event)}:${body.account}`
 assertNotRateLimited(key, 10, 15 * 60 * 1000)
 // 驗證失敗 → recordFailure(key) 後 throw 401；驗證成功 → clearFailures(key)
 ```

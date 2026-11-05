@@ -37,7 +37,7 @@ mockTasks.push({ taskId: crypto.randomUUID(), projectId, title: body.title, prio
 // [X] 5：信任 body 自報身分
 const authorId = body.memberId
 // [O] 5：身分取自 auth context
-const authorId = event.context.authUser.accountId
+const authorId = requireAuth(event).accountId
 ```
 
 ## 消費地圖
