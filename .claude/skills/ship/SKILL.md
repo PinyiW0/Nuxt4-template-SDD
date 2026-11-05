@@ -168,8 +168,9 @@ sh .claude/skills/ship/scripts/ledger.sh mark L1 green "<剛才 snapshot 拿到�
 - **L5 用 Skill tool 呼叫內建 `/code-review`**，它自己會 fan-out 成多個審查 agent，不要再包一層。
   它的 `REVIEW.md` 設定只對託管版生效，所以**沒有辦法指定檢查焦點**；目標（分支／PR／路徑）與 `--max-findings` 可以指定。**不要帶 `--fix`**——審的人不動手，這是「驗證不自驗」。
   因為指定不了焦點，diff 含 `.md` 時接著派一個 fresh subagent 跑 `../review-loop/references/doc-impl-check.md` 的專項檢查（eval 顯示 `/code-review` 漏抓的一半是文件與實作不一致）。L5 的綠燈＝兩者都沒有必修，兩邊的必修都照下方「L3／L5 的必修」處理。
-- **L4 最容易被整層忘掉**：動到 `.claude/`、`spec/ui-config/` 時它就該跑，而那類改動通常 L1/L2/L3/L5 全部 scope 落空——
-  沒有 L4 的話，改 skill 本身走一趟 `/ship` 會拿到一整排「⊘ 略過」然後直接進送出草案，看起來像全綠、其實一層都沒驗。
+- **L4 最容易被整層忘掉**：動到 `.claude/`、`spec/ui-config/` 時它就該跑。那類改動 L3 scope 落空，只改 `.md` 時 L2 通常也不跑（實際以 `ledger.sh plan` 為準）；
+  L1／L5 雖然會跑（L5 自 #176 起含 `.claude/`，但不含 `spec/ui-config/`），查的是寫法與正確性，不會把規則讀回來確認有沒有被讀對——
+  沒有 L4 的話，改 skill 本身走一趟 `/ship` 看起來像全綠，其實制度內容沒被驗過。
   `.claude/ops/judgment-rubrics.md` 對這類改動要求的正是 read-back。
 - **L15 是本 repo 特有的一層**，不在五層表裡。`.github/workflows/pull_request.yml` 註解寫明「unit test 必須留在 CI，
   這是唯一擋得住 composable/utils 迴歸的關卡」，而 pre-push 只跑 E2E。不在這裡先跑掉，就要等 PR 開完 CI 紅燈才知道。
