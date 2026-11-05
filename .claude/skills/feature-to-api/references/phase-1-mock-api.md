@@ -54,7 +54,8 @@ Phase 1 開始前，先檢查 `spec/report/sync-report.md` 是否存在：
 2. **新增的型別** → 建立新的 `app/types/api/{resource}.ts`，更新 `index.ts` 的 re-export
 3. **修改的型別** → 讀取現有檔案 → Edit 受影響的欄位（新增/修改/刪除 interface 屬性）
 4. **新增的端點** → 建立新的 `server/api/**/*.ts` + 對應 mock data
-   - sync-report 標「新增 auth 守門」或「新增角色守門」、專案裡還沒有 `server/mock/auth-context.ts` 時，先照 [auth-scaffold.md](auth-scaffold.md) §3、§4b 與 [rbac-scaffold.md](rbac-scaffold.md) §3 補生 scaffold 檔（auth-context、種子、`00.security-guard.ts`、`rate-limit.ts`、auth mock 端點），再做這一步
+   - sync-report 標「新增 auth 守門」或「新增角色守門」時，先補齊缺的 scaffold 再做這一步，依「缺哪個」判斷，不看檔案在不在：沒有 `server/mock/auth-context.ts`（或缺 `requireAuth`）→ 照 [auth-scaffold.md](auth-scaffold.md) §3、§4b 補生 auth-context、種子、`00.security-guard.ts`、`rate-limit.ts`、auth mock 端點；有角色守門但 auth-context 缺 `requireRole`／`requireOwnership` 或種子沒有 `roles` → 照 [rbac-scaffold.md](rbac-scaffold.md) §3a 補上
+   - 有 auth 的專案，既有 `server/plugins/00.security-guard.ts` 沒有 `MOCK_AUTH` 那段 → 照 auth-scaffold.md §4b① 補上（舊版範本沒有這段）
 5. **修改的端點** → 讀取現有端點原始碼 → 根據型別變更調整回傳結構和 mock 資料
    - 第 4、5 步的端點一樣要套用下方全量模式步驟 6 的登入守門與角色守門（讀 `route-map.yaml` 最新的 `auth`／`rbac`，含 Sync 步驟 7.7 新增的規則）
 6. **刪除項目** → **不執行刪除**，列在回報清單提醒使用者手動處理

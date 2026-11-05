@@ -500,7 +500,7 @@ export default defineNitroPlugin(() => {
   // 刻意用 mock 版做展示部署（docker compose、npm run preview）也會被擋：確認「登入可被偽造」可以接受，才改成 false
   const MOCK_AUTH = true
   if (MOCK_AUTH && !config.e2eReset)
-    throw new Error('[security] 仍是 mock 認證（token 可偽造），拒絕在 production 啟動')
+    throw new Error('[security] 仍是 mock 認證（token 可偽造），拒絕在 production 啟動。換成真認證後把 server/plugins/00.security-guard.ts 的 MOCK_AUTH 改成 false；不要設 NUXT_E2E_RESET 繞過，那會打開資料重設端點')
   const REQUIRED_SECRETS: Array<[key: string, devDefault: string]> = [
     // ['jwtSecret', 'dev-only-change-me'],
   ]
@@ -603,7 +603,7 @@ routeRules: {
 - [ ] 登入成功後不被彈回 login
 - [ ] login 頁與 layout 沒有 authed fetch
 - [ ] `test/e2e/specs/01-auth-guard.spec.ts` 存在（範本見 test skill `e2e/references/setup.md` Step 6.5）：未登入訪受保護路由 → 只導向 `/login` 一次、無重複導向錯誤；公開頁不被導走；已登入訪 login 導回
-- [ ] `server/plugins/00.security-guard.ts` 存在（§4b①；真密鑰加入時已登記進 REQUIRED_SECRETS）
+- [ ] `server/plugins/00.security-guard.ts` 存在（§4b①；真密鑰加入時已登記進 REQUIRED_SECRETS），且含 `MOCK_AUTH` 守衛；換成真認證後已改成 `false`
 - [ ] login handler 首段有 `assertNotRateLimited`（§4b②；fileUpload 專案的 upload／presign 端點同套）
 - [ ] 公開端點已分級：匿名只回已發布資料的公開層欄位、公開寫入不信 body 身分欄位（§4a）
 - [ ] 無任何 server handler 從 cookie 讀憑證（grep `getCookie(event, 'auth')` 無命中）；憑證僅走 Authorization header（§4c 前提）
