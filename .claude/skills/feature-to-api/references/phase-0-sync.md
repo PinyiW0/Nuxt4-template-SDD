@@ -221,7 +221,7 @@ grep -rnE "from '~/types/api" app/
 
 ### 步驟 8：產出變更報告
 
-將分析結果寫入 **`spec/report/sync-report.md`**。
+先做步驟 8.5（讀取舊版報告、合併未解決的孤兒；模式切換時另遞延待 PM 處理清單），再把分析結果寫入 **`spec/report/sync-report.md`**。直接寫入會覆蓋舊版，舊版的孤兒清單就遺失了。
 
 > 因為 `context: fork`，Phase 間無法共享對話記憶，所以必須持久化為檔案。後續 Phase 讀取此報告決定行為。
 
@@ -261,7 +261,7 @@ grep -rnE "from '~/types/api" app/
 - hash 變更的 feature → 更新 `content_hash`
 - 刪除的 feature → **不自動移除**，僅在報告中標記待刪除
 - **`api_contract.path_prefix` 維持步驟 2.5 結果**（使用者未確認 (a) 升版前，不可變動）
-- **同步更新 `api_contract`**：新增/修改的型別 → 更新 `api_contract.types`（鏡像 `app/types/api/*.ts` 的欄位）；新增/修改的端點 → 更新 `api_contract.endpoints`（所有 `path:` 必以 `path_prefix` 開頭）
+- **同步更新 `api_contract`**：新增/修改的型別 → 更新 `api_contract.types`（鏡像 `app/types/api/*.ts` 的欄位）；新增/修改的端點 → 更新 `api_contract.endpoints`（`path:` 以 `path_prefix` 開頭。OpenAPI 模式下只有少數端點不在前綴底下時，照 phase-0-prep「Path 前綴偵測」的離群端點條款保留原始路徑並標 `outside_prefix: true`；步驟 2 的前綴狀態是 ⚠️ 時，先照步驟 3b 換成既有前綴，不標 `outside_prefix`）
 - **同步更新 `enabled_features`**：反映 PM yaml 最新的 `additionalFeatures`
 - 更新 `generated_at` 為今天日期
 
