@@ -54,7 +54,7 @@ auth:
 | `app/api/auth.api.ts` | §3a | feature-to-api Phase 1.5 | 登入/refresh/logout/me，全 `handleUnauthorized:false`。**auth 命中時本檔是唯一來源**：Phase 1.5 照本範本產，不照一般命名規則另產 `token_endpoints`，函式名以本檔為準（store 依賴） |
 | `app/api/index.ts` | §3a | feature-to-api Phase 1.5 | re-export（已存在則合併） |
 | `server/api/v1/auth/*`（`path_prefix` 去掉開頭的 `/api` 再對應到資料夾；`/api/v1` → `server/api/v1/`） | §3a（login 在 phase-1-mock-api「API 端點範例」） | feature-to-api Phase 1 | login／refresh／logout／me 四個 mock 端點，auth 命中時一定要生（store 的 `login()` 必打 me、換發必打 refresh），不看 spec 有沒有寫 |
-| `server/mock/data/revoked-tokens.ts` | §3a | feature-to-api Phase 1 | 已失效的 refresh token 清單；auth 命中時一定要生（refresh／logout 都 import 它） |
+| `server/mock/data/revoked-tokens.ts` | §3a | feature-to-api Phase 1 | refresh token 解析與登出作廢（每帳號一個登出時刻）；auth 命中時一定要生（refresh／logout 都 import 它） |
 | `nuxt.config.ts` 追加 | §3a | feature-to-api | auth 路徑設定（編輯，非新檔） |
 | `app/middleware/auth.global.ts` | §3b → feature-to-ui `phase-2-skeleton.md` | feature-to-ui | 全域守門（白名單 + never-nav-current） |
 | `app/pages/login.vue` | §3b → feature-to-ui `page-builder.md` | feature-to-ui | 登入頁（**不得發 authed fetch**） |
@@ -361,19 +361,17 @@ export default defineEventHandler((event: H3Event): MeResponse => {
 // mock 登入發的 refresh token 形如 `mock-refresh-${accountId}-${timestamp}`（見 phase-1-mock-api.md 登入範例）
 import type { H3Event } from 'h3'
 import type { RefreshResponse } from '../../../../app/types/api/auth'
-import { revokedRefreshTokens } from '../../../mock/data/revoked-tokens'
+import { parseMockRefreshToken, REFRESH_TTL_MS } from '../../../mock/data/revoked-tokens'
 import { mockUsers } from '../../../mock/data/users'
 import { refreshSchema } from '../../../validation/auth' // 範本見 phase-1-mock-api.md 登入範例
-
-const MOCK_REFRESH_RE = /^mock-refresh-(.+)-\d+$/
 
 export default defineEventHandler(async (event: H3Event): Promise<RefreshResponse> => {
   const parsed = await readValidatedBody(event, refreshSchema.safeParse)
   const oldToken = parsed.success ? parsed.data.refreshToken : undefined
-  // 已登出的 refresh token 一律拒絕（換發不讓舊 token 失效：同時兩個換發請求時，後到的會被踢出登入）
-  const accountId = oldToken && !revokedRefreshTokens.has(oldToken) ? oldToken.match(MOCK_REFRESH_RE)?.[1] : undefined
-  const user = mockUsers.find(u => u.accountId === accountId && !u.deletedAt)
-  if (!oldToken || !user)
+  // 已登出或已過期的 refresh token 一律拒絕（換發不讓舊 token 失效：同時兩個換發請求時，後到的會被踢出登入）
+  const info = oldToken ? parseMockRefreshToken(oldToken) : undefined
+  const user = mockUsers.find(u => u.accountId === info?.accountId && !u.deletedAt)
+  if (!user)
     throw createError({ statusCode: 401, message: '登入已過期，請重新登入' })
   return {
     accessToken: `mock-token-${user.accountId}-${Date.now()}`,
@@ -381,27 +379,50 @@ export default defineEventHandler(async (event: H3Event): Promise<RefreshRespons
     expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     accountId: user.accountId,
     refreshToken: `mock-refresh-${user.accountId}-${Date.now()}`,
-    refreshExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    refreshExpiresAt: new Date(Date.now() + REFRESH_TTL_MS).toISOString(),
   }
 })
 ```
 
 ```ts
-// server/mock/data/revoked-tokens.ts —— 已失效的 refresh token（mock 單一實例，重啟就清空）
-export const revokedRefreshTokens = new Set<string>()
+// server/mock/data/revoked-tokens.ts —— 登出後作廢 refresh token（mock 單一實例，重啟就清空）
+// mock 登入發的 refresh token 形如 `mock-refresh-${accountId}-${timestamp}`（見 phase-1-mock-api.md 登入範例）
+// 每個帳號只記一個「登出時刻」，該時刻以前發的 refresh token 全部作廢：筆數最多等於帳號數，不必設上限或清理
+const MOCK_REFRESH_RE = /^mock-refresh-(.+)-(\d+)$/
+export const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000 // login／refresh 回應的 refreshExpiresAt 也用這個值
+const loggedOutAt = new Map<string, number>() // accountId → 登出時刻
+
+// 格式不符、發行時間在未來、已過期、或登出前發的 → undefined
+export function parseMockRefreshToken(token: string): { accountId: string, issuedAt: number } | undefined {
+  const match = token.match(MOCK_REFRESH_RE)
+  const issuedAt = Number(match?.[2])
+  const now = Date.now()
+  if (!match?.[1] || !Number.isFinite(issuedAt) || issuedAt > now || now - issuedAt >= REFRESH_TTL_MS)
+    return undefined
+  if (issuedAt <= (loggedOutAt.get(match[1]) ?? -1))
+    return undefined
+  return { accountId: match[1], issuedAt }
+}
+
+export function revokeRefreshTokens(accountId: string): void {
+  loggedOutAt.set(accountId, Date.now())
+}
 ```
 
 ```ts
 // server/api/v1/auth/logout.post.ts —— 讓 refresh token 失效後回 204
 // 不加 requireAuth：token 過期的人也要能登出
 import type { H3Event } from 'h3'
-import { revokedRefreshTokens } from '../../../mock/data/revoked-tokens'
+import { parseMockRefreshToken, revokeRefreshTokens } from '../../../mock/data/revoked-tokens'
+import { mockUsers } from '../../../mock/data/users'
 import { refreshSchema } from '../../../validation/auth'
 
 export default defineEventHandler(async (event: H3Event) => {
   const parsed = await readValidatedBody(event, refreshSchema.safeParse)
-  if (parsed.success)
-    revokedRefreshTokens.add(parsed.data.refreshToken)
+  const info = parsed.success ? parseMockRefreshToken(parsed.data.refreshToken) : undefined
+  // 只對有效 token 的帳號記登出時刻：亂寫的字串不會寫入任何東西
+  if (info && mockUsers.some(u => u.accountId === info.accountId))
+    revokeRefreshTokens(info.accountId)
   setResponseStatus(event, 204)
 })
 ```
@@ -584,7 +605,7 @@ routeRules: {
 - [ ] persist cookie 已設 `maxAge` 且 ≥ 後端 refresh token 存活期（不設＝session cookie → 閒置被登出）
 - [ ] `refresh()` 有跨分頁鎖（`navigator.locks`）且搶到鎖後先重讀 cookie 再決定是否打 API（§3a 三層併發防護）
 - [ ] 登出後飛行中 refresh 的結果會被丟棄（`sessionEpoch` guard，§3a）
-- [ ] mock refresh 拒絕已登出的 refresh token；mock logout 會讓 body 的 `refreshToken` 失效（`revoked-tokens.ts`，§3a）
+- [ ] mock refresh 拒絕登出前發的、已過期的、發行時間在未來的 refresh token；mock logout 只對有效 token 的帳號記登出時刻（`revoked-tokens.ts`，§3a）
 - [ ] 專案有 SSE/WebSocket 時：refresh 成功後長連線以新 token 重建、連線前驗 exp（近）過期先 refresh——見 realtime skill 鐵律 4、5
 
 ---

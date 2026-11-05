@@ -253,6 +253,7 @@ export const refreshSchema = z.object({
 import type { H3Event } from 'h3'
 import type { LoginResponse } from '../../../../app/types/api/auth'
 
+import { REFRESH_TTL_MS } from '../../../mock/data/revoked-tokens' // auth-scaffold.md §3a
 import { mockUsers } from '../../../mock/data/users'
 import { assertNotRateLimited, clearFailures, recordFailure } from '../../../utils/rate-limit'
 import { loginSchema } from '../../../validation/auth'
@@ -285,7 +286,7 @@ export default defineEventHandler(async (event: H3Event): Promise<LoginResponse>
     expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     accountId: user.accountId,
     refreshToken: `mock-refresh-${user.accountId}-${Date.now()}`,
-    refreshExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    refreshExpiresAt: new Date(Date.now() + REFRESH_TTL_MS).toISOString(),
   }
 })
 ```
