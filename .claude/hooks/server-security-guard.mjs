@@ -54,14 +54,15 @@ function main() {
   if (!filePath)
     process.exit(0)
 
-  // 編輯時的路徑（不解 symlink）與解過父目錄 symlink 的實體路徑兩者都看，任一落在 server/api/ 就偵測（PR #205 review）：
-  // - 只看實體路徑：server/api 底下的子目錄指向 repo 外時會逃過偵測
-  // - 只看編輯路徑：server/utils/x 指向 server/api/ 時會逃過偵測；worktree 經別名路徑進來時也比不中
+  // 三條路徑都看，任一落在 server/api/ 就偵測（PR #205 review）：
+  // - 編輯時的路徑（不解 symlink）：server/api 底下的檔或子目錄指向 repo 外時，只有它還在 repo 內
+  // - 解過父目錄 symlink 的路徑：server/utils/x 指向 server/api/、或 worktree 經別名路徑進來
+  // - 連檔名一起解的路徑：repo 外的檔名 symlink 指向 server/api/ 的檔
   const projectDir = sessionProjectRoot()
   const editPath = resolve(input?.cwd || projectDir, filePath)
   const realPath = join(realpathLoose(dirname(editPath)), basename(editPath))
   // 候選 root：同 repo 的 worktree（另一個 worktree 時不是 projectDir）＋專案目錄，取第一個落在 server/ 下的
-  const hits = [editPath, realPath].flatMap((p) => {
+  const hits = [editPath, realPath, realpathLoose(editPath)].flatMap((p) => {
     const root = candidateRoots(p, projectDir).find((r) => {
       const rp = relative(r, p)
       return rp.startsWith('server/') && rp.endsWith('.ts')

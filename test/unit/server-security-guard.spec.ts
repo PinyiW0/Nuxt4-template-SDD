@@ -164,4 +164,16 @@ describe('server-security-guard：跨 worktree 以目標所屬 repo 判斷（iss
     expect(result.status).toBe(2)
     expect(result.stderr).toContain(join(wtB, '.claude/tmp/server-security-allow.json'))
   })
+  it('repo 外的檔名 symlink 指向 server/api 的 handler → 連檔名一起解出實體路徑，exit 2（PR #205 review）', () => {
+    // Arrange
+    const link = join(base, 'h.ts')
+    symlinkSync(join(repoM, HANDLER), link)
+
+    // Act
+    const result = runGuard(link)
+
+    // Assert
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain(`${HANDLER}:3`)
+  })
 })

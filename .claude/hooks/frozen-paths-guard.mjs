@@ -408,11 +408,14 @@ function matchFrozen(rel) {
 // root 不一定是 projectRoot——目標可能在同 repo 的另一個 worktree（issue #199，見 target-root.mjs）
 function frozenTargetOf(abs) {
   try {
-    const real = realpathLoose(abs)
-    for (const root of candidateRoots(real, projectRoot)) {
-      const rel = relative(root, real).toLowerCase()
-      if (!rel.startsWith('..') && matchFrozen(rel))
-        return { root, rel }
+    // 先看實體路徑（認 worktree 別名），比不中再看未解 symlink 的原路徑：
+    // 凍結目錄底下的子目錄指向 repo 外時，實體路徑落在 repo 外，只看它會放行（PR #205 review）
+    for (const p of [realpathLoose(abs), abs]) {
+      for (const root of candidateRoots(p, projectRoot)) {
+        const rel = relative(root, p).toLowerCase()
+        if (!rel.startsWith('..') && matchFrozen(rel))
+          return { root, rel }
+      }
     }
   }
   catch {}

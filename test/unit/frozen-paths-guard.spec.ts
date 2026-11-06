@@ -1361,4 +1361,20 @@ describe('frozen-paths-guard：跨 worktree 以目標所屬 repo 判斷（issue 
     // Assert
     expect(result.status).toBe(2)
   })
+  it.each([
+    ['Edit', () => edit(join(repoM, 'spec/gherkin-feature/linked/x.feature'))],
+    ['Bash 重導向', () => bash('echo x >> spec/gherkin-feature/linked/x.feature', repoM)],
+  ])('凍結目錄底下的子目錄是指向 repo 外的 symlink：%s 既有檔 → 仍以原路徑擋下（PR #205 review）', (_label, act) => {
+    // Arrange
+    const outside = join(base, 'outside')
+    mkdirSync(outside)
+    writeFileSync(join(outside, 'x.feature'), 'Feature: x\n')
+    symlinkSync(outside, join(repoM, 'spec/gherkin-feature/linked'))
+
+    // Act
+    const result = act()
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
 })
