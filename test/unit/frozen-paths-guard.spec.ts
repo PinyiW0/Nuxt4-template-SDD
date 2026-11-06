@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -1104,5 +1104,261 @@ describe('frozen-paths-guard：找檔管線接 xargs 寫入（issue #165）', ()
   ])('%s → 放行', (_label, command) => {
     const result = runGuard(command)
     expect(result.status).toBe(0)
+  })
+})
+
+describe('frozen-paths-guard：跨 worktree 以目標所屬 repo 判斷（issue #199）', () => {
+  // 真的 git repo M（session 目錄）＋兩個 worktree：兄弟目錄 B（對應 ../nuxt4-template-issue-N）與
+  // 巢狀 M/.claude/worktrees/w1（對應 isolation 分身）；另有無關 repo U 與不在 git repo 內的 plainDir
+  let base: string
+  let repoM: string
+  let wtB: string
+  let wtNested: string
+  let repoU: string
+  let plainDir: string
+  const F = 'spec/gherkin-feature/b.feature'
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' })
+
+  function seed(root: string) {
+    mkdirSync(join(root, 'spec/gherkin-feature'), { recursive: true })
+    writeFileSync(join(root, F), 'Feature: b\n')
+  }
+
+  // 驅動 hook：session 開在 repoM、工作目錄 cwd（對應 hook 輸入的 cwd 欄位）
+  function run(payload: Record<string, unknown>, cwd?: string) {
+    return spawnSync('node', [HOOK_PATH], {
+      input: JSON.stringify({ ...payload, ...(cwd ? { cwd } : {}) }),
+      env: { ...process.env, CLAUDE_PROJECT_DIR: repoM },
+      encoding: 'utf8',
+      timeout: 5000,
+    })
+  }
+  const edit = (filePath: string, cwd?: string) => run({ tool_name: 'Edit', tool_input: { file_path: filePath } }, cwd)
+  const write = (filePath: string) => run({ tool_name: 'Write', tool_input: { file_path: filePath } })
+  const bash = (command: string, cwd?: string) => run({ tool_name: 'Bash', tool_input: { command } }, cwd)
+
+  beforeEach(() => {
+    // Arrange：M 提交一支凍結檔後開兩個 worktree；B 另放一支只存在於 B 的凍結檔（M 沒有，舊版拿 M 查既有檔會放行）
+    base = realpathSync(mkdtempSync(join(tmpdir(), 'frozen-guard-wt-')))
+    repoM = join(base, 'm')
+    wtB = join(base, 'b')
+    wtNested = join(repoM, '.claude/worktrees/w1')
+    repoU = join(base, 'u')
+    plainDir = join(base, 'plain')
+    mkdirSync(repoM)
+    git('init', '-q', repoM)
+    seed(repoM)
+    git('-C', repoM, 'add', '.')
+    git('-C', repoM, 'commit', '-qm', 'init')
+    git('-C', repoM, 'worktree', 'add', '-q', wtB, '-b', 'wt-b')
+    git('-C', repoM, 'worktree', 'add', '-q', wtNested, '-b', 'wt-n')
+    writeFileSync(join(wtB, 'spec/gherkin-feature/only-b.feature'), 'Feature: only b\n')
+    mkdirSync(join(wtB, '.claude/tmp'), { recursive: true })
+    mkdirSync(repoU)
+    git('init', '-q', repoU)
+    seed(repoU)
+    mkdirSync(plainDir)
+    seed(plainDir)
+  })
+
+  afterEach(() => {
+    rmSync(base, { recursive: true, force: true })
+  })
+
+  it('跨 worktree：Edit 兄弟 worktree 的既有凍結檔（絕對路徑）→ 擋下，訊息帶出 worktree 與授權位置', () => {
+    // Act
+    const result = edit(join(wtB, F))
+
+    // Assert
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain(`${F}（worktree：${wtB}`)
+  })
+
+  it('跨 worktree：Write 兄弟 worktree 的凍結區新檔 → 放行（新增不受限）', () => {
+    // Act
+    const result = write(join(wtB, 'spec/gherkin-feature/new.feature'))
+
+    // Assert
+    expect(result.status).toBe(0)
+  })
+
+  it.each([
+    ['絕對路徑 echo >>', () => bash(`echo x >> ${join(wtB, F)}`)],
+    ['絕對路徑 sed -i', () => bash(`sed -i '' 's/b/c/' ${join(wtB, F)}`)],
+    ['相對路徑 ../b（只存在於 B 的檔）', () => bash('echo x >> ../b/spec/gherkin-feature/only-b.feature')],
+    ['cwd 在 B、相對路徑（session cd 過去）', () => bash('echo x >> spec/gherkin-feature/only-b.feature', wtB)],
+  ])('跨 worktree：Bash %s 寫既有凍結檔 → 擋下', (_label, act) => {
+    // Act
+    const result = act()
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it('巢狀 worktree（isolation 分身位置）：Edit 絕對路徑、cwd 在巢狀 worktree 的相對路徑 Bash → 都擋下', () => {
+    // Act
+    const byEdit = edit(join(wtNested, F))
+    const byBash = bash(`echo x >> ${F}`, wtNested)
+
+    // Assert
+    expect(byEdit.status).toBe(2)
+    expect(byBash.status).toBe(2)
+  })
+
+  it('凍結目錄底下多一個假 .git（submodule 形狀）→ 仍擋下，不能拿來繞道', () => {
+    // Arrange
+    writeFileSync(join(repoM, 'spec/gherkin-feature/.git'), 'gitdir: ../../.git/modules/x\n')
+
+    // Act
+    const result = edit(join(repoM, F))
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it('無關的 git repo、不在 git repo 內的目錄 → 放行（不誤擋別的專案）', () => {
+    // Act
+    const results = [edit(join(repoU, F)), bash(`echo x >> ${join(repoU, F)}`), edit(join(plainDir, F)), bash(`echo x >> ${join(plainDir, F)}`)]
+
+    // Assert
+    expect(results.map(r => r.status)).toEqual([0, 0, 0, 0])
+  })
+
+  it('sentinel 寫在 B 自己的 .claude/tmp：放行一次即消耗，第二次仍擋', () => {
+    // Arrange
+    const sentinelPath = join(wtB, '.claude/tmp/frozen-allow.json')
+    writeFileSync(sentinelPath, JSON.stringify({ reason: '測試授權', files: [F] }))
+
+    // Act
+    const first = edit(join(wtB, F))
+    const second = edit(join(wtB, F))
+
+    // Assert
+    expect(first.status).toBe(0)
+    expect(existsSync(sentinelPath)).toBe(false)
+    expect(second.status).toBe(2)
+  })
+
+  it('sentinel 寫在 M（session 目錄）不授權 B 的目標，且 M 的 sentinel 不被消耗', () => {
+    // Arrange
+    mkdirSync(join(repoM, '.claude/tmp'), { recursive: true })
+    const sentinelPath = join(repoM, '.claude/tmp/frozen-allow.json')
+    const original = { reason: '測試授權', files: [F] }
+    writeFileSync(sentinelPath, JSON.stringify(original))
+
+    // Act
+    const result = edit(join(wtB, F))
+
+    // Assert
+    expect(result.status).toBe(2)
+    expect(JSON.parse(readFileSync(sentinelPath, 'utf8'))).toEqual(original)
+  })
+
+  it('一條指令同時寫 M 與 B，只有 B 有授權 → 擋下，B 的 sentinel 不被消耗', () => {
+    // Arrange
+    const sentinelPath = join(wtB, '.claude/tmp/frozen-allow.json')
+    const original = { reason: '測試授權', files: [F] }
+    writeFileSync(sentinelPath, JSON.stringify(original))
+
+    // Act
+    const result = bash(`echo x >> ${join(wtB, F)}; echo y >> ${join(repoM, F)}`)
+
+    // Assert
+    expect(result.status).toBe(2)
+    expect(JSON.parse(readFileSync(sentinelPath, 'utf8'))).toEqual(original)
+  })
+  it.each([
+    ['cd 到 B 再用相對路徑 rm', () => bash('cd ../b && rm spec/gherkin-feature/only-b.feature')],
+    ['cd 到 B 再 sed -i', () => bash('cd ../b; sed -i "" s/b/c/ spec/gherkin-feature/only-b.feature')],
+    ['git -C B rm', () => bash('git -C ../b rm spec/gherkin-feature/only-b.feature')],
+    ['cd 絕對路徑再 echo >>', () => bash(`cd ${wtB} && echo x >> spec/gherkin-feature/only-b.feature`)],
+  ])('指令內換目錄：%s → 擋下', (_label, act) => {
+    // Act
+    const result = act()
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it('指令內換目錄：git -C 只影響自己那一段，下一段的相對路徑回到 M 解析 → 放行（只存在於 B 的檔在 M 不存在）', () => {
+    // Act：git -C 指到 B 但只是唯讀；下一段的 echo 對 M 解析，M 沒有 only-b.feature，屬於新增
+    const result = bash('git -C ../b status && echo x >> spec/gherkin-feature/only-b.feature')
+
+    // Assert
+    expect(result.status).toBe(0)
+  })
+
+  it('同一支檔同時被精確定位到 B、子字串比對猜在 M → 兩處都要授權（寧可誤擋），只有 B 的授權時擋下且不消耗', () => {
+    // Arrange：dd 的 of= 走子字串比對（root 猜 cwd 所在的 M），絕對路徑精確定位到 B；兩者指向同一個 rel
+    const sentinelPath = join(wtB, '.claude/tmp/frozen-allow.json')
+    const original = { reason: '測試授權', files: [F] }
+    writeFileSync(sentinelPath, JSON.stringify(original))
+
+    // Act
+    const result = bash(`dd if=/dev/null of=x/${F}; echo x >> ${join(wtB, F)}`)
+
+    // Assert
+    expect(result.status).toBe(2)
+    expect(JSON.parse(readFileSync(sentinelPath, 'utf8'))).toEqual(original)
+  })
+
+  it.each([
+    ['git -C B 的輸出重導向寫回 M 的凍結檔（重導向由 shell 解析，不看 -C）', () => bash(`git -C ../b log > ${F}`)],
+    ['cd 到 B 後用 python 寫只存在於 B 的檔', () => bash('cd ../b && python3 -c "open(\'spec/gherkin-feature/only-b.feature\',\'w\').write(\'x\')"')],
+    ['cd 到 B 後用 node 寫只存在於 B 的檔', () => bash('cd ../b && node -e "require(\'fs\').writeFileSync(\'spec/gherkin-feature/only-b.feature\',\'x\')"')],
+    ['cd -P 帶旗標', () => bash('cd -P ../b && rm spec/gherkin-feature/only-b.feature')],
+    ['cd -- 帶結束旗標', () => bash('cd -- ../b && rm spec/gherkin-feature/only-b.feature')],
+    ['builtin cd', () => bash('builtin cd ../b && rm spec/gherkin-feature/only-b.feature')],
+  ])('指令內換目錄（第 2 輪）：%s → 擋下', (_label, act) => {
+    // Act
+    const result = act()
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it('grep 的 -C 不是 git 換目錄：`grep git -C 2` 之後的重導向仍對 cwd 解析，寫只存在於 B 的檔（cwd 在 B）→ 擋下', () => {
+    // Act
+    const result = bash('grep git -C 2 README > spec/gherkin-feature/only-b.feature', wtB)
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it('經 symlink 指到專案目錄的 glob 寫入（目標字串不存在）→ 擋下', () => {
+    // Arrange：專案目錄的 symlink，glob 字串本身不存在，要解最近存在的祖先才對得上專案目錄
+    const link = join(base, 'link-m')
+    symlinkSync(repoM, link)
+
+    // Act
+    const result = bash(`rm ${link}/spec/gherkin-feature/*.feature`)
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+  it.each([
+    ['cd 到打錯字的目錄（cd 失敗、shell 留在 M）再 rm', () => bash(`cd spec/gherkin-feature/typo; rm ${F}`)],
+    ['cd 失敗接 || true 再 git checkout', () => bash(`cd spec/gherkin-feature/typo || true; git checkout -- ${F}`)],
+    ['grep -c cd <凍結檔> 的 cd 被誤判成指令後再 rm', () => bash(`grep -c cd ${F}; rm ${F}`)],
+    ['cd 到 B 後仍寫 M 的檔（cd 是否成功不確定，兩邊都算）', () => bash(`cd ../b; rm ${F}`)],
+  ])('指令內換目錄（第 3 輪，不比沒追蹤 cd 時少擋）：%s → 擋下', (_label, act) => {
+    // Act
+    const result = act()
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['timeout 10 git -C B checkout', () => bash('timeout 10 git -C ../b checkout -- spec/gherkin-feature/only-b.feature')],
+    ['nice -n 5 git -C B rm', () => bash('nice -n 5 git -C ../b rm spec/gherkin-feature/only-b.feature')],
+    ['sudo -u x git -C B rm', () => bash('sudo -u x git -C ../b rm spec/gherkin-feature/only-b.feature')],
+    ['多個 -C 依序疊加（-C .. -C b）', () => bash('git -C .. -C b rm spec/gherkin-feature/only-b.feature')],
+  ])('git -C（第 3 輪）：%s 寫只存在於 B 的檔 → 擋下', (_label, act) => {
+    // Act
+    const result = act()
+
+    // Assert
+    expect(result.status).toBe(2)
   })
 })

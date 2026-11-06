@@ -11,6 +11,7 @@
 // hook 比中一次即從清單移除（清空刪檔），其餘情況照擋。
 // 為什麼用 hook 不用 rules/frozen-paths.md：paths 觸發規則在 subagent 內不注入
 //（2026-07-06 實測），只有 hook 對主對話與所有 subagent 都生效。
+//（2026-11-04 複測：同目錄下含 subagent 仍擋；跨 worktree 見下方 2026-11-05 issue #199 修法）
 //
 // 維護規則：發現新繞道就在下方按日期補一段（繞道方式＋修法），修補後保留紀錄不刪；
 // 回歸測試見 test/unit/frozen-paths-guard.spec.ts。rules/frozen-paths.md 只講政策，不重抄這裡。
@@ -111,6 +112,30 @@
 // 對抗審查二輪回饋（同日）：①xargsWrites 的 git 分支沒看指令位置，`xargs grep -l "git checkout"` 被誤擋
 // ②旗標表缺 BSD 的 -J／-S，`xargs -J % rm %` 漏放。修法：git 分支加上「git 在指令位置」條件；表補 -J、-S。
 //
+// 2026-11-05（issue #199）：repo root 原本一律取 CLAUDE_PROJECT_DIR，從主目錄 session 改另一個 git worktree 的
+// 凍結檔時，Edit 的路徑解成 `../<worktree>/spec/…` 比不中；Bash 的絕對路徑同樣比不中（相對路徑靠子字串比對
+// 會擋，但「既有檔」改查主目錄，碰巧主目錄沒有同名檔就放行）。2026-11-04 在 issue-193 worktree 實測：分身 Edit、
+// 主線 Edit、主線絕對路徑 Bash 全部成功寫入。修法：目標對 target-root.mjs 列出的每個候選 root（同 repo 的
+// worktree＋專案目錄）取相對路徑，任一個比中就擋；目標連同比中的 root 一起帶到既有檔判斷與 sentinel——sentinel
+// 讀那個 worktree 自己的 `.claude/tmp/frozen-allow.json`。相對路徑改以 hook 輸入的 `cwd` 為基準（session cd 過、
+// 或 isolation 分身的工作目錄在巢狀 worktree 時，不能再拿專案目錄解析）。不採「路徑任一段落命中凍結清單」：
+// 那會把 `/tmp/x/spec/e2e-flows` 這類與本專案無關的路徑也擋下。
+// /code-review 一輪回饋（同日）：初版「往上找最近的 `.git` 當 root」會被凍結目錄底下的 `.git`（submodule 或 AI
+// 自己新增的檔）蓋掉、改成放行，且會誤擋無關 repo 的同名路徑。修法：只收同 repo 的 worktree，專案目錄永遠是候選。
+// /ship L5 /code-review 回饋（同日）：①`cd ../wt && rm <凍結檔>`、`git -C ../wt rm <凍結檔>` 的相對路徑仍對 session 目錄
+// 解析而漏放 ②目標不存在（glob、新檔）時不解 symlink，經 symlink 寫入判成在專案外。修法：bashFrozenWrites 追蹤字面的
+// cd／git -C（已知極限第 33 條）；路徑改用 realpathLoose（解最近存在的祖先）。
+// 第 2 輪：①`git -C` 的目錄被套到整段，`git -C ../wt log > <主目錄凍結檔>` 的重導向改對 ../wt 解析而漏放（第 1 輪的迴歸）
+// ②直譯器防線在迴圈後用起始目錄，`cd ../wt && python3 -c "open(<凍結檔>,'w')"` 漏放 ③`cd -P`／`cd --`／`builtin cd` 追蹤不到
+// ④`grep git -C 2` 的 -C 被當成 git 換目錄。修法：解析基準改成參數（不再改模組變數）；git -C 段對 cd 基準與 -C 目錄
+// 各解析一次、兩邊都算，重導向只用 cd 基準；直譯器防線對所有出現過的基準都試；cd 跳過旗標；git 必須在指令位置。
+// 第 1 輪曾把「子字串比對猜的 root」與精確定位同 rel 的目標去重，第 2 輪發現會丟掉另一個 worktree 的目標，已撤回：
+// 兩筆都保留、兩處都要授權（寧可誤擋）。
+// 第 3 輪（使用者多給一輪複審）：①cd 目標不存在（打錯字、cd 失敗）或被誤判（`grep -c cd <凍結檔>` 的 cd 被當指令），基準
+// 換到不存在的位置後，主目錄自己的凍結檔反而漏放——第 2 輪的迴歸 ②`timeout 10 git -C ../wt rm` 等 wrapper 後的 git 不套 -C
+// ③多個 -C 只認第一個。修法：基準只增不減（cd 後對前後所有基準都解析），保證不比沒有 cd 追蹤時少擋；cd／-C 只認既有目錄；
+// git 的判定改走 commandVerbs；-C 依序疊加。
+//
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
 //   2. 腳本檔案本身帶 shebang、直接以 `./script.py` 執行（指令原文看不到直譯器詞）
@@ -171,9 +196,20 @@
 //      （`grep -c "git stash"` 也是）；根治要讓 -c 只在 shell 之後生效，牽動 bash -c／find -exec 判斷，另案
 //  31. 反斜線續行（`ls <凍結目錄>/*.ts \⏎ | xargs rm`，連 `rm \⏎ <凍結檔>` 也是）與大括號群組（`{ rm <凍結檔>; }`、
 //      `| { xargs rm; }`）：splitHeredocBlocks 先依換行切、`{` 不在 COMMAND_PREFIX，既有缺口，#165 對抗審查發現
+//  32. 跨 worktree 判定（issue #199）只認「與 session 專案同一個 git repo 的 worktree 根目錄」：專案若放在 monorepo
+//      子目錄，另一個 worktree 的目標會多一段子目錄前綴而比不中；別的 repo（含衍生專案）、不在 git repo 內的絕對路徑照舊不擋
+//  33. 指令內換目錄只追蹤字面的 `cd <dir>`（之後各段對 cd 前後的基準都解析；含 `cd -P`、`builtin cd`）與 `git -C <dir>`
+//      （只加給該段）：`cd -`、`pushd`／`popd`、`cd "$VAR"`、CDPATH 不追蹤（仍照 cd 前的基準判斷，不會比沒追蹤時少擋）；
+//      引號內的 `bash -c 'cd ../wt && rm <凍結檔>'` 整串是同一段，段內 cd 之後的寫入只用 cd 前的基準，只存在於別的 worktree 的
+//      凍結檔會漏放；其他工具的換目錄旗標（`make -C`、`npm --prefix`、`tar -C`）不處理。基準只增不減也帶來誤擋：cd 到無關 repo
+//      或 /tmp 後寫同名的相對路徑，仍會被當成本專案的凍結檔擋下（與第 32 條「無關 repo 不擋」不一致，#199 之前就如此）（issue #199 /code-review）
+//  34. 比對前一律轉小寫（darwin 預設大小寫不敏感），在大小寫敏感的檔案系統（Linux、大小寫敏感的 APFS）上，含大寫的
+//      既有凍結檔（`Login.flow.md`）會被判成「不存在＝新增」而放行；sentinel 比對同理。既有行為，#199 只是讓它也套到
+//      其他 worktree（issue #199 /code-review 第 2 輪）
 // 這些只能靠 Bash 權限策略或人審補位。
-import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { normalize, relative, resolve } from 'node:path'
+import { candidateRoots, realpathLoose, sessionProjectRoot } from './target-root.mjs'
 
 // 凍結清單以本陣列為準（一律小寫）；增刪時須同步 rules/frozen-paths.md（frontmatter paths + 表格）
 const FROZEN = ['test/e2e/specs', 'spec/gherkin-feature', 'spec/e2e-flows']
@@ -359,29 +395,43 @@ function scriptWriteAnalysis(command) {
   return { anyCall, anyDynamic, literalPaths }
 }
 
-const realpath = realpathSync.native ?? realpathSync
-let projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd()
-try {
-  projectRoot = realpath(projectRoot)
-}
-catch {}
+const projectRoot = sessionProjectRoot()
+// 相對路徑的起始基準：hook 輸入的 cwd（讀到輸入後設定一次），沒有就用專案目錄。
+// 指令內 cd／git -C 換出來的基準一律以參數傳給 frozenRelOf，不改這個值
+let cwdBase = projectRoot
 
 function matchFrozen(rel) {
   return FROZEN.find(p => rel === p || rel.startsWith(`${p}/`))
 }
 
-// 判斷單一 token 是否指向凍結路徑，回傳 repo 相對路徑（小寫），否則 null
-function frozenRelOf(word) {
-  const expanded = word.replace(/^\$\{?CLAUDE_PROJECT_DIR\}?/, projectRoot)
-  // 能落地的路徑：resolve（存在時含 symlink 解析）後對 projectRoot 取相對再比對
+// 凍結目標一律帶著比中的 root：{ root, rel }（rel 為 root 相對、小寫）。
+// root 不一定是 projectRoot——目標可能在同 repo 的另一個 worktree（issue #199，見 target-root.mjs）
+function frozenTargetOf(abs) {
   try {
-    const abs = resolve(projectRoot, expanded)
-    const real = existsSync(abs) ? realpath(abs) : abs
-    const rel = relative(projectRoot, real).toLowerCase()
-    if (!rel.startsWith('..') && matchFrozen(rel))
-      return rel
+    const real = realpathLoose(abs)
+    for (const root of candidateRoots(real, projectRoot)) {
+      const rel = relative(root, real).toLowerCase()
+      if (!rel.startsWith('..') && matchFrozen(rel))
+        return { root, rel }
+    }
   }
   catch {}
+  return null
+}
+
+// 子字串比對（落不了地的 token）命中時用的 root：base 所在的 worktree，不在同 repo 內就用專案目錄。
+// 這只是猜測；同一支檔若另被精確定位到別的 worktree，兩筆都保留、兩處都要授權（寧可誤擋）
+function baseRoot(base) {
+  return candidateRoots(base, projectRoot)[0] ?? projectRoot
+}
+
+// 判斷單一 token（相對路徑以 base 解析）是否指向凍結路徑，回傳 { root, rel }，否則 null
+function frozenRelOf(word, base) {
+  const expanded = word.replace(/^\$\{?CLAUDE_PROJECT_DIR\}?/, projectRoot)
+  // 能落地的路徑：resolve（存在時含 symlink 解析）後對所屬 repo root 取相對再比對
+  const target = frozenTargetOf(resolve(base, expanded))
+  if (target)
+    return target
   // 絕對路徑上面已可精確判定，不再做子字串比對（避免 /tmp/spec/... 誤中）
   if (expanded.startsWith('/'))
     return null
@@ -394,7 +444,7 @@ function frozenRelOf(word) {
     const before = idx === 0 ? '' : lower[idx - 1]
     const after = lower[idx + p.length]
     if ((!before || before === '/' || before === '=') && (!after || after === '/'))
-      return lower.slice(idx)
+      return { root: baseRoot(base), rel: lower.slice(idx) }
   }
   return null
 }
@@ -402,14 +452,14 @@ function frozenRelOf(word) {
 // 目標是否指向「既有檔」：本 hook 只擋既有檔，新增放行。
 // glob 樣式（*、?、[）沒辦法逐一比對，退回檢查最近的非 glob 祖先目錄——
 // 目錄在就當作可能命中既有檔（寧可誤擋），例如 `git checkout main -- 'test/e2e/specs/*'`。
-function targetExists(rel) {
-  if (existsSync(resolve(projectRoot, rel)))
+function targetExists({ root, rel }) {
+  if (existsSync(resolve(root, rel)))
     return true
   const globAt = rel.search(/[*?[]/)
   if (globAt === -1)
     return false
   const prefix = rel.slice(0, globAt).replace(/\/[^/]*$/, '')
-  return Boolean(prefix) && existsSync(resolve(projectRoot, prefix))
+  return Boolean(prefix) && existsSync(resolve(root, prefix))
 }
 
 // heredoc（<<EOF、<< EOF、<<'EOF'、<<-EOF、<<1）感知切塊：把開啟行與各 heredoc 的內文分開回傳，
@@ -637,9 +687,59 @@ function hasWriteVerb(words) {
     || gitWriteSubcmd(words)
 }
 
-// 解析 Bash command，回傳會被寫入的凍結路徑清單（repo 相對、小寫）
+// cd／git -C 的目錄引數：展開 $CLAUDE_PROJECT_DIR 與開頭的 ~，對 base 解析（含 symlink）；不是既有目錄回 null
+//（cd 打錯字會失敗、shell 留在原地；`grep -c cd <檔>` 這類誤判出來的「目錄」其實是檔案）
+function dirArg(base, word) {
+  const expanded = word.replace(/^\$\{?CLAUDE_PROJECT_DIR\}?/, projectRoot).replace(/^~(?=\/|$)/, process.env.HOME || '~')
+  const dir = realpathLoose(resolve(base, expanded))
+  try {
+    return statSync(dir).isDirectory() ? dir : null
+  }
+  catch {
+    return null
+  }
+}
+
+// 這一段的 `git -C <dir>`（git 要是這段真正執行的指令，判準同 commandVerbs：`timeout 10 git -C …` 算、
+// `grep git -C 2` 不算）：git 在該目錄下解析它自己的引數。多個 -C 依序疊加（`-C .. -C wt`）。回傳目錄，沒有回 null
+function gitChdir(words, base) {
+  if (!commandVerbs(words).includes('git'))
+    return null
+  const gi = words.findIndex(w => baseName(w) === 'git')
+  let dir = null
+  for (let i = gi + 1; i < words.length && words[i].startsWith('-'); i++) {
+    if (words[i] === '-C' && words[i + 1]) {
+      dir = dirArg(dir ?? base, words[i + 1])
+      if (!dir)
+        return null
+    }
+    if (GIT_VALUE_FLAGS.has(words[i]))
+      i++
+  }
+  return dir
+}
+
+// 這一段的 `cd <dir>`（含 `builtin cd`、`cd -P`／`-L`／`--`）：回傳目錄引數字串；不是 cd、`cd -`、或沒有引數回 null
+function cdArg(words) {
+  const ci = words.findIndex((w, i) => baseName(w) === 'cd' && (isCommandPosition(words, i) || words[i - 1] === 'builtin'))
+  if (ci === -1)
+    return null
+  let i = ci + 1
+  while (i < words.length && words[i].startsWith('-') && words[i] !== '-')
+    i++
+  return i < words.length && words[i] !== '-' ? words[i] : null
+}
+
+// 解析 Bash command，回傳會被寫入的凍結目標清單（{ root, rel }，同 root＋rel 只留一筆）。
+// 同一條指令裡的 `cd <dir>` 會改變之後各段相對路徑的基準（`cd ../wt && rm <凍結檔>`，issue #199 /code-review）。
+// 靜態解析不知道 cd 有沒有成功，所以基準只增不減：cd 之後的段對「cd 前後所有出現過的基準」都解析一次、任一個比中就算，
+// 保證不會比沒有 cd 追蹤時少擋（寧可誤擋）。`git -C <dir>` 只加給 git 自己那一段；重導向由 shell 解析，不用 -C 目錄。
+// 都只追蹤字面目錄，`cd -`、`pushd`、引號內的 `bash -c 'cd …'` 見檔頭已知極限第 33 條
 function bashFrozenWrites(command) {
-  const targets = new Set()
+  const found = new Map()
+  const addTarget = t => found.set(`${t.root}\n${t.rel}`, t)
+  const shellBases = new Set([cwdBase]) // shell 自己的工作目錄可能是哪幾個
+  const seenBases = new Set([cwdBase]) // 直譯器防線看整條指令，分不出寫入發生在哪個 cd 之後，所有出現過的基準都試
   for (const { head, bodies } of splitHeredocBlocks(command)) {
     let bodyAt = 0
     let upstream = [] // 同一條管線裡前面各段比中的凍結 token（issue #165）
@@ -647,21 +747,34 @@ function bashFrozenWrites(command) {
       if (!piped)
         upstream = []
       const words = tokenize(seg)
+      const segBases = [...shellBases]
+      const gitBases = segBases.map(b => gitChdir(words, b)).filter(Boolean)
+      const bases = [...segBases, ...gitBases]
+      const cd = cdArg(words)
+      if (cd) {
+        for (const b of segBases) {
+          const dir = dirArg(b, cd)
+          if (dir)
+            shellBases.add(dir)
+        }
+      }
+      for (const b of [...bases, ...shellBases])
+        seenBases.add(b)
       // heredoc 內文歸給「含 << 開啟符的那一段」（動詞在指令行、目標在內文，如
       // `patch -p1 <<'EOF' && echo done`——內文屬於 patch 段，不是 echo 段）；
       // 一行多個 heredoc 時依開啟符出現順序各歸各段。內文只用來找凍結路徑，不參與動詞與重導向判斷。
       const opened = heredocTerminators(seg).length
       const bodyWords = bodies.slice(bodyAt, bodyAt + opened).flatMap(tokenize)
       bodyAt += opened
-      const frozen = [...words, ...bodyWords].map(frozenRelOf).filter(Boolean)
+      const frozen = bases.flatMap(b => [...words, ...bodyWords].map(w => frozenRelOf(w, b))).filter(Boolean)
       // 管線下游的 xargs 把上游輸出的路徑當引數餵給寫入動詞：`grep -l x <凍結目錄>/*.ts | xargs sed -i …`
       if (upstream.length && commandVerbs(words).includes('xargs') && xargsWrites(words))
-        upstream.forEach(t => targets.add(t))
+        upstream.forEach(addTarget)
       upstream.push(...frozen)
       if (!frozen.length)
         continue
       if (hasWriteVerb(words)) {
-        frozen.forEach(t => targets.add(t))
+        frozen.forEach(addTarget)
         continue
       }
       // 無寫入動詞的段落：只有重導向（>、>>、>&、&>、&>>）目標比中凍結路徑才算寫入。
@@ -669,9 +782,11 @@ function bashFrozenWrites(command) {
       // 會讓 `echo x >& <凍結檔>` 這種寫入漏放（PR #141 review）；`2>&1` 這類 fd 複製會被
       // 一併掃到 capture，但目標是純數字 fd、比不中任何真實凍結路徑，frozenRelOf 自然濾掉。
       for (const m of seg.matchAll(/(?:>{1,2}&?|&>{1,2})\s*["']?([^\s"'<>|;&]+)/g)) {
-        const rel = frozenRelOf(m[1])
-        if (rel)
-          targets.add(rel)
+        for (const b of segBases) {
+          const rel = frozenRelOf(m[1], b)
+          if (rel)
+            addTarget(rel)
+        }
       }
     }
   }
@@ -682,40 +797,55 @@ function bashFrozenWrites(command) {
   if (hasScriptInterpreter(command)) {
     const { anyCall, anyDynamic, literalPaths } = scriptWriteAnalysis(command)
     if (anyCall) {
-      for (const p of literalPaths) {
-        const rel = frozenRelOf(p)
-        if (rel)
-          targets.add(rel)
-      }
-      if (anyDynamic) {
-        for (const rel of allWords.map(frozenRelOf).filter(Boolean))
-          targets.add(rel)
+      for (const b of seenBases) {
+        for (const p of literalPaths) {
+          const rel = frozenRelOf(p, b)
+          if (rel)
+            addTarget(rel)
+        }
+        if (anyDynamic) {
+          for (const rel of allWords.map(w => frozenRelOf(w, b)).filter(Boolean))
+            addTarget(rel)
+        }
       }
     }
   }
-  return [...targets]
+  return [...found.values()]
 }
 
-// 一次性授權通道：全部目標都在 sentinel 清單內才放行，並一次消耗
-function tryConsumeSentinel(rels) {
-  const sentinel = resolve(projectRoot, '.claude/tmp/frozen-allow.json')
-  if (!existsSync(sentinel))
-    return false
+// 一次性授權通道：全部目標都在 sentinel 清單內才放行，並一次消耗。
+// sentinel 讀「目標所屬 repo」的 .claude/tmp/frozen-allow.json（issue #199）：worktree 內的正規產出流程
+// 在自己的 worktree 寫授權。一條指令橫跨多個 repo 時，先逐一檢查全部通過才寫回，避免只消耗一半。
+function tryConsumeSentinel(targets) {
+  const byRoot = new Map()
+  for (const { root, rel } of targets) {
+    if (!byRoot.has(root))
+      byRoot.set(root, [])
+    byRoot.get(root).push(rel)
+  }
+  const plans = []
   try {
-    const allow = JSON.parse(readFileSync(sentinel, 'utf8'))
-    const files = Array.isArray(allow?.files) ? allow.files : []
-    const used = []
-    for (const rel of new Set(rels)) {
-      const i = files.findIndex((f, fi) => !used.includes(fi) && String(f).toLowerCase() === rel)
-      if (i === -1)
+    for (const [root, rels] of byRoot) {
+      const sentinel = resolve(root, '.claude/tmp/frozen-allow.json')
+      if (!existsSync(sentinel))
         return false
-      used.push(i)
+      const allow = JSON.parse(readFileSync(sentinel, 'utf8'))
+      const files = Array.isArray(allow?.files) ? allow.files : []
+      const used = []
+      for (const rel of new Set(rels)) {
+        const i = files.findIndex((f, fi) => !used.includes(fi) && String(f).toLowerCase() === rel)
+        if (i === -1)
+          return false
+        used.push(i)
+      }
+      plans.push({ sentinel, allow, remaining: files.filter((_, i) => !used.includes(i)) })
     }
-    const remaining = files.filter((_, i) => !used.includes(i))
-    if (remaining.length === 0)
-      rmSync(sentinel)
-    else
-      writeFileSync(sentinel, JSON.stringify({ ...allow, files: remaining }, null, 2))
+    for (const { sentinel, allow, remaining } of plans) {
+      if (remaining.length === 0)
+        rmSync(sentinel)
+      else
+        writeFileSync(sentinel, JSON.stringify({ ...allow, files: remaining }, null, 2))
+    }
     return true
   }
   catch {
@@ -723,9 +853,12 @@ function tryConsumeSentinel(rels) {
   }
 }
 
-function deny(rels) {
+// 擋下訊息：本專案的目標照舊只列 repo 相對路徑（sentinel files 照這個字串填）；別的 worktree 的目標補上
+// sentinel 要寫的位置，否則照慣例寫進專案目錄的授權永遠不會被讀到
+function deny(targets) {
+  const labels = targets.map(({ root, rel }) => root === projectRoot ? rel : `${rel}（worktree：${root}，授權寫在該目錄的 .claude/tmp/frozen-allow.json）`)
   console.error(
-    `凍結區保護：${rels.join('、')} 屬於凍結路徑，禁止修改既有檔案。`
+    `凍結區保護：${labels.join('、')} 屬於凍結路徑，禁止修改既有檔案。`
     + `依 .claude/rules/frozen-paths.md 處理：停下來，向使用者說明衝突並列出選項`
     + `（調整目標／走 spec 變更迭代流／由使用者自行修改規格）。新增全新檔案不受此限。`,
   )
@@ -741,6 +874,13 @@ process.stdin.on('end', () => {
   }
   catch {
     process.exit(0) // 輸入解析失敗時不擋，避免鎖壞掉時癱瘓所有編輯
+  }
+
+  if (typeof input?.cwd === 'string' && input.cwd) {
+    try {
+      cwdBase = realpathLoose(resolve(projectRoot, input.cwd))
+    }
+    catch {}
   }
 
   if (input?.tool_name === 'Bash') {
@@ -760,22 +900,16 @@ process.stdin.on('end', () => {
   if (!filePath)
     process.exit(0)
 
-  let abs = resolve(projectRoot, filePath)
-  if (existsSync(abs)) {
-    try {
-      abs = realpath(abs)
-    }
-    catch {}
-  }
-  const rel = relative(projectRoot, abs).toLowerCase()
-  if (!matchFrozen(rel))
+  const abs = resolve(cwdBase, filePath)
+  const target = frozenTargetOf(abs)
+  if (!target)
     process.exit(0)
 
   // Write 到不存在的檔案 = 授權產出者新增合約，放行
   if (input.tool_name === 'Write' && !existsSync(abs))
     process.exit(0)
 
-  if (tryConsumeSentinel([rel]))
+  if (tryConsumeSentinel([target]))
     process.exit(0)
-  deny([rel])
+  deny([target])
 })

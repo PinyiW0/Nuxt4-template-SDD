@@ -7,8 +7,12 @@
 // frozen-allow.json 分開（語意不同：一個授權修改、一個豁免誤報）。
 // 為什麼用 hook 不用 rules/server-security.md 的 paths：paths 觸發規則在 subagent 內
 // 不注入（2026-07-06 實測），只有 hook 對主對話與所有 subagent 都生效。
+//（2026-11-04 複測：同目錄下含 subagent 仍擋；跨 worktree 見本次修法——issue #199 起 `server/` 前綴與豁免
+// sentinel 都對「目標所在的 worktree」判斷（只收同 repo 的 worktree，見 target-root.mjs），從主目錄 session
+// 改另一個 worktree 的 server 檔也會偵測）
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
+import { candidateRoots, realpathLoose, sessionProjectRoot } from './target-root.mjs'
 
 // 摘要與 .claude/rules/server-security.md 的 8 條表格同步；改表格時須同步本陣列
 const RULE_SUMMARY = [
@@ -50,21 +54,29 @@ function main() {
   if (!filePath)
     process.exit(0)
 
-  const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd()
-  const abs = resolve(projectDir, filePath)
-  const rel = relative(projectDir, abs)
-  if (!(rel.startsWith('server/') && rel.endsWith('.ts')))
+  // 專案目錄與目標所在目錄都解 symlink（與 frozen-paths-guard 同一套比較基準），但檔名本身不解：
+  // rel 要用編輯時的路徑判斷，指向 repo 外的 symlink handler 才不會逃過偵測
+  const projectDir = sessionProjectRoot()
+  const editPath = resolve(input?.cwd || projectDir, filePath)
+  const abs = join(realpathLoose(dirname(editPath)), basename(editPath))
+  // 候選 root：同 repo 的 worktree（另一個 worktree 時不是 projectDir）＋專案目錄，取第一個落在 server/ 下的
+  const targetRoot = candidateRoots(abs, projectDir).find((root) => {
+    const r = relative(root, abs)
+    return r.startsWith('server/') && r.endsWith('.ts')
+  })
+  if (!targetRoot)
     process.exit(0)
+  const rel = relative(targetRoot, abs)
 
   // 機械偵測只跑 server/api/** handler 檔（server/mock/data/** 種子資料 spread 複製合法，
   // 天然不在範圍內），命中即 exit 2；utils／middleware 等只吃摘要注入
   if (rel.startsWith('server/api/')) {
     const violations = detect(abs, rel)
-    if (violations.length > 0 && !consumeAllowSentinel(projectDir, rel)) {
+    if (violations.length > 0 && !consumeAllowSentinel(targetRoot, rel)) {
       console.error(
         `server 安全機械偵測（檔案已寫入，請立即修正）：\n${violations.map(v => `- ${v}`).join('\n')}\n`
         + `完整判準與正確寫法讀 .claude/rules/server-security.md。`
-        + `若確認誤報，向使用者說明後寫 .claude/tmp/server-security-allow.json`
+        + `若確認誤報，向使用者說明後寫 ${resolve(targetRoot, '.claude/tmp/server-security-allow.json')}`
         + `（{ "reason": "...", "files": ["${rel}"] }）再重試，比中一次即消耗。`,
       )
       process.exit(2)
@@ -72,7 +84,8 @@ function main() {
   }
 
   // 首次觸碰某檔時注入 8 條摘要（每 session 每檔一次，控噪音）
-  if (markFirstTouch(projectDir, input?.session_id, rel)) {
+  // 記錄 key 用 session 目錄相對路徑：不同 worktree 的同名檔各算一次
+  if (markFirstTouch(projectDir, input?.session_id, relative(projectDir, abs))) {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PostToolUse',
