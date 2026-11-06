@@ -1488,6 +1488,30 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
     expect(result.status).toBe(2)
   })
 
+  it.each([
+    ['git -C "" 空字串引數在 -C../b 之前', () => `git -C "" -C../b rm ${ONLY}`],
+    ['直譯器寫入目標由引數傳入、路徑含空白（flood 回退）', () => `node -e 'require("fs").writeFileSync(process.argv[1], "x")' "${join(wtS, ONLY)}"`],
+    ['上游有含空白凍結路徑、下游 xargs git -C 含空白目錄 rm', () => `printf '%s\\0' "${join(wtS, ONLY)}" | xargs -0 git -C "${wtS}" rm --`],
+  ])('第 207 號 PR review：%s → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['git -C "" status', () => 'git -C "" status'],
+    ['直譯器只印出含空白的凍結路徑', () => `node -e 'console.log(process.argv[1])' "${join(wtS, ONLY)}"`],
+    ['上游有凍結路徑、下游 xargs git -C 含空白目錄 log', () => `printf '%s\\0' "${join(wtS, ONLY)}" | xargs -0 git -C "${wtS}" log --`],
+    ['cd 進凍結目錄後 sed -i "" 改凍結區外的檔（"" 不可解析成凍結目錄本身）', () => `cd ${join(repoM, 'spec/gherkin-feature')} && sed -i '' s/a/b/ ../../README.md`],  ])('第 207 號 PR review 誤擋對照：%s → 放行', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(0)
+  })
+
   it('worktree 路徑含空白：寫該 worktree 凍結區的新檔 → 放行（新增不受限）', () => {
     // Act
     const result = bash(repoM, `echo x >> "${join(wtS, 'spec/gherkin-feature/new.feature')}"`)

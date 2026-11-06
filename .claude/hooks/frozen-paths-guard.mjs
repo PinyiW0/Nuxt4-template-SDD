@@ -443,6 +443,9 @@ function baseRoot(base) {
 
 // 判斷單一 token（相對路徑以 base 解析）是否指向凍結路徑，回傳 { root, rel }，否則 null
 function frozenRelOf(word, base) {
+  // 空字串（shellWords 為了旗標對位保留的 `""`）不是路徑：resolve(base, '') 會變成 base 本身，base 在凍結目錄時整個目錄被誤擋
+  if (!word)
+    return null
   const expanded = word.replace(/^\$\{?CLAUDE_PROJECT_DIR\}?/, projectRoot)
   // 能落地的路徑：resolve（存在時含 symlink 解析）後對所屬 repo root 取相對再比對
   const target = frozenTargetOf(resolve(base, expanded))
@@ -673,7 +676,8 @@ function shellWords(text) {
     }
   }
   flush()
-  return { words: words.filter(Boolean), redirects: redirects.filter(Boolean) }
+  // words 保留引號產生的空字串（`git -C "" -C../b`）：濾掉會讓旗標與值錯位，-C 的目錄被吃掉（PR #207 review）
+  return { words, redirects: redirects.filter(Boolean) }
 }
 
 // COMMAND_PREFIX 裡的 wrapper（sudo／env／xargs 會這樣用）常接一個吃值的旗標，
@@ -824,6 +828,7 @@ function bashFrozenWrites(command) {
   const addTarget = t => found.set(`${t.root}\n${t.rel}`, t)
   const shellBases = new Set([cwdBase]) // shell 自己的工作目錄可能是哪幾個
   const seenBases = new Set([cwdBase]) // 直譯器防線看整條指令，分不出寫入發生在哪個 cd 之後，所有出現過的基準都試
+  const lexedWords = new Set() // 各段 shellWords 的字，給直譯器 flood 用（逐段算，引號狀態不跨段、不跨 heredoc 內文）
   for (const { head, bodies } of splitHeredocBlocks(command)) {
     let bodyAt = 0
     let upstream = [] // 同一條管線裡前面各段比中的凍結 token（issue #165）
@@ -832,6 +837,7 @@ function bashFrozenWrites(command) {
         upstream = []
       const words = tokenize(seg)
       const lexed = shellWords(seg)
+      lexed.words.forEach(w => lexedWords.add(w))
       const segBases = [...shellBases]
       // cd／git -C 對 tokenize 與 shellWords 兩種拆法都判一次：含空白的目錄（`cd "/a b"`、`git -C '/a b'`）只有 shellWords 拆得完整（issue #206）
       const gitBases = [...new Set(segBases.flatMap(b => [gitChdir(words, b), gitChdir(lexed.words, b)]).filter(Boolean))]
@@ -854,7 +860,8 @@ function bashFrozenWrites(command) {
       const pathWords = [...new Set([...words, ...lexed.words, ...bodyWords])]
       const frozen = bases.flatMap(b => pathWords.map(w => frozenRelOf(w, b))).filter(Boolean)
       // 管線下游的 xargs 把上游輸出的路徑當引數餵給寫入動詞：`grep -l x <凍結目錄>/*.ts | xargs sed -i …`
-      if (upstream.length && commandVerbs(words).includes('xargs') && xargsWrites(words))
+      // `xargs -0 git -C "/a b" rm`：tokenize 把 `b` 拆成 git 子指令位置，下游寫入判斷也要看 shellWords 的拆法（PR #207 review）
+      if (upstream.length && commandVerbs(words).includes('xargs') && (xargsWrites(words) || xargsWrites(lexed.words)))
         upstream.forEach(addTarget)
       upstream.push(...frozen)
       if (!frozen.length)
@@ -884,7 +891,8 @@ function bashFrozenWrites(command) {
   // 直譯器防線：對「整條指令」（跨 \n、不切段）判斷，heredoc 把直譯器詞與寫入 API
   // 拆到不同行也吃得到。優先用 capture 抓到的字面值路徑當寫入目標（精準，不誤傷同指令
   // 內被唯讀讀取的凍結檔）；只有引數抓不到字面值（變數／運算式）時才回退整條指令 flood。
-  const allWords = tokenize(command)
+  // flood 也收各段 shellWords 的完整字：`node -e '…writeFileSync(process.argv[1],…)' "/a b/<凍結檔>"` 的路徑含空白（PR #207 review）
+  const allWords = [...new Set([...tokenize(command), ...lexedWords])]
   if (hasScriptInterpreter(command)) {
     const { anyCall, anyDynamic, literalPaths } = scriptWriteAnalysis(command)
     if (anyCall) {
