@@ -61,14 +61,14 @@ function main() {
   const projectDir = sessionProjectRoot()
   const editPath = resolve(input?.cwd || projectDir, filePath)
   const realPath = join(realpathLoose(dirname(editPath)), basename(editPath))
-  // 候選 root：同 repo 的 worktree（另一個 worktree 時不是 projectDir）＋專案目錄，取第一個落在 server/ 下的
-  const hits = [editPath, realPath, realpathLoose(editPath)].flatMap((p) => {
-    const root = candidateRoots(p, projectDir).find((r) => {
-      const rp = relative(r, p)
-      return rp.startsWith('server/') && rp.endsWith('.ts')
-    })
-    return root ? [{ abs: p, targetRoot: root, rel: relative(root, p) }] : []
-  })
+  // 候選 root：同 repo 的 worktree（另一個 worktree 時不是 projectDir）＋專案目錄，每個落在 server/ 下的都收，
+  // 下面優先取 server/api/。只取第一個的話，`server/api/x/.git` 的 gitdir 指回本 repo 時，內層 root 的 `server/utils/…`
+  // 會蓋掉外層的 `server/api/…` 而不偵測（PR #207 review）
+  const hits = [editPath, realPath, realpathLoose(editPath)].flatMap(p =>
+    candidateRoots(p, projectDir)
+      .map(root => ({ abs: p, targetRoot: root, rel: relative(root, p) }))
+      .filter(h => h.rel.startsWith('server/') && h.rel.endsWith('.ts')),
+  )
   const hit = hits.find(h => h.rel.startsWith('server/api/')) ?? hits[0]
   if (!hit)
     process.exit(0)

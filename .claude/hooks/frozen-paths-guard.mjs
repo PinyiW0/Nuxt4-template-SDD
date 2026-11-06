@@ -142,10 +142,16 @@
 // 認不出它與 linked worktree 同 repo，兩邊互改都放行。修法：gitChdir 認 `-C<dir>`；路徑比對多加一份引號感知的
 // shellWords（與 tokenize 並用，照 shell 規則處理引號、`\ ` 跳脫與相鄰片段相接），重導向目標也由它補取（原 regex 保留）；
 // gitCommonDir 沒有 commondir 時以 gitdir 本身當共用目錄。
-// /ship L5 /code-review 回饋（同日，使用者裁決順帶修）：①`cd "/a b"`、`git -C '/a b'` 含空白的換目錄不追蹤 ②`dd of=/<其他 worktree>/…`
+// /ship L5 /code-review 回饋（同日，使用者裁決順帶修）：④`cd "/a b"`、`git -C '/a b'` 含空白的換目錄不追蹤 ⑤`dd of=/<其他 worktree>/…`
 // 這類 `=` 後接絕對路徑的 token 走子字串比對，root 猜成 session 目錄而漏放（#199 就有，與空白無關）。修法：cd／git -C 對
 // tokenize 與 shellWords 兩種拆法都判；frozenRelOf 在子字串比對前，先對每個 `=` 後面的值（相對或絕對路徑）精確定位
 //（第 2 輪補上相對路徑 `of=../wt/…` 與第二個 `=` 之後的 `--define=out=/wt/…`）。
+// PR #207 Copilot review 與每輪本地覆審（同日）：⑥`git -C "" -C../wt`（shellWords 保留空字串維持旗標對位；空字串在 frozenRelOf
+// 入口濾掉，否則解析成 base 本身、cwd 在凍結目錄時整個目錄被誤擋）⑦直譯器 flood 改收各段與 heredoc 內文逐行的 shellWords 字，
+// 內文另依引號切段（三引號跨行的路徑行）⑧寫入動詞與 xargs 下游也看 shellWords 的拆法（`xargs -I "x y" rm`、`xargs -0 git -C "/a b" rm`）；
+// git 子指令在 shellWords 認得出 git 時以它為準，`git -C "/a rm" status` 不再誤擋 ⑨frozenRelOf 整個 token 與各 `=` 值「既有目標
+// 優先」，都不存在時仍試子字串比對（cwd 在凍結目錄時 `of=<別的 worktree>`、`"$WT/<凍結檔>"`）；`~/…` 與 `of=~/…` 展開 ⑩server-security-guard
+// 保留每個候選 root 的 `server/` 命中，`server/api/x/.git` 偽造 gitdir 不再讓內層 root 蓋掉外層 `server/api/`。
 //
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
@@ -210,12 +216,15 @@
 //      `| { xargs rm; }`）：splitHeredocBlocks 先依換行切、`{` 不在 COMMAND_PREFIX，既有缺口，#165 對抗審查發現
 //  32. 跨 worktree 判定（issue #199）只認「與 session 專案同一個 git repo 的 worktree 根目錄」：專案若放在 monorepo
 //      子目錄，另一個 worktree 的目標會多一段子目錄前綴而比不中；別的 repo（含衍生專案）、不在 git repo 內的絕對路徑照舊不擋
-//  33. 指令內換目錄只追蹤字面的 `cd <dir>`（之後各段對 cd 前後的基準都解析；含 `cd -P`、`builtin cd`）與 `git -C <dir>`
-//      （只加給該段；含空白的目錄自 #206 起也追蹤）：`cd -`、`pushd`／`popd`、`cd "$VAR"`、CDPATH 不追蹤（仍照 cd 前的基準判斷，
-//      不會比沒追蹤時少擋）；引號內的 `bash -c 'cd ../wt && rm <凍結檔>'` 整串是同一段，段內 cd 之後的寫入只用 cd 前的基準，
-//      只存在於別的 worktree 的凍結檔會漏放。同理，引號內再包一層含空白的路徑（`bash -c "rm '/a b/<凍結檔>'"`、
-//      `bash -c "echo x > '/a b/<凍結檔>'"`）也漏放：tokenize 與重導向 regex 在空白處截斷，shellWords 把外層引號整段當一個字（issue #206）；其他工具的換目錄旗標（`make -C`、`npm --prefix`、`tar -C`）不處理。基準只增不減也帶來誤擋：cd 到無關 repo
-//      或 /tmp 後寫同名的相對路徑，仍會被當成本專案的凍結檔擋下（與第 32 條「無關 repo 不擋」不一致，#199 之前就如此）（issue #199 /code-review）
+//  33. 指令內換目錄（issue #199 /code-review，#206 補含空白目錄）：
+//      (a) 只追蹤字面的 `cd <dir>`（之後各段對 cd 前後的基準都解析；含 `cd -P`、`builtin cd`、含空白的目錄）與 `git -C <dir>`
+//          （只加給該段；含 `-C<dir>` 黏連與含空白的目錄）。`cd -`、`pushd`／`popd`、`cd "$VAR"`、CDPATH 不追蹤，仍照 cd 前的
+//          基準判斷，不會比沒追蹤時少擋；其他工具的換目錄旗標（`make -C`、`npm --prefix`、`tar -C`）不處理
+//      (b) 引號內的巢狀 shell（`bash -c '…'`）整串是同一段、shellWords 把它當一個字：段內 `cd ../wt && rm <凍結檔>` 的寫入只用
+//          cd 前的基準；引號內再包一層含空白的路徑（`bash -c "rm '/a b/<凍結檔>'"`、`bash -c "echo x > '/a b/<凍結檔>'"`）
+//          也漏放（tokenize 與重導向 regex 在空白處截斷）。只限「引號內再包含空白路徑」；引號內不含空白的仍擋
+//      (c) 基準只增不減帶來誤擋：cd 到無關 repo 或 /tmp 後寫同名的相對路徑，仍會被當成本專案的凍結檔擋下（與第 32 條
+//          「無關 repo 不擋」不一致，#199 之前就如此）
 //  34. 比對前一律轉小寫（darwin 預設大小寫不敏感），在大小寫敏感的檔案系統（Linux、大小寫敏感的 APFS）上，含大寫的
 //      既有凍結檔（`Login.flow.md`）會被判成「不存在＝新增」而放行；sentinel 比對同理。既有行為，#199 只是讓它也套到
 //      其他 worktree（issue #199 /code-review 第 2 輪）
@@ -640,8 +649,9 @@ function tokenize(text) {
 // 只留後一字，相鄰的引號與非引號片段併成同一個字（`"/a b"/spec/…`）。tokenize 在引號內的空白處也拆，`"/a b/spec/…"`
 // 會變成 `/a`＋`b/spec/…` 兩半，含空白的 worktree 絕對路徑比不中（issue #206）。
 // 回傳 { words, redirects }：redirects 是引號外 `>`／`>>`／`>&`／`&>` 之後的那個字（重導向目標）。
-// 用途：多找凍結路徑（與 tokenize、重導向 regex 的結果一起比對），以及 cd／git -C／寫入動詞／xargs 判斷的第二種拆法
-//（兩種拆法任一判成寫入就算，只多不少）；改它的空字串或跳脫規則會連動寫入判斷，見 bashFrozenWrites
+// 用途：多找凍結路徑（與 tokenize、重導向 regex 的結果一起比對），以及 cd／git -C／寫入動詞／xargs 判斷的第二種拆法。
+// 寫入動詞與就地改檔旗標是兩種拆法任一判成寫入就算；git 子指令例外，只看 gitWordsOf 選的那一種（shellWords 認得出
+// 執行中的 git 時以它為準），所以 shellWords 拆錯 git 子指令時不再有 tokenize 兜底。改它的空字串或跳脫規則會連動寫入判斷
 function shellWords(text) {
   const words = []
   const redirects = []
@@ -735,19 +745,36 @@ function isCommandPosition(words, i) {
 
 // 只有「指令位置」的 token 才算動詞：段落第一個 token，或 sudo／xargs／find -exec 等前綴
 // 之後、或 shell 變數指派之後。這樣 heredoc 內文與訊息字串裡散落的 ed／restore 不會被誤判。
-function commandVerbs(words) {
-  const verbs = []
+function commandIndices(words) {
+  const indices = []
   for (let i = 0; i < words.length; i++) {
     if (isCommandPosition(words, i))
-      verbs.push(baseName(words[i]))
+      indices.push(i)
     const prefix = prefixOf(words, i)
     if (COMMAND_PREFIX.has(prefix)) {
       const subcmdIndex = skipWrapperFlags(words, i + 1, prefix)
       if (subcmdIndex < words.length && subcmdIndex !== i + 1)
-        verbs.push(baseName(words[subcmdIndex]))
+        indices.push(subcmdIndex)
     }
   }
-  return verbs
+  return indices
+}
+
+function commandVerbs(words) {
+  return commandIndices(words).map(i => baseName(words[i]))
+}
+
+// 真正被執行的那個 git 的位置：先找指令位置上的 git（`VAR=…/git` 這種指派不算），找不到才回退成第一個叫 git 的字
+//（`if git rm` 這類控制結構的關鍵字不在 COMMAND_PREFIX，見已知極限第 20 條）。只認第一個叫 git 的字會把
+// `sudo -u git git rm`、`GIT_TRACE=/tmp/git git checkout` 的前一個 git 當成指令而漏放（PR #207 本地覆審）
+function isGitWord(word) {
+  return baseName(word) === 'git' && !/^\w+=/.test(word)
+}
+function gitIndex(words) {
+  return commandIndices(words).find(i => isGitWord(words[i])) ?? words.findIndex(isGitWord)
+}
+function runsGit(words) {
+  return commandIndices(words).some(i => isGitWord(words[i]))
 }
 
 // git 全域旗標裡會吃一個值的（-C／-c 之外，--work-tree／--git-dir／--namespace 同樣把
@@ -758,7 +785,7 @@ const GIT_VALUE_FLAGS = new Set(['-C', '-c', '--work-tree', '--git-dir', '--name
 // git 的子指令只認緊接 git 之後的第一個非旗標 token（吃值旗標會多跳一個 token），
 // 否則 `git commit -m "… restore …"` 的訊息內文會被當成 git restore。
 function gitWriteSubcmd(words) {
-  const gi = words.findIndex(w => baseName(w) === 'git')
+  const gi = gitIndex(words)
   if (gi === -1)
     return false
   for (let i = gi + 1; i < words.length; i++) {
@@ -775,17 +802,27 @@ function gitWriteSubcmd(words) {
 
 // 管線下游 xargs 段專用的寫入判斷：就地改檔工具必須在指令位置、-i 旗標必須在它之後。hasWriteVerb 的
 // 就地改檔判斷不看位置，`… | xargs grep -in sed` 會被誤當寫入（issue #165 對抗審查）
-function xargsWrites(words) {
-  const verbs = commandVerbs(words)
-  const at = words.findIndex(w => INPLACE_TOOLS.has(baseName(w)) && verbs.includes(baseName(w)))
-  return verbs.some(v => WRITE_VERBS.has(v)) || (verbs.includes('git') && gitWriteSubcmd(words))
-    || (at !== -1 && words.slice(at + 1).some(w => INPLACE_FLAG.test(w)))
+function xargsWrites(words, lexedWords = words) {
+  const plain = (w) => {
+    const verbs = commandVerbs(w)
+    const at = w.findIndex(x => INPLACE_TOOLS.has(baseName(x)) && verbs.includes(baseName(x)))
+    return verbs.some(v => WRITE_VERBS.has(v)) || (at !== -1 && w.slice(at + 1).some(x => INPLACE_FLAG.test(x)))
+  }
+  const g = gitWordsOf(words, lexedWords)
+  return plain(words) || plain(lexedWords) || (runsGit(g) && gitWriteSubcmd(g))
 }
 
-function hasWriteVerb(words) {
-  return commandVerbs(words).some(v => WRITE_VERBS.has(v))
-    || (words.some(w => INPLACE_TOOLS.has(baseName(w))) && words.some(w => INPLACE_FLAG.test(w)))
-    || gitWriteSubcmd(words)
+// 寫入判斷：動詞與就地改檔旗標對 tokenize、shellWords 兩種拆法都看（任一判成寫入就算）；git 子指令只看 gitWordsOf 選的那一種
+function hasWriteVerb(words, lexedWords = words) {
+  const plain = w => commandVerbs(w).some(v => WRITE_VERBS.has(v))
+    || (w.some(x => INPLACE_TOOLS.has(baseName(x))) && w.some(x => INPLACE_FLAG.test(x)))
+  return plain(words) || plain(lexedWords) || gitWriteSubcmd(gitWordsOf(words, lexedWords))
+}
+
+// git 子指令用哪一種拆法：shellWords 在指令位置認得出 git 時以它為準——`git -C "/a rm" status` 的 rm 是目錄名，
+// tokenize 卻把它拆到子指令位置而誤擋；認不出（巢狀 `bash -c "git rm …"` 整串是一個字）才回退 tokenize（PR #207 review）
+function gitWordsOf(words, lexedWords) {
+  return runsGit(lexedWords) ? lexedWords : words
 }
 
 // cd／git -C 的目錄引數：展開 $CLAUDE_PROJECT_DIR 與開頭的 ~，對 base 解析（含 symlink）；不是既有目錄回 null
@@ -805,9 +842,9 @@ function dirArg(base, word) {
 // `grep git -C 2` 不算）：git 在該目錄下解析它自己的引數。多個 -C 依序疊加（`-C .. -C wt`）。回傳目錄，沒有回 null
 // 黏連寫法 `-C../wt` 同樣認（issue #206）
 function gitChdir(words, base) {
-  if (!commandVerbs(words).includes('git'))
+  if (!runsGit(words))
     return null
-  const gi = words.findIndex(w => baseName(w) === 'git')
+  const gi = gitIndex(words)
   let dir = null
   for (let i = gi + 1; i < words.length && words[i].startsWith('-'); i++) {
     const arg = words[i] === '-C' ? words[i + 1] : words[i].startsWith('-C') ? words[i].slice(2) : null
@@ -833,6 +870,11 @@ function cdArg(words) {
   return i < words.length && words[i] !== '-' ? words[i] : null
 }
 
+// 一行文字依單／雙引號切開、各段 trim：Python 三引號跨行時路徑那一行沒有成對引號，shellWords 會在空白處拆散
+function quotePieces(line) {
+  return line.split(/['"]/).map(piece => piece.trim()).filter(Boolean)
+}
+
 // 解析 Bash command，回傳會被寫入的凍結目標清單（{ root, rel }，同 root＋rel 只留一筆）。
 // 同一條指令裡的 `cd <dir>` 會改變之後各段相對路徑的基準（`cd ../wt && rm <凍結檔>`，issue #199 /code-review）。
 // 靜態解析不知道 cd 有沒有成功，所以基準只增不減：cd 之後的段對「cd 前後所有出現過的基準」都解析一次、任一個比中就算，
@@ -845,6 +887,8 @@ function bashFrozenWrites(command) {
   const seenBases = new Set([cwdBase]) // 直譯器防線看整條指令，分不出寫入發生在哪個 cd 之後，所有出現過的基準都試
   const lexedWords = new Set() // 各段 shellWords 的字，給直譯器 flood 用（逐段算，引號狀態不跨段、不跨 heredoc 內文）
   for (const { head, bodies } of splitHeredocBlocks(command)) {
+    // 指令行也依引號切段收進 flood 候選：多行 `python3 -c '…'` 的三引號路徑行沒有成對引號（PR #207 本地覆審）
+    quotePieces(head).forEach(w => lexedWords.add(w))
     let bodyAt = 0
     let upstream = [] // 同一條管線裡前面各段比中的凍結 token（issue #165）
     for (const { text: seg, piped } of splitPipelineSegments(head)) {
@@ -872,23 +916,26 @@ function bashFrozenWrites(command) {
       const opened = heredocTerminators(seg).length
       const segBodies = bodies.slice(bodyAt, bodyAt + opened)
       const bodyWords = segBodies.flatMap(tokenize)
-      // heredoc 內文也逐行收 shellWords 的完整字給直譯器 flood（`p = "/a b/<凍結檔>"` 再 `open(p,'w')`）；逐行拆，
-      // 內文註解裡落單的 `'` 不會把後面幾行黏成一個字（PR #207 review）
-      for (const line of segBodies.flatMap(body => body.split('\n')))
+      // heredoc 內文也逐行收完整字給直譯器 flood（`p = "/a b/<凍結檔>"` 再 `open(p,'w')`）；逐行拆，內文註解裡落單的 `'`
+      // 不會把後面幾行黏成一個字。每行另依引號切開、各段 trim 後也收：Python 三引號跨行時路徑那一行沒有成對引號
+      //（`/a b/<凍結檔>""".strip()`），shellWords 會在空白處拆散（PR #207 review）
+      for (const line of segBodies.flatMap(body => body.split('\n'))) {
         shellWords(line).words.forEach(w => lexedWords.add(w))
+        quotePieces(line).forEach(w => lexedWords.add(w))
+      }
       bodyAt += opened
       const pathWords = [...new Set([...words, ...lexed.words, ...bodyWords])]
       const frozen = bases.flatMap(b => pathWords.map(w => frozenRelOf(w, b))).filter(Boolean)
       // 管線下游的 xargs 把上游輸出的路徑當引數餵給寫入動詞：`grep -l x <凍結目錄>/*.ts | xargs sed -i …`
       // `xargs -0 git -C "/a b" rm`：tokenize 把 `b` 拆成 git 子指令位置，下游寫入判斷也要看 shellWords 的拆法（PR #207 review）
-      if (upstream.length && commandVerbs(words).includes('xargs') && (xargsWrites(words) || xargsWrites(lexed.words)))
+      if (upstream.length && commandVerbs(words).includes('xargs') && xargsWrites(words, lexed.words))
         upstream.forEach(addTarget)
       upstream.push(...frozen)
       if (!frozen.length)
         continue
       // `git -C "/a b" rm`、`xargs -I "x y" rm`：tokenize 把引號內的字拆成子指令位置，寫入判斷也要看 shellWords 的拆法
       //（issue #206、PR #207 review）
-      if (hasWriteVerb(words) || hasWriteVerb(lexed.words)) {
+      if (hasWriteVerb(words, lexed.words)) {
         frozen.forEach(addTarget)
         continue
       }
@@ -897,8 +944,8 @@ function bashFrozenWrites(command) {
       // 會讓 `echo x >& <凍結檔>` 這種寫入漏放（PR #141 review）；`2>&1` 這類 fd 複製會被
       // 一併掃到 capture，但目標是純數字 fd、比不中任何真實凍結路徑，frozenRelOf 自然濾掉。
       // regex 會在空白處截斷含空白的目標（`"/a b/…"`、`/a\ b/…`），另由 shellWords 照 shell 規則取出的重導向目標補上；
-      // regex 保留，因為它吃得到引號內、不含空白的重導向目標（`bash -c "echo x > <凍結檔>"`），shellWords 不看引號內；
-      // 引號內又含空白的目標兩邊都抓不到，見已知極限第 33 條（issue #206）。
+      // regex 保留，因為它吃得到引號內、不含空白的重導向目標（`bash -c "echo x > <凍結檔>"`）；shellWords 把引號內整段視為
+      // 一個字，不會再拆出內層的重導向。引號內又含空白的目標兩邊都抓不到，見已知極限第 33 條 (b)（issue #206）。
       const redirectTargets = [...seg.matchAll(/(?:>{1,2}&?|&>{1,2})\s*["']?([^\s"'<>|;&]+)/g)].map(m => m[1])
       for (const w of new Set([...redirectTargets, ...lexed.redirects])) {
         for (const b of segBases) {

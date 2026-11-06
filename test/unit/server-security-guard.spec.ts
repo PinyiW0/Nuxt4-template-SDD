@@ -206,3 +206,19 @@ describe('server-security-guard：--separate-git-dir 結構（issue #206）', ()
     expect(inD.status).toBe(2)
   })
 })
+
+describe('server-security-guard：候選 root 全部保留（PR #207 review）', () => {
+  it('server/api/items/.git 偽造 gitdir 指回本 repo：編輯 server/api/items/server/utils/x.post.ts 仍以外層 server/api/ 偵測，exit 2', () => {
+    // Arrange：內層 root 會把檔案看成 server/utils/x.post.ts（不偵測），外層 root 才是 server/api/
+    const inner = join(repoM, 'server/api/items')
+    mkdirSync(join(inner, 'server/utils'), { recursive: true })
+    writeFileSync(join(inner, '.git'), `gitdir: ${join(repoM, '.git')}\n`)
+    writeFileSync(join(inner, 'server/utils/x.post.ts'), VIOLATING)
+
+    // Act
+    const result = runGuard(join(inner, 'server/utils/x.post.ts'))
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+})

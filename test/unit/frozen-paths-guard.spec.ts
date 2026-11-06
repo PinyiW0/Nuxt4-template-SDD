@@ -1386,6 +1386,7 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
   let repoM: string
   let wtB: string
   let wtS: string
+  let wtR: string
   let repoC: string
   let wtD: string
   const F = 'spec/gherkin-feature/b.feature'
@@ -1418,6 +1419,7 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
     repoM = join(base, 'm')
     wtB = join(base, 'b')
     wtS = join(base, 'with space')
+    wtR = join(base, 'with rm')
     repoC = join(base, 'c')
     wtD = join(base, 'd')
     mkdirSync(repoM)
@@ -1425,10 +1427,11 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
     seedAndCommit(repoM)
     git('-C', repoM, 'worktree', 'add', '-q', wtB, '-b', 'wt-b')
     git('-C', repoM, 'worktree', 'add', '-q', wtS, '-b', 'wt-s')
+    git('-C', repoM, 'worktree', 'add', '-q', wtR, '-b', 'wt-r')
     git('init', '-q', '--separate-git-dir', join(base, 'c.git'), repoC)
     seedAndCommit(repoC)
     git('-C', repoC, 'worktree', 'add', '-q', wtD, '-b', 'wt-d')
-    for (const root of [wtB, wtS, repoC, wtD])
+    for (const root of [wtB, wtS, wtR, repoC, wtD])
       writeFileSync(join(root, ONLY), 'Feature: only\n')
     writeFileSync(join(repoC, 'spec/gherkin-feature/only-c.feature'), 'Feature: only c\n')
   })
@@ -1526,16 +1529,44 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
   })
 
   it.each([
-    ['heredoc 內文先把含空白路徑存變數再 open(p, "w")，內文註解有落單的引號', () => `python3 - <<'PY'\n# don't touch\np = "${join(wtS, ONLY)}"\nopen(p, 'w').write('x')\nPY`, 2],
-    ['heredoc 內文同形但只讀取', () => `python3 - <<'PY'\np = "${join(wtS, ONLY)}"\nprint(open(p).read())\nPY`, 0],
-    ['xargs -I 替換字串含空白後接 rm 含空白路徑', () => `printf '%s\\n' x | xargs -I "replace me" rm "${join(wtS, ONLY)}" "replace me"`, 2],
-    ['echo 字串裡提到 rm 與含空白路徑', () => `echo "rm ${join(wtS, ONLY)}"`, 0],
-  ])('第 207 號 PR review 第 2 輪：%s → exit %i', (_label, command, expected) => {
+    ['heredoc 內文先把含空白路徑存變數再 open(p, "w")，內文註解有落單的引號', 2, () => `python3 - <<'PY'\n# don't touch\np = "${join(wtS, ONLY)}"\nopen(p, 'w').write('x')\nPY`],
+    ['heredoc 內文同形但只讀取', 0, () => `python3 - <<'PY'\np = "${join(wtS, ONLY)}"\nprint(open(p).read())\nPY`],
+    ['xargs -I 替換字串含空白後接 rm 含空白路徑', 2, () => `printf '%s\\n' x | xargs -I "replace me" rm "${join(wtS, ONLY)}" "replace me"`],
+    ['echo 字串裡提到 rm 與含空白路徑', 0, () => `echo "rm ${join(wtS, ONLY)}"`],
+  ])('第 207 號 PR review 第 2 輪：%s → exit %i', (_label, expected, command) => {
     // Act
     const result = bash(repoM, command())
 
     // Assert
     expect(result.status).toBe(expected)
+  })
+
+  it.each([
+    ['git -C 目錄名結尾是 rm 的 worktree 後接 status（唯讀）', 0, () => `git -C "${wtR}" status -- ${ONLY}`],
+    ['上游有凍結路徑、下游 xargs git -C 目錄名結尾 rm 的 worktree log（唯讀）', 0, () => `printf '%s\\0' "${join(wtR, ONLY)}" | xargs -0 git -C "${wtR}" log --`],
+    ['git -C 目錄名結尾是 rm 的 worktree 後接 rm（寫入）', 2, () => `git -C "${wtR}" rm ${ONLY}`],
+    ['heredoc 內 Python 三引號跨行、路徑行沒有成對引號，open(p, "w")', 2, () => `python3 - <<'PY'\np = """\n${join(wtS, ONLY)}""".strip()\nopen(p, 'w')\nPY`],
+    ['heredoc 內 Python 三引號跨行，只讀取', 0, () => `python3 - <<'PY'\np = """\n${join(wtS, ONLY)}""".strip()\nprint(open(p).read())\nPY`],
+  ])('第 207 號 PR review 待決定項：%s → exit %i', (_label, expected, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(expected)
+  })
+
+  it.each([
+    ['sudo -u git 的使用者名稱不是 git 指令', () => `sudo -u git git rm ${F}`],
+    ['GIT_TRACE=/tmp/git 的指派不是 git 指令', () => `GIT_TRACE=/tmp/git git checkout -- ${F}`],
+    ['sudo -u git 後的 git -C 換到 B', () => `sudo -u git git -C ../b rm ${ONLY}`],
+    ['管線下游 xargs sudo -u git git rm', () => `ls ${F} | xargs sudo -u git git rm`],
+    ['多行 python -c 的三引號路徑行（含空白 worktree）', () => `python3 -c '\np = """\n${join(wtS, ONLY)}""".strip()\nopen(p, "w")'`],
+  ])('第 207 號 PR 本地覆審：%s → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
   })
 
   it('worktree 路徑含空白：寫該 worktree 凍結區的新檔 → 放行（新增不受限）', () => {
