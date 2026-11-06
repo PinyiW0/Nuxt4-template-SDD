@@ -177,3 +177,65 @@ describe('server-security-guard：跨 worktree 以目標所屬 repo 判斷（iss
     expect(result.stderr).toContain(`${HANDLER}:3`)
   })
 })
+
+describe('server-security-guard：--separate-git-dir 結構（issue #206）', () => {
+  it('主工作區 C 的 .git 是檔案、沒有 commondir：session 在 C，worktree D 的違規 handler → 與 C 一致，exit 2', () => {
+    // Arrange：C 用 --separate-git-dir 建立，D 是 C 的 worktree，兩處各放一支違規 handler
+    const repoC = join(base, 'c')
+    const wtD = join(base, 'd')
+    git('init', '-q', '--separate-git-dir', join(base, 'c.git'), repoC)
+    writeFileSync(join(repoC, 'README.md'), 'x\n')
+    git('-C', repoC, 'add', '.')
+    git('-C', repoC, 'commit', '-qm', 'init')
+    git('-C', repoC, 'worktree', 'add', '-q', wtD, '-b', 'wt-d')
+    writeHandler(repoC)
+    writeHandler(wtD)
+    const run = (filePath: string) => spawnSync('node', [HOOK_PATH], {
+      input: JSON.stringify({ tool_name: 'Edit', session_id: 'test', tool_input: { file_path: filePath } }),
+      env: { ...process.env, CLAUDE_PROJECT_DIR: repoC },
+      encoding: 'utf8',
+      timeout: 5000,
+    })
+
+    // Act
+    const inC = run(join(repoC, HANDLER))
+    const inD = run(join(wtD, HANDLER))
+
+    // Assert
+    expect(inC.status).toBe(2)
+    expect(inD.status).toBe(2)
+  })
+})
+
+describe('server-security-guard：候選 root 全部保留（PR #207 review）', () => {
+  it('server/api/items/.git 偽造 gitdir 指回本 repo：編輯 server/api/items/server/utils/x.post.ts 仍以外層 server/api/ 偵測，exit 2', () => {
+    // Arrange：內層 root 會把檔案看成 server/utils/x.post.ts（不偵測），外層 root 才是 server/api/
+    const inner = join(repoM, 'server/api/items')
+    mkdirSync(join(inner, 'server/utils'), { recursive: true })
+    writeFileSync(join(inner, '.git'), `gitdir: ${join(repoM, '.git')}\n`)
+    writeFileSync(join(inner, 'server/utils/x.post.ts'), VIOLATING)
+
+    // Act
+    const result = runGuard(join(inner, 'server/utils/x.post.ts'))
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['只引用 itemId，漏掉外層 tenantId', 2, 'getRouterParam(event, \'itemId\')'],
+    ['tenantId 與 itemId 都引用', 0, '[getRouterParam(event, \'tenantId\'), getRouterParam(event, \'itemId\')]'],
+  ])('server/api/[tenantId]/[itemId]/.git 偽造 gitdir：編輯其下 server/api/index.get.ts，%s → exit %i', (_label, expected, body) => {
+    // Arrange：內層 root 的相對路徑 server/api/index.get.ts 沒有動態參數，外層 root 才看得到 [tenantId]/[itemId]
+    const inner = join(repoM, 'server/api/[tenantId]/[itemId]')
+    mkdirSync(join(inner, 'server/api'), { recursive: true })
+    writeFileSync(join(inner, '.git'), `gitdir: ${join(repoM, '.git')}\n`)
+    writeFileSync(join(inner, 'server/api/index.get.ts'), `export default defineEventHandler(event => ${body})\n`)
+
+    // Act
+    const result = runGuard(join(inner, 'server/api/index.get.ts'))
+
+    // Assert
+    expect(result.status).toBe(expected)
+  })
+})

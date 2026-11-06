@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 // frozen-paths-guard.mjs：凍結區門鎖 PreToolUse hook（issue #137，含兩輪對抗審查後的回歸案例）。
 // 驅動方式對齊 hook 實際行為：
@@ -1371,6 +1371,228 @@ describe('frozen-paths-guard：跨 worktree 以目標所屬 repo 判斷（issue 
     writeFileSync(join(outside, 'x.feature'), 'Feature: x\n')
     symlinkSync(outside, join(repoM, 'spec/gherkin-feature/linked'))
 
+    // Act
+    const result = act()
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+})
+
+describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
+  // 三種結構：M＋兄弟 worktree B（測 -C 黏連）、M＋路徑含空白的 worktree S、
+  // `git init --separate-git-dir` 的主工作區 C（.git 是檔案、沒有 commondir）＋其 worktree D
+  let base: string
+  let repoM: string
+  let wtB: string
+  let wtS: string
+  let wtR: string
+  let repoC: string
+  let wtD: string
+  const F = 'spec/gherkin-feature/b.feature'
+  const ONLY = 'spec/gherkin-feature/only.feature'
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' })
+
+  function seedAndCommit(root: string) {
+    mkdirSync(join(root, 'spec/gherkin-feature'), { recursive: true })
+    writeFileSync(join(root, F), 'Feature: b\n')
+    git('-C', root, 'add', '.')
+    git('-C', root, 'commit', '-qm', 'init')
+  }
+
+  // 驅動 hook：session 開在 projectDir、工作目錄同 projectDir
+  function run(projectDir: string, payload: Record<string, unknown>) {
+    return spawnSync('node', [HOOK_PATH], {
+      input: JSON.stringify({ cwd: projectDir, ...payload }),
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+      encoding: 'utf8',
+      timeout: 5000,
+    })
+  }
+  const edit = (projectDir: string, filePath: string) => run(projectDir, { tool_name: 'Edit', tool_input: { file_path: filePath } })
+  const bash = (projectDir: string, command: string, cwd = projectDir) => run(projectDir, { tool_name: 'Bash', tool_input: { command }, cwd })
+
+  // 每個案例都只餵 hook、不真的執行指令，結構不會被改動：整組只建一次（每次重建要十幾個 git 子行程）
+  beforeAll(() => {
+    // Arrange：每個 worktree 各放一支只存在於該 worktree 的凍結檔（session 目錄沒有，改查 session 目錄會放行）
+    base = realpathSync(mkdtempSync(join(tmpdir(), 'frozen-guard-206-')))
+    repoM = join(base, 'm')
+    wtB = join(base, 'b')
+    wtS = join(base, 'with space')
+    wtR = join(base, 'with rm')
+    repoC = join(base, 'c')
+    wtD = join(base, 'd')
+    mkdirSync(repoM)
+    git('init', '-q', repoM)
+    seedAndCommit(repoM)
+    git('-C', repoM, 'worktree', 'add', '-q', wtB, '-b', 'wt-b')
+    git('-C', repoM, 'worktree', 'add', '-q', wtS, '-b', 'wt-s')
+    git('-C', repoM, 'worktree', 'add', '-q', wtR, '-b', 'wt-r')
+    git('init', '-q', '--separate-git-dir', join(base, 'c.git'), repoC)
+    seedAndCommit(repoC)
+    git('-C', repoC, 'worktree', 'add', '-q', wtD, '-b', 'wt-d')
+    for (const root of [wtB, wtS, wtR, repoC, wtD])
+      writeFileSync(join(root, ONLY), 'Feature: only\n')
+    writeFileSync(join(repoC, 'spec/gherkin-feature/only-c.feature'), 'Feature: only c\n')
+  })
+
+  afterAll(() => {
+    rmSync(base, { recursive: true, force: true })
+  })
+
+  it.each([
+    ['git -C../b rm', 'git -C../b rm spec/gherkin-feature/only.feature'],
+    ['git -C../b checkout --', 'git -C../b checkout -- spec/gherkin-feature/only.feature'],
+  ])('git -C 與目錄黏連：%s 寫只存在於 B 的凍結檔 → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command)
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['雙引號重導向 echo >>', () => `echo x >> "${join(wtS, ONLY)}"`],
+    ['單引號重導向 echo >', () => `echo x > '${join(wtS, ONLY)}'`],
+    ['雙引號 rm', () => `rm "${join(wtS, ONLY)}"`],
+    ['反斜線跳脫空白 rm', () => `rm ${join(wtS, ONLY).replace(' ', '\\ ')}`],
+    ['反斜線跳脫空白的重導向 echo >>', () => `echo x >> ${join(wtS, ONLY).replace(' ', '\\ ')}`],
+    ['只有 worktree 部分加引號的重導向 echo >>', () => `echo x >> "${wtS}"/${ONLY}`],
+  ])('worktree 路徑含空白：%s 寫只存在於該 worktree 的凍結檔 → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['cd 到含空白的 worktree 再用相對路徑 rm', () => `cd "${wtS}" && rm ${ONLY}`],
+    ['git -C 含空白的 worktree（雙引號分開寫）', () => `git -C "${wtS}" rm ${ONLY}`],
+    ['git -C 含空白的 worktree（單引號黏連）', () => `git -C'${wtS}' rm ${ONLY}`],
+  ])('換目錄到含空白的 worktree（/ship L5）：%s 寫只存在於該 worktree 的凍結檔 → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['dd of=<B 的絕對路徑>', () => `dd if=/dev/null of=${join(wtB, ONLY)}`],
+    ['dd of="<含空白 worktree 的絕對路徑>"', () => `dd if=/dev/null of="${join(wtS, ONLY)}"`],
+    ['dd of=<B 的相對路徑 ../b/…>', () => `dd if=/dev/null of=../b/${ONLY}`],
+    ['第二個 = 之後才是路徑（--define=out=<B 的絕對路徑>）', () => `dd if=/dev/null --define=out=${join(wtB, ONLY)}`],
+  ])('`=` 後接其他 worktree 的絕對路徑（/ship L5）：%s → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['git -C "" 空字串引數在 -C../b 之前', () => `git -C "" -C../b rm ${ONLY}`],
+    ['直譯器寫入目標由引數傳入、路徑含空白（flood 回退）', () => `node -e 'require("fs").writeFileSync(process.argv[1], "x")' "${join(wtS, ONLY)}"`],
+    ['上游有含空白凍結路徑、下游 xargs git -C 含空白目錄 rm', () => `printf '%s\\0' "${join(wtS, ONLY)}" | xargs -0 git -C "${wtS}" rm --`],
+  ])('第 207 號 PR review：%s → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['git -C "" status', () => 'git -C "" status'],
+    ['直譯器只印出含空白的凍結路徑', () => `node -e 'console.log(process.argv[1])' "${join(wtS, ONLY)}"`],
+    ['上游有凍結路徑、下游 xargs git -C 含空白目錄 log', () => `printf '%s\\0' "${join(wtS, ONLY)}" | xargs -0 git -C "${wtS}" log --`],
+    ['cd 進凍結目錄後 sed -i "" 改凍結區外的檔（"" 不可解析成凍結目錄本身）', () => `cd ${join(repoM, 'spec/gherkin-feature')} && sed -i '' s/a/b/ ../../README.md`],
+  ])('第 207 號 PR review 誤擋對照：%s → 放行', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(0)
+  })
+
+  it.each([
+    ['cwd 在凍結目錄、dd of=<B 的絕對路徑>（整個 token 先解析成不存在的凍結路徑）', () => `dd if=/dev/null of=${join(wtB, ONLY)}`],
+    ['cwd 在凍結目錄、--define=out=<B 的絕對路徑>（中間值不存在）', () => `dd if=/dev/null --define=out=${join(wtB, ONLY)}`],
+    ['cwd 在凍結目錄、未知變數開頭的路徑（精確定位不存在，仍要試子字串比對）', () => `rm "$WT/${F}"`],
+  ])('第 207 號 PR review 第 2 輪：%s → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command(), join(repoM, 'spec/gherkin-feature'))
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['heredoc 內文先把含空白路徑存變數再 open(p, "w")，內文註解有落單的引號', 2, () => `python3 - <<'PY'\n# don't touch\np = "${join(wtS, ONLY)}"\nopen(p, 'w').write('x')\nPY`],
+    ['heredoc 內文同形但只讀取', 0, () => `python3 - <<'PY'\np = "${join(wtS, ONLY)}"\nprint(open(p).read())\nPY`],
+    ['xargs -I 替換字串含空白後接 rm 含空白路徑', 2, () => `printf '%s\\n' x | xargs -I "replace me" rm "${join(wtS, ONLY)}" "replace me"`],
+    ['echo 字串裡提到 rm 與含空白路徑', 0, () => `echo "rm ${join(wtS, ONLY)}"`],
+  ])('第 207 號 PR review 第 2 輪：%s → exit %i', (_label, expected, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(expected)
+  })
+
+  it.each([
+    ['git -C 目錄名結尾是 rm 的 worktree 後接 status（唯讀）', 0, () => `git -C "${wtR}" status -- ${ONLY}`],
+    ['上游有凍結路徑、下游 xargs git -C 目錄名結尾 rm 的 worktree log（唯讀）', 0, () => `printf '%s\\0' "${join(wtR, ONLY)}" | xargs -0 git -C "${wtR}" log --`],
+    ['git -C 目錄名結尾是 rm 的 worktree 後接 rm（寫入）', 2, () => `git -C "${wtR}" rm ${ONLY}`],
+    ['heredoc 內 Python 三引號跨行、路徑行沒有成對引號，open(p, "w")', 2, () => `python3 - <<'PY'\np = """\n${join(wtS, ONLY)}""".strip()\nopen(p, 'w')\nPY`],
+    ['heredoc 內 Python 三引號跨行，只讀取', 0, () => `python3 - <<'PY'\np = """\n${join(wtS, ONLY)}""".strip()\nprint(open(p).read())\nPY`],
+  ])('第 207 號 PR review 待決定項：%s → exit %i', (_label, expected, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(expected)
+  })
+
+  it.each([
+    ['sudo -u git 的使用者名稱不是 git 指令', () => `sudo -u git git rm ${F}`],
+    ['GIT_TRACE=/tmp/git 的指派不是 git 指令', () => `GIT_TRACE=/tmp/git git checkout -- ${F}`],
+    ['sudo -u git 後的 git -C 換到 B', () => `sudo -u git git -C ../b rm ${ONLY}`],
+    ['管線下游 xargs sudo -u git git rm', () => `ls ${F} | xargs sudo -u git git rm`],
+    ['多行 python -c 的三引號路徑行（含空白 worktree）', () => `python3 -c '\np = """\n${join(wtS, ONLY)}""".strip()\nopen(p, "w")'`],
+  ])('第 207 號 PR 本地覆審：%s → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['xargs rm 的 heredoc 內文是加引號的含空白路徑', 2, () => `xargs rm <<'EOF'\n"${join(wtS, ONLY)}"\nEOF`],
+    ['xargs rm 的 heredoc 內文是反斜線跳脫空白的路徑', 2, () => `xargs rm <<'EOF'\n${join(wtS, ONLY).replace(' ', '\\ ')}\nEOF`],
+    ['xargs cat 的 heredoc 內文是加引號的含空白路徑（唯讀）', 0, () => `xargs cat <<'EOF'\n"${join(wtS, ONLY)}"\nEOF`],
+  ])('第 207 號 PR 第 3 次 review：%s → exit %i', (_label, expected, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(expected)
+  })
+
+  it('worktree 路徑含空白：寫該 worktree 凍結區的新檔 → 放行（新增不受限）', () => {
+    // Act
+    const result = bash(repoM, `echo x >> "${join(wtS, 'spec/gherkin-feature/new.feature')}"`)
+
+    // Assert
+    expect(result.status).toBe(0)
+  })
+
+  it.each([
+    ['session＝主工作區 C，Edit worktree D 的既有凍結檔', () => edit(repoC, join(wtD, ONLY))],
+    ['session＝worktree D，Edit 主工作區 C 的既有凍結檔', () => edit(wtD, join(repoC, 'spec/gherkin-feature/only-c.feature'))],
+  ])('--separate-git-dir：%s → 擋下', (_label, act) => {
     // Act
     const result = act()
 
