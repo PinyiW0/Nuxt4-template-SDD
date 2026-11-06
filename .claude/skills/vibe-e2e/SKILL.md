@@ -54,7 +54,7 @@ description: Vibe E2E 產生與執行 — 依當下 git diff 對互動/結構 hu
 git diff <base> -- app/pages/ app/components/ app/layouts/
 ```
 
-分類規則（grep pattern、sub-pattern mapping、邊界 case）見 [`../vibe-setup/classification.md`](../vibe-setup/classification.md)，與 `vibe-setup` 共用。
+分類規則（grep pattern、sub-pattern mapping、邊界 case）見 [`../vibe-setup/references/classification.md`](../vibe-setup/references/classification.md)，與 `vibe-setup` 共用。
 
 **只處理「互動」與「結構」hunk**，純 visual 略過。
 

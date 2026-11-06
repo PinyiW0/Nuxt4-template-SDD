@@ -40,7 +40,7 @@ git diff --staged
 | flow | `spec/gherkin-feature/`、`spec/e2e-flows/*.flow.md` | `docs(flow)` 或 `test(spec)` |
 | api 合約 | `app/types/api/`、`server/api/`、`server/mock/`、`app/api/*.api.ts`、`spec/report/route-map.yaml` | `feat(api)` |
 | 主 spec | `test/e2e/specs/*.spec.ts` | `test(e2e)` |
-| ui | `app/pages/`、`app/components/`、`app/layouts/`、`app.config.ts`、`app/main.css` | `feat(ui)` |
+| ui | `app/pages/`、`app/components/`、`app/layouts/`、`app/app.config.ts`、`app/app.vue`、`app/assets/` | `feat(ui)` |
 | store | `app/stores/` | `feat(store)`（多隨 ui 同群） |
 | vibe spec | `test/e2e/vibe/` | `test(vibe)` |
 | ci | `.github/`、`.husky/`、`playwright*.config.ts` | `ci` |
@@ -57,7 +57,7 @@ git diff --staged
 
 ### 2.5 vibe 覆蓋提醒（非阻塞）
 
-分群後檢查：若本次 diff 含 `app/pages/`、`app/components/`、`app/layouts/` 的**互動或結構**改動（分類判準見 [../vibe-setup/classification.md](../vibe-setup/classification.md)；該檔不存在＝非模板衍生專案，整節跳過），且 `test/e2e/vibe/` 沒有對應同來源檔的 vibe spec → 在分群草案末尾加一行：
+分群後檢查：若本次 diff 含 `app/pages/`、`app/components/`、`app/layouts/` 的**互動或結構**改動（分類判準見 [../vibe-setup/references/classification.md](../vibe-setup/references/classification.md)；該檔不存在＝非模板衍生專案，整節跳過），且 `test/e2e/vibe/` 沒有對應同來源檔的 vibe spec → 在分群草案末尾加一行：
 
 ```
 ⚠️ 本次有 N 處互動/結構改動尚無 vibe spec，建議先跑 /vibe-e2e（不阻擋 commit）

@@ -13,7 +13,7 @@
 ## 執行步驟
 
 1. **讀取 `ui-config.yaml` 的 `theme.colors`**
-2. **建立 app.config.ts**（色彩映射）
+2. **建立 `app/app.config.ts`**（色彩映射）
 3. **在既有 `app/assets/css/main.css` 末尾追加**（保留既有的 reduced-motion 守衛與 motion token，不可整檔覆寫）：
    - button cursor 覆寫（見下方範例）
    - 有 `"#hex"` → 用 `@theme static` 寫入 `--color-{名稱}-50~950`（neutral 例外，見「自訂 hex 的產出規則」）
