@@ -151,7 +151,8 @@
 // 內文另依引號切段（三引號跨行的路徑行）⑧寫入動詞與 xargs 下游也看 shellWords 的拆法（`xargs -I "x y" rm`、`xargs -0 git -C "/a b" rm`）；
 // git 子指令在 shellWords 認得出 git 時以它為準，`git -C "/a rm" status` 不再誤擋 ⑨frozenRelOf 整個 token 與各 `=` 值「既有目標
 // 優先」，都不存在時仍試子字串比對（cwd 在凍結目錄時 `of=<別的 worktree>`、`"$WT/<凍結檔>"`）；`~/…` 與 `of=~/…` 展開 ⑩server-security-guard
-// 保留每個候選 root 的 `server/` 命中，`server/api/x/.git` 偽造 gitdir 不再讓內層 root 蓋掉外層 `server/api/`。
+// 保留每個候選 root 的 `server/` 命中，`server/api/x/.git` 偽造 gitdir 不再讓內層 root 蓋掉外層 `server/api/`；第 3 次 review 補成
+// 每個 `server/api/` 命中各偵測一次 ⑪heredoc 內文逐行的 shellWords 字也收進該段路徑候選（`xargs rm <<'EOF'` 內文是含空白的路徑）。
 //
 // 已知極限（本 hook 是純文字靜態解析，非執行期分析，以下手法擋不住）：
 //   1. 先把腳本寫到 /tmp 等非凍結路徑，再另開一條指令執行該腳本檔
@@ -915,14 +916,14 @@ function bashFrozenWrites(command) {
       // 一行多個 heredoc 時依開啟符出現順序各歸各段。內文只用來找凍結路徑，不參與動詞與重導向判斷。
       const opened = heredocTerminators(seg).length
       const segBodies = bodies.slice(bodyAt, bodyAt + opened)
-      const bodyWords = segBodies.flatMap(tokenize)
-      // heredoc 內文也逐行收完整字給直譯器 flood（`p = "/a b/<凍結檔>"` 再 `open(p,'w')`）；逐行拆，內文註解裡落單的 `'`
-      // 不會把後面幾行黏成一個字。每行另依引號切開、各段 trim 後也收：Python 三引號跨行時路徑那一行沒有成對引號
+      // heredoc 內文逐行用 shellWords 拆，整段的字也收進本段路徑候選：`xargs rm <<'EOF'` 的內文是 `"/a b/<凍結檔>"` 時，
+      // tokenize 會在空白處拆散路徑而放行（PR #207 review）。逐行拆，內文註解裡落單的 `'` 不會把後面幾行黏成一個字
+      const bodyLexed = segBodies.flatMap(body => body.split('\n')).flatMap(line => shellWords(line).words)
+      const bodyWords = [...segBodies.flatMap(tokenize), ...bodyLexed]
+      // 直譯器 flood 另收每行依引號切開、各段 trim 後的字：Python 三引號跨行時路徑那一行沒有成對引號
       //（`/a b/<凍結檔>""".strip()`），shellWords 會在空白處拆散（PR #207 review）
-      for (const line of segBodies.flatMap(body => body.split('\n'))) {
-        shellWords(line).words.forEach(w => lexedWords.add(w))
-        quotePieces(line).forEach(w => lexedWords.add(w))
-      }
+      bodyLexed.forEach(w => lexedWords.add(w))
+      segBodies.flatMap(body => body.split('\n')).flatMap(quotePieces).forEach(w => lexedWords.add(w))
       bodyAt += opened
       const pathWords = [...new Set([...words, ...lexed.words, ...bodyWords])]
       const frozen = bases.flatMap(b => pathWords.map(w => frozenRelOf(w, b))).filter(Boolean)

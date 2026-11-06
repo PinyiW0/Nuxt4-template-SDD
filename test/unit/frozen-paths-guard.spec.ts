@@ -1569,6 +1569,18 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
     expect(result.status).toBe(2)
   })
 
+  it.each([
+    ['xargs rm 的 heredoc 內文是加引號的含空白路徑', 2, () => `xargs rm <<'EOF'\n"${join(wtS, ONLY)}"\nEOF`],
+    ['xargs rm 的 heredoc 內文是反斜線跳脫空白的路徑', 2, () => `xargs rm <<'EOF'\n${join(wtS, ONLY).replace(' ', '\\ ')}\nEOF`],
+    ['xargs cat 的 heredoc 內文是加引號的含空白路徑（唯讀）', 0, () => `xargs cat <<'EOF'\n"${join(wtS, ONLY)}"\nEOF`],
+  ])('第 207 號 PR 第 3 次 review：%s → exit %i', (_label, expected, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(expected)
+  })
+
   it('worktree 路徑含空白：寫該 worktree 凍結區的新檔 → 放行（新增不受限）', () => {
     // Act
     const result = bash(repoM, `echo x >> "${join(wtS, 'spec/gherkin-feature/new.feature')}"`)

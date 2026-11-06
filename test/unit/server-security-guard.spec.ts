@@ -221,4 +221,21 @@ describe('server-security-guard：候選 root 全部保留（PR #207 review）',
     // Assert
     expect(result.status).toBe(2)
   })
+
+  it.each([
+    ['只引用 itemId，漏掉外層 tenantId', 2, 'getRouterParam(event, \'itemId\')'],
+    ['tenantId 與 itemId 都引用', 0, '[getRouterParam(event, \'tenantId\'), getRouterParam(event, \'itemId\')]'],
+  ])('server/api/[tenantId]/[itemId]/.git 偽造 gitdir：編輯其下 server/api/index.get.ts，%s → exit %i', (_label, expected, body) => {
+    // Arrange：內層 root 的相對路徑 server/api/index.get.ts 沒有動態參數，外層 root 才看得到 [tenantId]/[itemId]
+    const inner = join(repoM, 'server/api/[tenantId]/[itemId]')
+    mkdirSync(join(inner, 'server/api'), { recursive: true })
+    writeFileSync(join(inner, '.git'), `gitdir: ${join(repoM, '.git')}\n`)
+    writeFileSync(join(inner, 'server/api/index.get.ts'), `export default defineEventHandler(event => ${body})\n`)
+
+    // Act
+    const result = runGuard(join(inner, 'server/api/index.get.ts'))
+
+    // Assert
+    expect(result.status).toBe(expected)
+  })
 })

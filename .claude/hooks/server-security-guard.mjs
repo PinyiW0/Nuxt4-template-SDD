@@ -61,32 +61,32 @@ function main() {
   const projectDir = sessionProjectRoot()
   const editPath = resolve(input?.cwd || projectDir, filePath)
   const realPath = join(realpathLoose(dirname(editPath)), basename(editPath))
-  // 候選 root：同 repo 的 worktree（另一個 worktree 時不是 projectDir）＋專案目錄，每個落在 server/ 下的都收，
-  // 下面優先取 server/api/。只取第一個的話，`server/api/x/.git` 的 gitdir 指回本 repo 時，內層 root 的 `server/utils/…`
-  // 會蓋掉外層的 `server/api/…` 而不偵測（PR #207 review）
+  // 候選 root：同 repo 的 worktree（另一個 worktree 時不是 projectDir）＋專案目錄，每個落在 server/ 下的都收。
+  // 機械偵測對每個 `server/api/` 命中各跑一次：`server/api/x/.git` 的 gitdir 指回本 repo 時，內層 root 的 `server/utils/…`
+  // 或 `server/api/index.get.ts`（相對路徑沒有動態參數）會遮掉外層的違規（PR #207 review）
   const hits = [editPath, realPath, realpathLoose(editPath)].flatMap(p =>
     candidateRoots(p, projectDir)
       .map(root => ({ abs: p, targetRoot: root, rel: relative(root, p) }))
       .filter(h => h.rel.startsWith('server/') && h.rel.endsWith('.ts')),
   )
-  const hit = hits.find(h => h.rel.startsWith('server/api/')) ?? hits[0]
-  if (!hit)
+  if (!hits.length)
     process.exit(0)
-  const { abs, targetRoot, rel } = hit
 
   // 機械偵測只跑 server/api/** handler 檔（server/mock/data/** 種子資料 spread 複製合法，
-  // 天然不在範圍內），命中即 exit 2；utils／middleware 等只吃摘要注入
-  if (rel.startsWith('server/api/')) {
-    const violations = detect(abs, rel)
-    if (violations.length > 0 && !consumeAllowSentinel(targetRoot, rel)) {
-      console.error(
-        `server 安全機械偵測（檔案已寫入，請立即修正）：\n${violations.map(v => `- ${v}`).join('\n')}\n`
-        + `完整判準與正確寫法讀 .claude/rules/server-security.md。`
-        + `若確認誤報，向使用者說明後寫 ${resolve(targetRoot, '.claude/tmp/server-security-allow.json')}`
-        + `（{ "reason": "...", "files": ["${rel}"] }）再重試，比中一次即消耗。`,
-      )
-      process.exit(2)
-    }
+  // 天然不在範圍內），命中即 exit 2；utils／middleware 等只吃摘要注入。
+  // 同一個 root＋相對路徑只偵測一次（三條路徑常解到同一處），豁免依各自的 root 消耗，不重複消耗
+  const apiHits = [...new Map(hits.filter(h => h.rel.startsWith('server/api/')).map(h => [`${h.targetRoot}\n${h.rel}`, h])).values()]
+  const blocked = apiHits
+    .map(h => ({ ...h, violations: detect(h.abs, h.rel) }))
+    .filter(h => h.violations.length > 0 && !consumeAllowSentinel(h.targetRoot, h.rel))
+  if (blocked.length) {
+    console.error(
+      `server 安全機械偵測（檔案已寫入，請立即修正）：\n${blocked.flatMap(h => h.violations).map(v => `- ${v}`).join('\n')}\n`
+      + `完整判準與正確寫法讀 .claude/rules/server-security.md。若確認誤報，向使用者說明後寫：\n${
+        blocked.map(h => `- ${resolve(h.targetRoot, '.claude/tmp/server-security-allow.json')}（{ "reason": "...", "files": ["${h.rel}"] }）`).join('\n')
+      }\n再重試，比中一次即消耗。`,
+    )
+    process.exit(2)
   }
 
   // 首次觸碰某檔時注入 8 條摘要（每 session 每檔一次，控噪音）
