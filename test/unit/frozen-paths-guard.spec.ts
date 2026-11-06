@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 // frozen-paths-guard.mjs：凍結區門鎖 PreToolUse hook（issue #137，含兩輪對抗審查後的回歸案例）。
 // 驅動方式對齊 hook 實際行為：
@@ -1371,6 +1371,135 @@ describe('frozen-paths-guard：跨 worktree 以目標所屬 repo 判斷（issue 
     writeFileSync(join(outside, 'x.feature'), 'Feature: x\n')
     symlinkSync(outside, join(repoM, 'spec/gherkin-feature/linked'))
 
+    // Act
+    const result = act()
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+})
+
+describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
+  // 三種結構：M＋兄弟 worktree B（測 -C 黏連）、M＋路徑含空白的 worktree S、
+  // `git init --separate-git-dir` 的主工作區 C（.git 是檔案、沒有 commondir）＋其 worktree D
+  let base: string
+  let repoM: string
+  let wtB: string
+  let wtS: string
+  let repoC: string
+  let wtD: string
+  const F = 'spec/gherkin-feature/b.feature'
+  const ONLY = 'spec/gherkin-feature/only.feature'
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' })
+
+  function seedAndCommit(root: string) {
+    mkdirSync(join(root, 'spec/gherkin-feature'), { recursive: true })
+    writeFileSync(join(root, F), 'Feature: b\n')
+    git('-C', root, 'add', '.')
+    git('-C', root, 'commit', '-qm', 'init')
+  }
+
+  // 驅動 hook：session 開在 projectDir、工作目錄同 projectDir
+  function run(projectDir: string, payload: Record<string, unknown>) {
+    return spawnSync('node', [HOOK_PATH], {
+      input: JSON.stringify({ ...payload, cwd: projectDir }),
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+      encoding: 'utf8',
+      timeout: 5000,
+    })
+  }
+  const edit = (projectDir: string, filePath: string) => run(projectDir, { tool_name: 'Edit', tool_input: { file_path: filePath } })
+  const bash = (projectDir: string, command: string) => run(projectDir, { tool_name: 'Bash', tool_input: { command } })
+
+  // 每個案例都只餵 hook、不真的執行指令，結構不會被改動：整組只建一次（每次重建要十幾個 git 子行程）
+  beforeAll(() => {
+    // Arrange：每個 worktree 各放一支只存在於該 worktree 的凍結檔（session 目錄沒有，改查 session 目錄會放行）
+    base = realpathSync(mkdtempSync(join(tmpdir(), 'frozen-guard-206-')))
+    repoM = join(base, 'm')
+    wtB = join(base, 'b')
+    wtS = join(base, 'with space')
+    repoC = join(base, 'c')
+    wtD = join(base, 'd')
+    mkdirSync(repoM)
+    git('init', '-q', repoM)
+    seedAndCommit(repoM)
+    git('-C', repoM, 'worktree', 'add', '-q', wtB, '-b', 'wt-b')
+    git('-C', repoM, 'worktree', 'add', '-q', wtS, '-b', 'wt-s')
+    git('init', '-q', '--separate-git-dir', join(base, 'c.git'), repoC)
+    seedAndCommit(repoC)
+    git('-C', repoC, 'worktree', 'add', '-q', wtD, '-b', 'wt-d')
+    for (const root of [wtB, wtS, repoC, wtD])
+      writeFileSync(join(root, ONLY), 'Feature: only\n')
+    writeFileSync(join(repoC, 'spec/gherkin-feature/only-c.feature'), 'Feature: only c\n')
+  })
+
+  afterAll(() => {
+    rmSync(base, { recursive: true, force: true })
+  })
+
+  it.each([
+    ['git -C../b rm', 'git -C../b rm spec/gherkin-feature/only.feature'],
+    ['git -C../b checkout --', 'git -C../b checkout -- spec/gherkin-feature/only.feature'],
+  ])('git -C 與目錄黏連：%s 寫只存在於 B 的凍結檔 → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command)
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['雙引號重導向 echo >>', () => `echo x >> "${join(wtS, ONLY)}"`],
+    ['單引號重導向 echo >', () => `echo x > '${join(wtS, ONLY)}'`],
+    ['雙引號 rm', () => `rm "${join(wtS, ONLY)}"`],
+    ['反斜線跳脫空白 rm', () => `rm ${join(wtS, ONLY).replace(' ', '\\ ')}`],
+    ['反斜線跳脫空白的重導向 echo >>', () => `echo x >> ${join(wtS, ONLY).replace(' ', '\\ ')}`],
+    ['只有 worktree 部分加引號的重導向 echo >>', () => `echo x >> "${wtS}"/${ONLY}`],
+  ])('worktree 路徑含空白：%s 寫只存在於該 worktree 的凍結檔 → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['cd 到含空白的 worktree 再用相對路徑 rm', () => `cd "${wtS}" && rm ${ONLY}`],
+    ['git -C 含空白的 worktree（雙引號分開寫）', () => `git -C "${wtS}" rm ${ONLY}`],
+    ['git -C 含空白的 worktree（單引號黏連）', () => `git -C'${wtS}' rm ${ONLY}`],
+  ])('換目錄到含空白的 worktree（/ship L5）：%s 寫只存在於該 worktree 的凍結檔 → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['dd of=<B 的絕對路徑>', () => `dd if=/dev/null of=${join(wtB, ONLY)}`],
+    ['dd of="<含空白 worktree 的絕對路徑>"', () => `dd if=/dev/null of="${join(wtS, ONLY)}"`],
+    ['dd of=<B 的相對路徑 ../b/…>', () => `dd if=/dev/null of=../b/${ONLY}`],
+    ['第二個 = 之後才是路徑（--define=out=<B 的絕對路徑>）', () => `dd if=/dev/null --define=out=${join(wtB, ONLY)}`],
+  ])('`=` 後接其他 worktree 的絕對路徑（/ship L5）：%s → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it('worktree 路徑含空白：寫該 worktree 凍結區的新檔 → 放行（新增不受限）', () => {
+    // Act
+    const result = bash(repoM, `echo x >> "${join(wtS, 'spec/gherkin-feature/new.feature')}"`)
+
+    // Assert
+    expect(result.status).toBe(0)
+  })
+
+  it.each([
+    ['session＝主工作區 C，Edit worktree D 的既有凍結檔', () => edit(repoC, join(wtD, ONLY))],
+    ['session＝worktree D，Edit 主工作區 C 的既有凍結檔', () => edit(wtD, join(repoC, 'spec/gherkin-feature/only-c.feature'))],
+  ])('--separate-git-dir：%s → 擋下', (_label, act) => {
     // Act
     const result = act()
 

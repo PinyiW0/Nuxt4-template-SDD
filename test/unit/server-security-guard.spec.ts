@@ -177,3 +177,32 @@ describe('server-security-guard：跨 worktree 以目標所屬 repo 判斷（iss
     expect(result.stderr).toContain(`${HANDLER}:3`)
   })
 })
+
+describe('server-security-guard：--separate-git-dir 結構（issue #206）', () => {
+  it('主工作區 C 的 .git 是檔案、沒有 commondir：session 在 C，worktree D 的違規 handler → 與 C 一致，exit 2', () => {
+    // Arrange：C 用 --separate-git-dir 建立，D 是 C 的 worktree，兩處各放一支違規 handler
+    const repoC = join(base, 'c')
+    const wtD = join(base, 'd')
+    git('init', '-q', '--separate-git-dir', join(base, 'c.git'), repoC)
+    writeFileSync(join(repoC, 'README.md'), 'x\n')
+    git('-C', repoC, 'add', '.')
+    git('-C', repoC, 'commit', '-qm', 'init')
+    git('-C', repoC, 'worktree', 'add', '-q', wtD, '-b', 'wt-d')
+    writeHandler(repoC)
+    writeHandler(wtD)
+    const run = (filePath: string) => spawnSync('node', [HOOK_PATH], {
+      input: JSON.stringify({ tool_name: 'Edit', session_id: 'test', tool_input: { file_path: filePath } }),
+      env: { ...process.env, CLAUDE_PROJECT_DIR: repoC },
+      encoding: 'utf8',
+      timeout: 5000,
+    })
+
+    // Act
+    const inC = run(join(repoC, HANDLER))
+    const inD = run(join(wtD, HANDLER))
+
+    // Assert
+    expect(inC.status).toBe(2)
+    expect(inD.status).toBe(2)
+  })
+})

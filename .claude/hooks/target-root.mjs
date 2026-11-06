@@ -4,7 +4,8 @@
 // 修法：列出目標的「候選 root」逐一比對，任一個比中就算命中：
 // - 目標往上每一層含 `.git` 的目錄，但只收「與 session 專案同一個 git repo」的（git 共用目錄相同）——
 //   也就是同 repo 的其他 worktree（兄弟目錄或 isolation 分身的 `.claude/worktrees/<name>`）。
-//   無關的 repo（家目錄 dotfiles、別的專案、submodule、自己建的假 `.git`）不算，不誤擋也不能拿來繞道
+//   無關的 repo（家目錄 dotfiles、別的專案、submodule、自己建的假 `.git`）不算，不誤擋也不能拿來繞道。
+//   例外：假 `.git` 檔的 gitdir 若直接指向本 repo 的 git 目錄，會被當成同 repo 的 worktree（只會多擋，不會漏放；issue #206）
 // - 目標在專案目錄內時，專案目錄本身永遠是候選（放在最後）：凍結目錄底下多一個 `.git` 也蓋不掉原本的判斷
 // 不呼叫 `git rev-parse`：Bash 分支對指令裡每個 token 都要解析一次，每個 token 開一個 git 子行程太慢。
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
@@ -52,7 +53,11 @@ function hasDotGit(dir) {
 }
 
 // root 的 git 共用目錄：一般 repo 是 `<root>/.git`；worktree 的 `.git` 檔寫 `gitdir: <主 repo>/.git/worktrees/<name>`，
-// 該目錄的 `commondir` 檔指回主 repo 的 `.git`。submodule 或格式不對的 `.git` 沒有 commondir，回 null（不算同 repo）
+// 該目錄的 `commondir` 檔指回主 repo 的 `.git`。gitdir 沒有 commondir 時，gitdir 本身就是共用目錄：
+// `git init --separate-git-dir` 的主工作區（`.git` 檔指向外部 git 目錄）、submodule（指向 `.git/modules/<name>`）都是這樣。
+// submodule 的共用目錄與上層 repo 不同，照樣不算同 repo；gitdir 不存在或格式不對回 null（issue #206）。
+// 副作用：linked worktree 的 `.git/worktrees/<name>` 若殘缺到沒有 commondir，會被當成獨立 repo（不再跨 worktree 保護；
+// 修改前同樣認不出：當時讀 commondir 丟例外而回 null，現在回 gitdir 本身，兩者都不算同 repo）
 const commonDirCache = new Map()
 function gitCommonDir(root) {
   if (!commonDirCache.has(root)) {
@@ -66,7 +71,8 @@ function gitCommonDir(root) {
         const gitdir = /^gitdir:\s*(.+)$/m.exec(readFileSync(dotGit, 'utf8'))?.[1].trim()
         if (gitdir) {
           const dir = resolve(root, gitdir)
-          common = realpath(resolve(dir, readFileSync(resolve(dir, 'commondir'), 'utf8').trim()))
+          const commondir = resolve(dir, 'commondir')
+          common = realpath(existsSync(commondir) ? resolve(dir, readFileSync(commondir, 'utf8').trim()) : dir)
         }
       }
     }
