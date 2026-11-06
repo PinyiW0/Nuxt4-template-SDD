@@ -446,24 +446,38 @@ function frozenRelOf(word, base) {
   // 空字串（shellWords 為了旗標對位保留的 `""`）不是路徑：resolve(base, '') 會變成 base 本身，base 在凍結目錄時整個目錄被誤擋
   if (!word)
     return null
-  const expanded = word.replace(/^\$\{?CLAUDE_PROJECT_DIR\}?/, projectRoot)
-  // 能落地的路徑：resolve（存在時含 symlink 解析）後對所屬 repo root 取相對再比對
-  const target = frozenTargetOf(resolve(base, expanded))
-  if (target)
-    return target
+  // 展開 $CLAUDE_PROJECT_DIR 與開頭的 ~（同 dirArg）：`~/…/<worktree>/spec/…` 不展開會落到子字串比對、root 猜成 base（PR #207 review）
+  const expanded = word.replace(/^\$\{?CLAUDE_PROJECT_DIR\}?/, projectRoot).replace(/^~(?=\/|$)/, process.env.HOME || '~')
+  // 能落地的路徑：resolve（存在時含 symlink 解析）後對所屬 repo root 取相對再比對。
+  // `of=/abs/…`、`of=../wt/…`、`--define=out=/abs/…`：每個 `=` 後面的值也當路徑（相對的以 base 解析）精確定位，
+  // 否則下面的子字串比對把 root 猜成 base，只存在於別的 worktree 的凍結檔會改查 session 目錄而放行（issue #206 /code-review）。
+  // 整個 token 與各 `=` 值都試，**既有的目標優先**：cwd 在凍結目錄時，整個 `of=…` 會先解析成一個不存在的凍結路徑，
+  // 不能讓它（或不存在的中間值）擋掉後面真正的既有目標（PR #207 review）。都不存在才回第一個比中的
+  const candidates = [expanded]
+  if (!expanded.startsWith('/')) {
+    for (let eq = expanded.indexOf('='); eq !== -1; eq = expanded.indexOf('=', eq + 1)) {
+      if (eq + 1 < expanded.length) // bash 對 `of=~/…` 這種像指派的引數也展開 ~
+        candidates.push(expanded.slice(eq + 1).replace(/^~(?=\/|$)/, process.env.HOME || '~'))
+    }
+  }
+  let firstHit = null
+  for (const c of candidates) {
+    const t = frozenTargetOf(resolve(base, c))
+    if (t && targetExists(t))
+      return t
+    firstHit ??= t
+  }
   // 絕對路徑上面已可精確判定，不再做子字串比對（避免 /tmp/spec/... 誤中）
   if (expanded.startsWith('/'))
-    return null
-  // `of=/abs/…`、`of=../wt/…`、`--define=out=/abs/…`：每個 `=` 後面的值都當路徑（相對的以 base 解析）先精確定位。否則下面的
-  // 子字串比對把 root 猜成 base，只存在於別的 worktree 的凍結檔會改查 session 目錄而放行（issue #206 /code-review）。
-  // 都比不中仍往下走子字串比對（只多不少）
-  for (let eq = expanded.indexOf('='); eq !== -1; eq = expanded.indexOf('=', eq + 1)) {
-    const value = expanded.slice(eq + 1)
-    const valueTarget = value && frozenTargetOf(resolve(base, value))
-    if (valueTarget)
-      return valueTarget
-  }
-  // 落不了地的 token（帶未知變數前綴、dd 的 of= 等）：子字串比對，寧可誤擋
+    return firstHit
+  // 精確定位都不存在時仍試子字串比對：cwd 在凍結目錄時 `"$WT/test/e2e/specs/x"` 會先解析成一個不存在的凍結路徑，
+  // 不能讓它蓋掉子字串比對猜中的既有檔（PR #207 review）
+  const guessed = substringFrozen(expanded, base)
+  return guessed && (!firstHit || targetExists(guessed)) ? guessed : firstHit
+}
+
+// 落不了地的 token（帶未知變數前綴、dd 的 of= 等）：子字串比對，寧可誤擋
+function substringFrozen(expanded, base) {
   const lower = normalize(expanded).toLowerCase()
   for (const p of FROZEN) {
     const idx = lower.indexOf(p)
@@ -626,7 +640,8 @@ function tokenize(text) {
 // 只留後一字，相鄰的引號與非引號片段併成同一個字（`"/a b"/spec/…`）。tokenize 在引號內的空白處也拆，`"/a b/spec/…"`
 // 會變成 `/a`＋`b/spec/…` 兩半，含空白的 worktree 絕對路徑比不中（issue #206）。
 // 回傳 { words, redirects }：redirects 是引號外 `>`／`>>`／`>&`／`&>` 之後的那個字（重導向目標）。
-// 只用來多找凍結路徑（與 tokenize、重導向 regex 的結果一起比對，只多不少）；動詞與指令位置判斷仍走 tokenize
+// 用途：多找凍結路徑（與 tokenize、重導向 regex 的結果一起比對），以及 cd／git -C／寫入動詞／xargs 判斷的第二種拆法
+//（兩種拆法任一判成寫入就算，只多不少）；改它的空字串或跳脫規則會連動寫入判斷，見 bashFrozenWrites
 function shellWords(text) {
   const words = []
   const redirects = []
@@ -855,7 +870,12 @@ function bashFrozenWrites(command) {
       // `patch -p1 <<'EOF' && echo done`——內文屬於 patch 段，不是 echo 段）；
       // 一行多個 heredoc 時依開啟符出現順序各歸各段。內文只用來找凍結路徑，不參與動詞與重導向判斷。
       const opened = heredocTerminators(seg).length
-      const bodyWords = bodies.slice(bodyAt, bodyAt + opened).flatMap(tokenize)
+      const segBodies = bodies.slice(bodyAt, bodyAt + opened)
+      const bodyWords = segBodies.flatMap(tokenize)
+      // heredoc 內文也逐行收 shellWords 的完整字給直譯器 flood（`p = "/a b/<凍結檔>"` 再 `open(p,'w')`）；逐行拆，
+      // 內文註解裡落單的 `'` 不會把後面幾行黏成一個字（PR #207 review）
+      for (const line of segBodies.flatMap(body => body.split('\n')))
+        shellWords(line).words.forEach(w => lexedWords.add(w))
       bodyAt += opened
       const pathWords = [...new Set([...words, ...lexed.words, ...bodyWords])]
       const frozen = bases.flatMap(b => pathWords.map(w => frozenRelOf(w, b))).filter(Boolean)
@@ -866,8 +886,9 @@ function bashFrozenWrites(command) {
       upstream.push(...frozen)
       if (!frozen.length)
         continue
-      // `git -C "/a b" rm`：tokenize 把 `space` 拆成子指令位置，git 子指令要看 shellWords 的拆法（issue #206）
-      if (hasWriteVerb(words) || gitWriteSubcmd(lexed.words)) {
+      // `git -C "/a b" rm`、`xargs -I "x y" rm`：tokenize 把引號內的字拆成子指令位置，寫入判斷也要看 shellWords 的拆法
+      //（issue #206、PR #207 review）
+      if (hasWriteVerb(words) || hasWriteVerb(lexed.words)) {
         frozen.forEach(addTarget)
         continue
       }

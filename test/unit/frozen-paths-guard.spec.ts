@@ -1402,14 +1402,14 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
   // 驅動 hook：session 開在 projectDir、工作目錄同 projectDir
   function run(projectDir: string, payload: Record<string, unknown>) {
     return spawnSync('node', [HOOK_PATH], {
-      input: JSON.stringify({ ...payload, cwd: projectDir }),
+      input: JSON.stringify({ cwd: projectDir, ...payload }),
       env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
       encoding: 'utf8',
       timeout: 5000,
     })
   }
   const edit = (projectDir: string, filePath: string) => run(projectDir, { tool_name: 'Edit', tool_input: { file_path: filePath } })
-  const bash = (projectDir: string, command: string) => run(projectDir, { tool_name: 'Bash', tool_input: { command } })
+  const bash = (projectDir: string, command: string, cwd = projectDir) => run(projectDir, { tool_name: 'Bash', tool_input: { command }, cwd })
 
   // 每個案例都只餵 hook、不真的執行指令，結構不會被改動：整組只建一次（每次重建要十幾個 git 子行程）
   beforeAll(() => {
@@ -1511,6 +1511,31 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
 
     // Assert
     expect(result.status).toBe(0)
+  })
+
+  it.each([
+    ['cwd 在凍結目錄、dd of=<B 的絕對路徑>（整個 token 先解析成不存在的凍結路徑）', () => `dd if=/dev/null of=${join(wtB, ONLY)}`],
+    ['cwd 在凍結目錄、--define=out=<B 的絕對路徑>（中間值不存在）', () => `dd if=/dev/null --define=out=${join(wtB, ONLY)}`],
+    ['cwd 在凍結目錄、未知變數開頭的路徑（精確定位不存在，仍要試子字串比對）', () => `rm "$WT/${F}"`],
+  ])('第 207 號 PR review 第 2 輪：%s → 擋下', (_label, command) => {
+    // Act
+    const result = bash(repoM, command(), join(repoM, 'spec/gherkin-feature'))
+
+    // Assert
+    expect(result.status).toBe(2)
+  })
+
+  it.each([
+    ['heredoc 內文先把含空白路徑存變數再 open(p, "w")，內文註解有落單的引號', () => `python3 - <<'PY'\n# don't touch\np = "${join(wtS, ONLY)}"\nopen(p, 'w').write('x')\nPY`, 2],
+    ['heredoc 內文同形但只讀取', () => `python3 - <<'PY'\np = "${join(wtS, ONLY)}"\nprint(open(p).read())\nPY`, 0],
+    ['xargs -I 替換字串含空白後接 rm 含空白路徑', () => `printf '%s\\n' x | xargs -I "replace me" rm "${join(wtS, ONLY)}" "replace me"`, 2],
+    ['echo 字串裡提到 rm 與含空白路徑', () => `echo "rm ${join(wtS, ONLY)}"`, 0],
+  ])('第 207 號 PR review 第 2 輪：%s → exit %i', (_label, command, expected) => {
+    // Act
+    const result = bash(repoM, command())
+
+    // Assert
+    expect(result.status).toBe(expected)
   })
 
   it('worktree 路徑含空白：寫該 worktree 凍結區的新檔 → 放行（新增不受限）', () => {
