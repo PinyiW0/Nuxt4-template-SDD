@@ -123,4 +123,45 @@ describe('server-security-guard：跨 worktree 以目標所屬 repo 判斷（iss
     // Assert
     expect(result.status).toBe(2)
   })
+
+  it('server/api 底下的子目錄是指向 repo 外的 symlink → 仍以編輯路徑判斷，exit 2（PR #205 review）', () => {
+    // Arrange
+    const outsideDir = join(base, 'outside')
+    mkdirSync(outsideDir)
+    writeFileSync(join(outsideDir, 'x.post.ts'), VIOLATING)
+    symlinkSync(outsideDir, join(repoM, 'server/api/linked'))
+
+    // Act
+    const result = runGuard(join(repoM, 'server/api/linked/x.post.ts'))
+
+    // Assert
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain('server/api/linked/x.post.ts:3')
+  })
+
+  it('server/api 外的子目錄是指向 server/api 的 symlink → 以實體路徑偵測，exit 2', () => {
+    // Arrange：server/utils/link → server/api/items，編輯路徑不在 server/api/，實體路徑在
+    mkdirSync(join(repoM, 'server/utils'), { recursive: true })
+    symlinkSync(join(repoM, 'server/api/items'), join(repoM, 'server/utils/link'))
+
+    // Act
+    const result = runGuard('server/utils/link/index.post.ts')
+
+    // Assert
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain(`${HANDLER}:3`)
+  })
+
+  it('經 repo 外的別名目錄（symlink 指向 worktree B 的 server/）進入 → 編輯路徑比不中，以實體路徑認出 B，exit 2', () => {
+    // Arrange
+    const alias = join(base, 'srv-b')
+    symlinkSync(join(wtB, 'server'), alias)
+
+    // Act
+    const result = runGuard(join(alias, 'api/items/index.post.ts'))
+
+    // Assert
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain(join(wtB, '.claude/tmp/server-security-allow.json'))
+  })
 })

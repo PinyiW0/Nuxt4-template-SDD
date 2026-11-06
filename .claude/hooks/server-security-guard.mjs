@@ -54,19 +54,24 @@ function main() {
   if (!filePath)
     process.exit(0)
 
-  // 專案目錄與目標所在目錄都解 symlink（與 frozen-paths-guard 同一套比較基準），但檔名本身不解：
-  // rel 要用編輯時的路徑判斷，指向 repo 外的 symlink handler 才不會逃過偵測
+  // 編輯時的路徑（不解 symlink）與解過父目錄 symlink 的實體路徑兩者都看，任一落在 server/api/ 就偵測（PR #205 review）：
+  // - 只看實體路徑：server/api 底下的子目錄指向 repo 外時會逃過偵測
+  // - 只看編輯路徑：server/utils/x 指向 server/api/ 時會逃過偵測；worktree 經別名路徑進來時也比不中
   const projectDir = sessionProjectRoot()
   const editPath = resolve(input?.cwd || projectDir, filePath)
-  const abs = join(realpathLoose(dirname(editPath)), basename(editPath))
+  const realPath = join(realpathLoose(dirname(editPath)), basename(editPath))
   // 候選 root：同 repo 的 worktree（另一個 worktree 時不是 projectDir）＋專案目錄，取第一個落在 server/ 下的
-  const targetRoot = candidateRoots(abs, projectDir).find((root) => {
-    const r = relative(root, abs)
-    return r.startsWith('server/') && r.endsWith('.ts')
+  const hits = [editPath, realPath].flatMap((p) => {
+    const root = candidateRoots(p, projectDir).find((r) => {
+      const rp = relative(r, p)
+      return rp.startsWith('server/') && rp.endsWith('.ts')
+    })
+    return root ? [{ abs: p, targetRoot: root, rel: relative(root, p) }] : []
   })
-  if (!targetRoot)
+  const hit = hits.find(h => h.rel.startsWith('server/api/')) ?? hits[0]
+  if (!hit)
     process.exit(0)
-  const rel = relative(targetRoot, abs)
+  const { abs, targetRoot, rel } = hit
 
   // 機械偵測只跑 server/api/** handler 檔（server/mock/data/** 種子資料 spread 複製合法，
   // 天然不在範圍內），命中即 exit 2；utils／middleware 等只吃摘要注入
@@ -84,8 +89,8 @@ function main() {
   }
 
   // 首次觸碰某檔時注入 8 條摘要（每 session 每檔一次，控噪音）
-  // 記錄 key 用 session 目錄相對路徑：不同 worktree 的同名檔各算一次
-  if (markFirstTouch(projectDir, input?.session_id, relative(projectDir, abs))) {
+  // 記錄 key 用 session 目錄到實體路徑的相對路徑：不同 worktree 的同名檔各算一次，同一檔經別名進來不重複
+  if (markFirstTouch(projectDir, input?.session_id, relative(projectDir, realPath))) {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PostToolUse',
