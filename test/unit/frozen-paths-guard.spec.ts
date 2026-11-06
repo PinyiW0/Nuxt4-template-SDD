@@ -1504,7 +1504,8 @@ describe('frozen-paths-guard：跨 worktree 補洞（issue #206）', () => {
     ['git -C "" status', () => 'git -C "" status'],
     ['直譯器只印出含空白的凍結路徑', () => `node -e 'console.log(process.argv[1])' "${join(wtS, ONLY)}"`],
     ['上游有凍結路徑、下游 xargs git -C 含空白目錄 log', () => `printf '%s\\0' "${join(wtS, ONLY)}" | xargs -0 git -C "${wtS}" log --`],
-    ['cd 進凍結目錄後 sed -i "" 改凍結區外的檔（"" 不可解析成凍結目錄本身）', () => `cd ${join(repoM, 'spec/gherkin-feature')} && sed -i '' s/a/b/ ../../README.md`],  ])('第 207 號 PR review 誤擋對照：%s → 放行', (_label, command) => {
+    ['cd 進凍結目錄後 sed -i "" 改凍結區外的檔（"" 不可解析成凍結目錄本身）', () => `cd ${join(repoM, 'spec/gherkin-feature')} && sed -i '' s/a/b/ ../../README.md`],
+  ])('第 207 號 PR review 誤擋對照：%s → 放行', (_label, command) => {
     // Act
     const result = bash(repoM, command())
 
