@@ -102,7 +102,7 @@ flowchart LR
 
 | Phase | 名稱 | 輸出 | 必讀規範 |
 |-------|------|------|----------|
-| 1 | 基礎設定 | app.config.ts, main.css, nuxt.config.ts（SEO head） | [phase-1](references/phase-1-theme.md) |
+| 1 | 基礎設定 | `app/app.config.ts`, `app/assets/css/main.css`, `nuxt.config.ts`（SEO head） | [phase-1](references/phase-1-theme.md) |
 | 2 | 路由骨架 | 所有 pages/*.vue 空殼（語意結構，**不含 testid**） | [phase-2](references/phase-2-skeleton.md) + [rules.md `[P2]`](references/rules.md) |
 | 3 | Layout 建置 | layouts/*.vue | [phase-3](references/phase-3-layout.md) + [rules.md `[P3]`](references/rules.md) + visual-hierarchy.md |
 | 4 | 共用元件 | components/common/*.vue（+ additionalFeature 元件） | [phase-4](references/phase-4-components.md) + [features.md](references/features.md)（若有） + [rules.md `[P4]`](references/rules.md) + visual-hierarchy.md + frontend-security.md |
@@ -165,7 +165,7 @@ flowchart LR
 
 ### Phase 1-2：基礎骨架
 
-1. **Phase 1**：設定色彩主題 + SEO/Meta（app.config.ts + main.css + nuxt.config.ts）
+1. **Phase 1**：設定色彩主題 + SEO/Meta（`app/app.config.ts` + `app/assets/css/main.css` + `nuxt.config.ts`）
 2. **Phase 2**：建立所有頁面的空殼（只有 template 佔位）
 
 ### Phase 3-4：架構元件

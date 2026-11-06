@@ -74,7 +74,7 @@ if [ -z "$gate_specs" ]; then
 fi
 ```
 
-前置檢查與 `.husky/pre-push`、CI `build-e2e` job 是**同一套邏輯**（含 `|| true` 的 errexit 處理）。三個入口對「沒有測試檔」的判定必須一致。
+前置檢查與 CI `build-e2e` job 是**同一套邏輯**（含 `|| true` 的 errexit 處理），兩者對「沒有測試檔」的判定必須一致。pre-push 判準不同：它看煙霧 spec 有沒有命中——有 spec 但都沒命中 `SMOKE_PATTERN` 時 pre-push 放行，這裡與 CI 照跑；只有在完全沒有測試檔時三者結果相同。不要把 pre-push 的條件抄到這裡或 CI。
 
 > **刻意不用 `--pass-with-no-tests`**：那會讓「config 壞掉導致收不到測試」也靜默綠燈，把守門失效偽裝成通過。前置檢查會大聲說出「沒有測試」，訊號強得多。
 
@@ -189,7 +189,7 @@ npx playwright test --config playwright.gate.config.ts
 gate 範圍（test/e2e/specs｜vibe/*.spec.ts）尚無測試檔 → 未跑 gate。
 
 這不是失敗：SDD 流程尚未產出 spec，gate 沒有東西可守。
-pre-push 與 CI `build-e2e` job 對此情形同樣放行（三處前置檢查一致）。
+pre-push 與 CI `build-e2e` job 對此情形同樣放行（對「沒有測試檔」的判定三處一致；pre-push 改看煙霧命中，空模板結果相同）。
 
 下一步建議：
 - 要讓 gate 真正守起來 → 先跑 /test e2e spec 產出主 spec
@@ -313,7 +313,7 @@ specs/ 與 vibe/ 同時紅時，A、B 兩區塊都要出，並提醒先處理 A�
 3. **不過度推測**：UI 截圖能補上時要報告 Playwright 的 error context（截圖 / page snapshot），讓使用者直接看
 4. **遇到無法解決的根本衝突（如業務 invariant 與 PM 想要的 UX 互斥），停下來問使用者**，不擅自決定
 5. **保持最小職責**：不生 spec、不改 vibe spec——產生與重生是 /vibe-e2e 的事，去留是使用者的事；/vibe-check 只選、跑與報告
-6. **定向的判斷全在 Step 1 的 shell 與 Step 2 的 grep**，不憑印象挑 spec。升全量的條件只有 Step 1 的三種（白名單外、路由推不出模組、算不出 merge-base）；白名單內但三來源零命中 → 煙霧＋警告（Step 2 例外），不是升全量
+6. **定向的判斷全在 Step 1 的 shell 與 Step 2 的 grep**，不憑印象挑 spec。升全量的條件只有 Step 1 的四種（白名單外、路由推不出模組、算不出 merge-base、pre-push 的 SKIP／FORCE pattern 非法）；白名單內但三來源零命中 → 煙霧＋警告（Step 2 例外），不是升全量
 
 ---
 

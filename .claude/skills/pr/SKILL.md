@@ -102,7 +102,7 @@ checkbox 跨 session、跨 worktree、換人執行都查得到，不必靠對話
 
 > **編排模式下這三項不發 AskUserQuestion**，改由編排層預選後標在唯一停點的草案上（標 `←預選`），使用者一句話就能改。猜不到就填「略過」，不硬湊。預選規則見 [../new-issue/references/label-assignee.md](../new-issue/references/label-assignee.md)。
 - **assignee**：預設 `@me`，多人 repo 才用 AskUserQuestion 問、單人 repo 不問。
-- **reviewer**（README 協作規範：至少掛 **Copilot＋一名協作者**）：`$ARGUMENTS` 指定了就用指定者；未指定且為多人 repo → 用 AskUserQuestion 列協作者候選（含 Copilot）請使用者挑，使用者**明說不掛**才略過；單人 repo（無其他協作者）→ 預設只掛 Copilot、不另外問（repo ruleset 已開自動 Copilot review 則連掛都免）。
+- **reviewer**（`doc/README.template.md` 的協作規範：建議掛 **Copilot**，多人專案再加至少一名協作者）：`$ARGUMENTS` 指定了就用指定者；未指定且為多人 repo → 用 AskUserQuestion 列協作者候選（含 Copilot）請使用者挑，使用者**明說不掛**才略過；單人 repo（無其他協作者）→ 預設只掛 Copilot、不另外問（repo ruleset 已開自動 Copilot review 則連掛都免）。
 
 選定結果放進步驟 5 草案的 `label：`／`assignee：`／`reviewer：` 欄。
 
@@ -204,7 +204,8 @@ reviewer：<所選協作者＋Copilot / 僅 Copilot（單人 repo）/ 使用者�
 
 ```
 git push -u origin <branch>        # 沒 upstream 才需 -u；已有就 git push
-gh pr create --base <default> --title "<標題>" --body "<內文>" --assignee "<assignee>" --label "<label>"
+# 內文含反引號與 ##，一律先寫暫存檔 .claude/tmp/pr-body.md 再用 --body-file，不要塞進雙引號
+gh pr create --base <default> --title "<標題>" --body-file .claude/tmp/pr-body.md --assignee "<assignee>" --label "<label>"
 gh pr view --web                   # 開瀏覽器
 ```
 
@@ -212,7 +213,7 @@ gh pr view --web                   # 開瀏覽器
 - assignee／label 帶步驟 2.5 選定的；「不指派」／「略過」則拿掉對應旗標。多 label 重複 `--label`；指派他人失敗的補救見[共用政策](../new-issue/references/label-assignee.md)。
 - `$ARGUMENTS` 只給裸名字（如 `alice`）無法判斷是 reviewer 還是 assignee → **停下來問**，不猜。
 - reviewer 帶步驟 2.5 選定的：協作者用 `--reviewer <人>`，Copilot 走 PR 建立後補 API call（見下）；使用者明說不掛才拿掉旗標。提到 draft／草稿 → 加 `--draft`。
-- 提到 copilot（要 Copilot review）→ Copilot reviewer 是 bot 帳號，`--reviewer` 對它解析常失敗，一律在 PR 建立後補 API call（`<N>` 取自 `gh pr create` 回傳 URL 結尾）：
+- 掛 Copilot 時 → Copilot reviewer 是 bot 帳號，`--reviewer` 對它解析常失敗，一律在 PR 建立後補 API call（`<N>` 取自 `gh pr create` 回傳 URL 結尾）：
 
   ```
   gh api --method POST repos/<owner>/<repo>/pulls/<N>/requested_reviewers -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
@@ -230,6 +231,6 @@ gh pr view --web                   # 開瀏覽器
 
 - base 一律取 repo 的 default branch（步驟 1 已查得；本模板為 `main`），不寫死。**GitHub 只在 PR merge 進 default branch 時才會自動關閉 `Closes` 的 issue**——base 不是 default branch 時 `Closes` 不生效。
 - 絕不在 default branch 上發 PR 或代 commit —— 該停就停，列選項問使用者。
-- label 預設讓使用者從 repo 現有 label 挑選（可複選、附略過），不自動對應、不預選、不自創；assignee 預設 `@me`，多人 repo 才問、單人 repo 不問。reviewer 預設必掛（至少 Copilot＋一名協作者，README 協作規範）：多人 repo 列候選請使用者挑、單人 repo 掛 Copilot，使用者明說不掛才略過。
+- label 預設讓使用者從 repo 現有 label 挑選（可複選、附略過），不自動對應、不預選、不自創；assignee 預設 `@me`，多人 repo 才問、單人 repo 不問。reviewer：單獨執行 `/pr` 照步驟 2.5（有指定就用、單人 repo 只掛 Copilot 不問、多人 repo 才問）；被 `/ship` 編排時才照[共用政策](../new-issue/references/label-assignee.md)「編排模式」那節預選。
 - `$ARGUMENTS` 有值 → 視為 reviewer / assignee / label / 內文補充提示，納入判斷。
 - 不確定（標題怎麼下、要不要拆 PR）→ 照樣列草案問使用者，不擅自決定。

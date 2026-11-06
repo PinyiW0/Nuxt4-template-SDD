@@ -32,7 +32,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 ## 紅線（一律生效）
 
-- `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/` 凍結——PreToolUse hook 強制擋既有檔修改（含同目錄 subagent；新增放行；只保護啟動 session 的專案目錄；跨 worktree 與 isolation 分身的範圍見 frozen-paths.md、#199），處理方式見 `rules/frozen-paths.md`（唯讀不受限）
+- `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/` 凍結——PreToolUse hook 強制擋既有檔修改（含 subagent；新增放行；以目標檔所在的 worktree 判斷，同 repo 另一個 worktree 的凍結檔一樣擋，邊界見 frozen-paths.md），處理方式見 `rules/frozen-paths.md`（唯讀不受限）
 - 修改 UI 檔案時遵守 `rules/vibe-ui.md`（Business Invariants 不可破壞）
 - 完成程式碼修改後必跑 `npm run eslint` + `npm run typelint`；**動到 `app/`／`server/`**（含 vibe）commit 前必跑 `/vibe-check`（白名單內定向、其餘 dev 全量；`--full` 強制全量；production 全量由 CI 跑）；動到 `.vue`／store／server 且非純格式時另跑 `/sdd-review`。完整分層與門檻見 `ops/judgment-rubrics.md` 第 2、5 節。跑 `/ship` 時這幾層由它依 ledger 統一調度並記帳，不必手動逐一叫；手動路徑的義務不變
 - `/review-loop` 會自行 commit／push／在 PR 上回覆留言並重新請 review——啟動它就是對這三件事的授權；但它**永不 merge、永不 `--force` push**，要不要 merge 一律由使用者決定
@@ -78,7 +78,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 ## 規範索引
 
-> `paths` 觸發的規則在 general-purpose 分身與 `context: fork` 的 skill 內**不注入**（2026-07-06 實測、2026-11-04 複測 general-purpose 分身仍同，fork skill 未複測；官方文件只保證 Explore／Plan 分身會載入）；分身需要的規則要在交辦 prompt 或 skill 內明文指讀。凍結區 hook 只保護啟動 session 的專案目錄；跨 worktree 與 `isolation: "worktree"` 分身的範圍見 frozen-paths.md、#199。
+> `paths` 觸發的規則在 general-purpose 分身與 `context: fork` 的 skill 內**不注入**（2026-07-06 實測、2026-11-04 複測 general-purpose 分身仍同，fork skill 未複測；官方文件只保證 Explore／Plan 分身會載入）；分身需要的規則要在交辦 prompt 或 skill 內明文指讀。凍結區 hook 以目標檔所在的 worktree 判斷，跨 worktree 也擋（#199），邊界見 frozen-paths.md。
 
 | 規範 | 檔案 | 載入時機 |
 |------|------|----------|

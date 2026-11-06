@@ -54,7 +54,7 @@ git diff <base> -- app/pages/ app/components/ app/layouts/
 
 ### Step 2：對每個 hunk 分類
 
-分類規則（grep pattern、sub-pattern mapping、邊界 case 人工判斷）見 [`./classification.md`](./classification.md)，與 `vibe-e2e` 共用。改規則只改該檔，兩個 skill 自動同步。
+分類規則（grep pattern、sub-pattern mapping、邊界 case 人工判斷）見 [`./references/classification.md`](./references/classification.md)，與 `vibe-e2e` 共用。改規則只改該檔，兩個 skill 自動同步。
 
 ### Step 2.5：testid 合約對照
 

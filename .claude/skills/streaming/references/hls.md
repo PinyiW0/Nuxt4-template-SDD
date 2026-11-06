@@ -117,7 +117,7 @@ export function useHlsPlayer(
       lowLatencyMode: false,
       liveSyncDurationCount: 4, // 播放點落在 live edge 後約 4 段（~8s），留足緩衝吸收抖動
       backBufferLength: 30, // 限制回放緩衝記憶體
-      // 不開 maxLiveSyncPlaybackRate（讓 hls.js 自己追 live edge）：playbackRate 留給
+      // 不開 maxLiveSyncPlaybackRate（保持預設 1＝不調速）：playbackRate 留給
       // useLivePdtSync 統一控（見 §6），避免兩套機制互搶 playbackRate 震盪。
     })
     // 錯誤自救：直播抖動 / segment 載入失敗時分層處理（見 §3）。
@@ -292,7 +292,7 @@ MediaMTX 等 Low-Latency HLS（EXT-X-PART）預設緊貼 live edge、緩衝極�
 
 `getPlayingDate` / `setSyncRate` 由 `useHlsPlayer`（§2）提供，元件 `defineExpose` 出去給父層協調即可，不必在元件內重寫。
 
-> **`playbackRate` 只能有一個 owner。** PDT 對齊靠寫 `playbackRate` 達成，所以**同一支 video 不能有第二個東西也在改 `playbackRate`**——這就是 §2 關掉 hls.js `maxLiveSyncPlaybackRate` 的原因（否則 hls.js 自動追 live edge 與 `useLivePdtSync` 互搶，畫面速率震盪）。要重開 LL sync rate 前，先確認 PDT 對齊已停。
+> **`playbackRate` 只能有一個 owner。** PDT 對齊靠寫 `playbackRate` 達成，所以**同一支 video 不能有第二個東西也在改 `playbackRate`**——這就是 §2 關掉 hls.js `maxLiveSyncPlaybackRate` 的原因（否則 hls.js 的 live sync 調速與 `useLivePdtSync` 互搶，畫面速率震盪）。要重開 LL sync rate 前，先確認 PDT 對齊已停。
 
 對齊 composable：
 

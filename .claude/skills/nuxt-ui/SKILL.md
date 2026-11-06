@@ -11,7 +11,7 @@ argument-hint: "[component-name]"
 ## 使用方式
 
 ```bash
-/nuxt-ui                # 載入完整文檔
+/nuxt-ui                # 載入文檔索引
 /nuxt-ui Button         # 查詢特定組件
 /nuxt-ui Modal
 /nuxt-ui Form
@@ -20,6 +20,8 @@ argument-hint: "[component-name]"
 ## 文檔來源
 
 @https://ui.nuxt.com/llms.txt
+
+> 載入的是索引（llms.txt），不是完整文件；依元件再抓對應的 raw md。
 
 ---
 
