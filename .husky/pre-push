@@ -2,17 +2,17 @@
 # Pre-push：只跑煙霧 spec（由下方 SMOKE_PATTERN 定義；模板預設 00-hydration｜01-auth-guard｜02-authz-scope：逐 route 整頁載入／auth 守衛／authz scope），本機 dev server。
 #
 # 分級（SSOT：.claude/skills/vibe-check/SKILL.md）：
-#   本機 /vibe-check 預設定向（煙霧＋受影響 spec）、/ship L2 跑 dev 全量、
+#   本機 /vibe-check 預設定向（煙霧＋受影響 spec）、/wrapup L2 跑 dev 全量、
 #   CI 的 e2e job（.github/workflows/pull_request.yml）跑 production build 全量——
 #   「改 A 有沒有壞 B」的完整回歸在 CI，不在這裡。pre-push 防的是手滑：整頁載不出來、
 #   auth／authz 守衛失效這種一推就炸的東西，一兩分鐘內給答案。
-# scripts/docker-gate.sh（production 全量）改為 /ship --prod-gate 的本機選配，pre-push 不再呼叫它。
+# scripts/docker-gate.sh（production 全量）改為 /wrapup --prod-gate 的本機選配，pre-push 不再呼叫它。
 # specs/ 紅燈 = 破壞 Business Invariant（修 UI 不可改 spec）。
 #
 # 最佳化：若本次 push 的 commit「只動到非程式碼檔」（.env*／docs／docker 設定等），
 # 這些變更不會影響被測程式邏輯，因此跳過測試，不必空等。
 # 保守原則：只要有任何一個程式碼檔被改到，就照常跑煙霧。
-# 注意：SKIP_PATTERN／FORCE_TEST_PATTERN 這兩行也被 .claude/skills/ship/scripts/ledger.sh 用 sed 抽走當 L2 判準，
+# 注意：SKIP_PATTERN／FORCE_TEST_PATTERN 這兩行也被 .claude/skills/wrapup/scripts/ledger.sh 用 sed 抽走當 L2 判準，
 # 格式（單引號、一行）不可變。
 
 z40="0000000000000000000000000000000000000000"

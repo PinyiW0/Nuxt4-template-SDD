@@ -1,6 +1,6 @@
 ---
 name: vibe-check
-description: Gate 守門 — 跑 playwright.gate.config.ts（主 spec + vibe spec）確認綠燈。預設定向（白名單內的改動只跑煙霧＋受影響 spec），`--full` 跑 dev 全量。紅燈時依路徑分流：specs/ 對照 flow.md invariant、vibe/ 明確告知使用者決定。Use when vibe 完想驗證業務合約與既有 vibe 行為沒踩線，或 /ship 收尾要跑 dev 全量。
+description: Gate 守門 — 跑 playwright.gate.config.ts（主 spec + vibe spec）確認綠燈。預設定向（白名單內的改動只跑煙霧＋受影響 spec），`--full` 跑 dev 全量。紅燈時依路徑分流：specs/ 對照 flow.md invariant、vibe/ 明確告知使用者決定。Use when vibe 完想驗證業務合約與既有 vibe 行為沒踩線，或 /wrapup 收尾要跑 dev 全量。
 ---
 
 # Vibe Check — Gate 守門（v5：分級）
@@ -18,25 +18,25 @@ description: Gate 守門 — 跑 playwright.gate.config.ts（主 spec + vibe spe
 | 級 | 跑什麼 | 誰跑 |
 |---|---|---|
 | 煙霧 | `.husky/pre-push` 的 `SMOKE_PATTERN` 那一行（模板預設 `specs/(00-hydration\|01-auth-guard\|02-authz-scope)`，setup 產出的三支固定檔名；舊專案依實際檔名改那一行） | `.husky/pre-push`；本檔預設模式一定帶 |
-| 定向 | 煙霧 ＋ 受影響的 spec（Step 2 三來源查法） | 本檔預設模式（白名單內）、review-loop／verify-ac／pr-feedback 修正輪、`/ship` 修復輪 |
-| dev 全量 | gate config 全部，本機 dev server | 本檔 `--full`；`/ship` L2（ledger 只認這級） |
-| production 全量 | gate config 全部，production build | CI `pull_request.yml` 的 `e2e` job（build 一次、4 shard 平行跑）；本機選配 `sh scripts/docker-gate.sh`（`/ship --prod-gate`） |
+| 定向 | 煙霧 ＋ 受影響的 spec（Step 2 三來源查法） | 本檔預設模式（白名單內）、review-loop／verify-ac／pr-feedback 修正輪、`/wrapup` 修復輪 |
+| dev 全量 | gate config 全部，本機 dev server | 本檔 `--full`；`/wrapup` L2（ledger 只認這級） |
+| production 全量 | gate config 全部，production build | CI `pull_request.yml` 的 `e2e` job（build 一次、4 shard 平行跑）；本機選配 `sh scripts/docker-gate.sh`（`/wrapup --prod-gate`） |
 
 **鐵律：只有整份 diff 都落在白名單內才定向，其餘一律全量。** 白名單 ＝ 本次 diff（merge-base 起、含未追蹤、濾掉 pre-push `SKIP_PATTERN`）**全部**落在 `app/pages/**`、`test/e2e/vibe/**`、`test/e2e/specs/**`，以及**模組專屬元件** `app/components/<seg>/**`（`app/pages/<seg>/` 目錄存在才算；下游實測元件多按模組歸屬，wedding-host 53% 的 commit 只影響單一模組）。碰到任何其他檔（頂層或非模組目錄的 `app/components`、`server/`、layouts、composables、stores、helpers、config、i18n zh-TW…）就是全量。AI 不判斷「要不要定向」，只查「白名單內的頁對哪幾支 spec」。
 
-**定向綠只代表選集，不算 gate 已驗**。commit 前跑定向即可；dev 全量由 `/ship` L2 跑一次，production 全量由 CI 跑。dev 全量與 production 全量不互相取代（hydration 守門只在 dev 生效）。
+**定向綠只代表選集，不算 gate 已驗**。commit 前跑定向即可；dev 全量由 `/wrapup` L2 跑一次，production 全量由 CI 跑。dev 全量與 production 全量不互相取代（hydration 守門只在 dev 生效）。
 
 ## 何時用
 
 - 每次 vibe UI 完，**第一步**先跑這個（預設模式，一兩分鐘）
 - gate 綠燈才有資格往 `/vibe-setup`、`/vibe-e2e` 推進
-- `/ship` L2、或想單獨確認全量守門狀態 → `--full`（≈ CI 會不會過，dev／prod 差異見上表）
+- `/wrapup` L2、或想單獨確認全量守門狀態 → `--full`（≈ CI 會不會過，dev／prod 差異見上表）
 
 ## 使用方式
 
 ```bash
 /vibe-check                       # 預設：白名單內 → 煙霧＋定向；白名單外 → dev 全量
-/vibe-check --full                # dev 全量（/ship L2 用這個）
+/vibe-check --full                # dev 全量（/wrapup L2 用這個）
 /vibe-check test/e2e/specs/07-xxx.spec.ts   # 額外指定 spec，併入定向選集
 ```
 
@@ -129,7 +129,7 @@ fi
 
 - `MODE=full` → Step 3 全量指令。第一個白名單外的檔就是報告要寫的理由
 - `MODE=targeted` → Step 2（第一段動態、`(group)`、`[...slug]` 頁的升全量已由上方 `dyn` 那行機械處理，Step 2 不必再判）
-- diff 的取法與 `/ship` 的 `ledger.sh` 同一套 union（含未追蹤的新檔），不要只看 `git diff HEAD`
+- diff 的取法與 `/wrapup` 的 `ledger.sh` 同一套 union（含未追蹤的新檔），不要只看 `git diff HEAD`
 - `FORCE_TEST_PATTERN` 也從 pre-push 抽：被 `SKIP_PATTERN` 放行的目錄裡，defaultLocale 翻譯檔要拉回 diff；它不在白名單 → 全量（`rules/i18n-locale-policy.md`）
 - 兩個 pattern 先驗是不是合法 ERE（`ere_ok`，判準同 `ledger.sh`）：非法一律 `MODE=full`，不讓壞掉的 pattern 把 app diff 濾成空的然後報「定向」
 - 模組專屬元件的判定在上方 `case`：`app/components/<seg>/…` 且 `app/pages/<seg>/` 存在才算白名單內；頂層 `app/components/X.vue` 與找不到同名頁目錄的一律白名單外（真共用元件會影響多個模組，升全量是對的）
@@ -222,7 +222,7 @@ pre-push 與 CI `build-e2e` job 對此情形同樣放行（對「沒有測試檔
 ```
 定向 6/6 檔 passed ✅（含 N skipped 為 spec 自身 .skip）
 
-選集內的業務合約與 vibe 行為沒踩線。定向綠只代表選集：dev 全量由 /ship L2 跑，production 全量由 CI 跑。
+選集內的業務合約與 vibe 行為沒踩線。定向綠只代表選集：dev 全量由 /wrapup L2 跑，production 全量由 CI 跑。
 
 下一步建議：
 - 視 vibe 改動內容跑 /vibe-setup 做 UI 分層
@@ -299,7 +299,7 @@ specs/ 與 vibe/ 同時紅時，A、B 兩區塊都要出，並提醒先處理 A�
 最後一行明確表態：
 
 - 無測試檔 → 「gate 尚無 spec 可守，已跳過（非失敗）；產出主 spec 後才會真正守」
-- 定向全綠 → 「選集守住，可繼續 /vibe-setup 或 commit；dev 全量留給 /ship，production 全量由 CI 跑」
+- 定向全綠 → 「選集守住，可繼續 /vibe-setup 或 commit；dev 全量留給 /wrapup，production 全量由 CI 跑」
 - 全量全綠 → 「業務合約與 vibe 行為守住，dev 全量已驗（可 mark L2 green）」
 - specs/ 紅 → 「請對照上方建議調整 vibe，調整後再跑 /vibe-check」
 - vibe/ 紅 → 「請從上方選項選一個處理方式，我等你決定」
@@ -327,4 +327,4 @@ specs/ 與 vibe/ 同時紅時，A、B 兩區塊都要出，並提醒先處理 A�
 /vibe-e2e      依分層 pattern-driven 產生 vibe spec → 只跑本次新檔 → 回報
 ```
 
-三個 skill 各自獨立，使用者按順序呼叫。/vibe-check 不會自動呼叫下游，也不該被下游呼叫。`/ship` 以 Skill tool 帶 `--full` 呼叫本 skill 當 L2。
+三個 skill 各自獨立，使用者按順序呼叫。/vibe-check 不會自動呼叫下游，也不該被下游呼叫。`/wrapup` 以 Skill tool 帶 `--full` 呼叫本 skill 當 L2。

@@ -159,7 +159,7 @@ app/pages · components · layouts · stores   ← 為通過合約而生
 | `/sdd-review` | 審查 diff 的框架語意與邏輯安全 | 有 `.vue`／store／server 改動 |
 | `/nuxt-ui` | 載入 NuxtUI 官方文檔再動手，不憑記憶猜 API | 無 |
 | `/verify-ac` | 對照 issue 驗收標準逐條驗收，未過自動修（上限 2 輪），結果勾回 issue | issue 有 `## 驗收標準`、編號可解析 |
-| `/ship` | **收尾一條龍**：六層關卡（紅燈自動修）→ AC 驗收 → commit → PR，只停一次 | 有改動、不在 main |
+| `/wrapup` | **收尾一條龍**：六層關卡（紅燈自動修）→ AC 驗收 → commit → PR，只停一次 | 有改動、不在 main |
 | `/commit` | 依 SDD 階段分群產生 commit | 有改動 |
 | `/pr` | push → PR 草案 → 建 PR | 已 commit、不在 main |
 | `/pr-feedback` | 爬 PR review 留言，分類報告後就地改（不 commit／push／發言） | PR 已開 |
@@ -229,7 +229,7 @@ UI 可以自由微調（顏色、間距、layout、按鈕形式、table/card 呈
 
 微調後的驗證順序：`/vibe-check`（gate 綠燈）→ `/vibe-setup`（分層，看哪些改動需要進一步驗）→ `/vibe-e2e`（產 vibe spec 並跑）。
 
-三份 Playwright config：`playwright.config.ts`（主 spec）、`playwright.gate.config.ts`（守門＝主 spec＋vibe spec）、`playwright.vibe.config.ts`（只跑 vibe）。`test/e2e/vibe/` 不凍結——vibe spec 紅燈時修 UI 或更新／刪除該 spec 都合法，主 spec 紅燈則只能修 UI。本機入口預設定向（煙霧＋受影響 spec），`/vibe-check --full` 與 `/ship` 收尾跑 dev 全量，CI 跑 production 全量；分級判準在 `.claude/skills/vibe-check/SKILL.md`。
+三份 Playwright config：`playwright.config.ts`（主 spec）、`playwright.gate.config.ts`（守門＝主 spec＋vibe spec）、`playwright.vibe.config.ts`（只跑 vibe）。`test/e2e/vibe/` 不凍結——vibe spec 紅燈時修 UI 或更新／刪除該 spec 都合法，主 spec 紅燈則只能修 UI。本機入口預設定向（煙霧＋受影響 spec），`/vibe-check --full` 與 `/wrapup` 收尾跑 dev 全量，CI 跑 production 全量；分級判準在 `.claude/skills/vibe-check/SKILL.md`。
 
 ### 路徑觸發規範
 
@@ -309,7 +309,7 @@ cd ../nuxt4-template-issue-40 && npm install
 - `.env` 是 git tracked，worktree checkout 自帶，無需手動複製
 - E2E dev server port 由 worktree 路徑自動推導（3100–3499，gate/vibe config 繼承同一 base 推導，不各自重算）：各 worktree 不互撞，同 worktree 重跑重用同一 server（快）；萬一兩個 worktree 撞到同一個 port（機率 1/400），換個 worktree 目錄名即換 port
 - port 隔離只管 E2E 起的 server；**手動 `npm run dev` 固定跑 3000**，多個 worktree 同時手動 dev 要自帶 port 錯開：`npm run dev -- --port 3001`
-- pre-push 只跑煙霧 spec（per-worktree port 的 dev server，多 session 同時 push 不互撞）；production build 全量由 CI 跑（build 一次、4 shard 平行，下游依 spec 規模改 matrix），`scripts/docker-gate.sh` 留給 `/ship --prod-gate` 本機選配
+- pre-push 只跑煙霧 spec（per-worktree port 的 dev server，多 session 同時 push 不互撞）；production build 全量由 CI 跑（build 一次、4 shard 平行，下游依 spec 規模改 matrix），`scripts/docker-gate.sh` 留給 `/wrapup --prod-gate` 本機選配
 - 兩條線都動了 API 層時，`spec/report/route-map.yaml`（機器產的單檔 SoT）merge 必衝突：**不手動解衝突**——晚合併的分支先 rebase main，再重跑 `/feature-to-api` 重新產出 route-map
 - 收工清理：`git worktree remove ../nuxt4-template-issue-40`
 

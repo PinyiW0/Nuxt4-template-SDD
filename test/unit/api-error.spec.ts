@@ -19,7 +19,7 @@ afterEach(() => {
 // 環境限制：vitest 的 registerEndpoint 走 h3 sendError，回應 body 沒有 message 欄位，
 // 所以 fetchError()（走 registerEndpoint）只能驗狀態碼分類與固定文案，不可用來驗 message 取值。
 // 驗取值鏈與文案守衛的測項一律用手造 body（fetchErrorLike()），形狀照真實環境的回應內容。
-// 這不是風格偏好，是 vitest 環境的能力缺口；真實環境的行為由 /ship 的 L5 在 dev 與 production server 上實測把關。
+// 這不是風格偏好，是 vitest 環境的能力缺口；真實環境的行為由 /wrapup 的 L5 在 dev 與 production server 上實測把關。
 
 // 讓假端點以指定狀態碼回錯，回傳 $fetch 拋出的真實 FetchError
 async function fetchError(status: number, statusMessage = 'Raw Status Text'): Promise<unknown> {
