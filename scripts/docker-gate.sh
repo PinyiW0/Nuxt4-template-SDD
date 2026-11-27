@@ -1,14 +1,14 @@
 #!/usr/bin/env sh
 # Docker gate：以 production build（既有 Dockerfile → .output）跑 gate spec 全量，
 # 與本機 dev server 完全隔離。
-# 定位（#150 測試分級後）：/ship --prod-gate 的本機選配。pre-push 不再呼叫它（只跑煙霧），
+# 定位（#150 測試分級後）：/wrapup --prod-gate 的本機選配。pre-push 不再呼叫它（只跑煙霧），
 # production 全量的常規入口是 CI 的 e2e job（.github/workflows/pull_request.yml）。
 # 流程：build image → run container（ephemeral port，僅綁 127.0.0.1）
 #       → 等 ready → host 端 Playwright 以 E2E_BASE_URL 打進 container → 清理。
 set -eu
 
 # 前置檢查與 .husky/pre-push、/vibe-check、CI e2e job 同一套：gate 範圍沒有 spec 檔（模板初始狀態）就放行，
-# 否則 Playwright 對「No tests found」回非 0，/ship --prod-gate 在空模板上會白紅。刻意不用 --pass-with-no-tests。
+# 否則 Playwright 對「No tests found」回非 0，/wrapup --prod-gate 在空模板上會白紅。刻意不用 --pass-with-no-tests。
 gate_specs=$(find test/e2e/specs test/e2e/vibe -name '*.spec.ts' -not -path '*/vibe/unstable/*' 2>/dev/null || true)
 if [ -z "$gate_specs" ]; then
   echo "⚠️  尚無 gate 測試檔（test/e2e/specs｜vibe/*.spec.ts）→ 跳過 Docker gate。"

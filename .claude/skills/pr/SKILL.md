@@ -21,7 +21,7 @@ argument-hint: "[reviewer / assignee / label / draft / copilot / 補充說明(�
 
 `/pr` **不負責 commit**。偵測到有未 commit 改動時，停下來叫使用者先跑 `/commit`，不越界代勞。
 
-> 被 `/ship` 編排時，commit 與 PR 的先後由編排層統籌，`/pr` 自身仍不 commit。這條界線防的是 skill 互相代勞，不是禁止使用者授權的編排層排順序——判準見 [../ship/references/orchestrated-mode.md](../ship/references/orchestrated-mode.md)。
+> 被 `/wrapup` 編排時，commit 與 PR 的先後由編排層統籌，`/pr` 自身仍不 commit。這條界線防的是 skill 互相代勞，不是禁止使用者授權的編排層排順序——判準見 [../wrapup/references/orchestrated-mode.md](../wrapup/references/orchestrated-mode.md)。
 
 ## 流程
 
@@ -231,6 +231,6 @@ gh pr view --web                   # 開瀏覽器
 
 - base 一律取 repo 的 default branch（步驟 1 已查得；本模板為 `main`），不寫死。**GitHub 只在 PR merge 進 default branch 時才會自動關閉 `Closes` 的 issue**——base 不是 default branch 時 `Closes` 不生效。
 - 絕不在 default branch 上發 PR 或代 commit —— 該停就停，列選項問使用者。
-- label 預設讓使用者從 repo 現有 label 挑選（可複選、附略過），不自動對應、不預選、不自創；assignee 預設 `@me`，多人 repo 才問、單人 repo 不問。reviewer：單獨執行 `/pr` 照步驟 2.5（有指定就用、單人 repo 只掛 Copilot 不問、多人 repo 才問）；被 `/ship` 編排時才照[共用政策](../new-issue/references/label-assignee.md)「編排模式」那節預選。
+- label 預設讓使用者從 repo 現有 label 挑選（可複選、附略過），不自動對應、不預選、不自創；assignee 預設 `@me`，多人 repo 才問、單人 repo 不問。reviewer：單獨執行 `/pr` 照步驟 2.5（有指定就用、單人 repo 只掛 Copilot 不問、多人 repo 才問）；被 `/wrapup` 編排時才照[共用政策](../new-issue/references/label-assignee.md)「編排模式」那節預選。
 - `$ARGUMENTS` 有值 → 視為 reviewer / assignee / label / 內文補充提示，納入判斷。
 - 不確定（標題怎麼下、要不要拆 PR）→ 照樣列草案問使用者，不擅自決定。

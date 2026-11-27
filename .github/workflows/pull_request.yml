@@ -45,7 +45,7 @@ jobs:
 
   # E2E gate 全量（production build）——分級（SSOT：.claude/skills/vibe-check/SKILL.md）裡最慢的一級只在這裡跑：
   # 本機 pre-push 只跑煙霧、/vibe-check 預設定向，「改 A 有沒有壞 B」的完整回歸靠這三個 job。
-  # 與本機 /ship L2 的 dev 全量互不取代：hydration 守門 fixture 只在 dev 生效，production build 會 strip 警告。
+  # 與本機 /wrapup L2 的 dev 全量互不取代：hydration 守門 fixture 只在 dev 生效，production build 會 strip 警告。
   # 拆法：build-e2e 建置一次上傳 .output → e2e 4 個 shard 各自下載、各起一台 server 平行跑 → merge-e2e-report 合併報告。
   # 每個 shard 自己一台 server：mock 是單一 process 記憶體、reset 端點全域，同一台 server 上平行跑會互踩。
   # needs: build → lint／typecheck／unit 紅就不燒 E2E 分鐘。build job 的 generate 驗的是靜態部署產物，

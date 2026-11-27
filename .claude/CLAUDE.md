@@ -34,9 +34,9 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 
 - `test/e2e/specs/`、`spec/gherkin-feature/`、`spec/e2e-flows/` 凍結——PreToolUse hook 強制擋既有檔修改（含 subagent；新增放行；以目標檔所在的 worktree 判斷，同 repo 另一個 worktree 的凍結檔一樣擋，邊界見 frozen-paths.md），處理方式見 `rules/frozen-paths.md`（唯讀不受限）
 - 修改 UI 檔案時遵守 `rules/vibe-ui.md`（Business Invariants 不可破壞）
-- 完成程式碼修改後必跑 `npm run eslint` + `npm run typelint`；**動到 `app/`／`server/`**（含 vibe）commit 前必跑 `/vibe-check`（白名單內定向、其餘 dev 全量；`--full` 強制全量；production 全量由 CI 跑）；動到 `.vue`／store／server 且非純格式時另跑 `/sdd-review`。完整分層與門檻見 `ops/judgment-rubrics.md` 第 2、5 節。跑 `/ship` 時這幾層由它依 ledger 統一調度並記帳，不必手動逐一叫；手動路徑的義務不變
+- 完成程式碼修改後必跑 `npm run eslint` + `npm run typelint`；**動到 `app/`／`server/`**（含 vibe）commit 前必跑 `/vibe-check`（白名單內定向、其餘 dev 全量；`--full` 強制全量；production 全量由 CI 跑）；動到 `.vue`／store／server 且非純格式時另跑 `/sdd-review`。完整分層與門檻見 `ops/judgment-rubrics.md` 第 2、5 節。跑 `/wrapup` 時這幾層由它依 ledger 統一調度並記帳，不必手動逐一叫；手動路徑的義務不變
 - `/review-loop` 會自行 commit／push／在 PR 上回覆留言並重新請 review——啟動它就是對這三件事的授權；但它**永不 merge、永不 `--force` push**，要不要 merge 一律由使用者決定
-- 動到 app/、server/、.claude/、.github/、.husky/、scripts/、patches/、doc/、根目錄的 Dockerfile／package.json／README.md 或任何 .sh／.mjs（與 ledger.sh L5 同一份 scope）、有實質改動（非純格式）且尚未跑過 `/code-review` 時，在 `/verify-ac` 或發 PR 前**主動**執行（diff 含 `.md` 時另跑 `skills/review-loop/references/doc-impl-check.md` 的專項檢查）（不必使用者提醒），放在驗收蓋章之前避免事後改 code 讓已勾 AC 過期（`/ship` 已把這個順序寫進流程）。完整分層見 `ops/judgment-rubrics.md` 第 5 節
+- 動到 app/、server/、.claude/、.github/、.husky/、scripts/、patches/、doc/、根目錄的 Dockerfile／package.json／README.md 或任何 .sh／.mjs（與 ledger.sh L5 同一份 scope）、有實質改動（非純格式）且尚未跑過 `/code-review` 時，在 `/verify-ac` 或發 PR 前**主動**執行（diff 含 `.md` 時另跑 `skills/review-loop/references/doc-impl-check.md` 的專項檢查）（不必使用者提醒），放在驗收蓋章之前避免事後改 code 讓已勾 AC 過期（`/wrapup` 已把這個順序寫進流程）。完整分層見 `ops/judgment-rubrics.md` 第 5 節
 
 ## 可用指令
 
@@ -55,7 +55,7 @@ Spec-Driven Development：從 Feature 規格驅動開發。
 | `/nuxt-ui` | 載入 NuxtUI 官方文檔 | 無 |
 | `/sdd-review` | 審查 diff 的框架語意與邏輯安全 | 有 .vue/store/server 改動 |
 | `/verify-ac` | 對照 issue AC 逐條驗收，未過自動修（上限 2 輪） | issue 有 `## 驗收標準`、編號可解析 |
-| `/ship` | **收尾一條龍**：六層關卡（紅燈自動修）→ AC 驗收 → commit → PR，只停一次 | 有改動、不在 main |
+| `/wrapup` | **收尾一條龍**：六層關卡（紅燈自動修）→ AC 驗收 → commit → PR，只停一次。原名 `/ship`，與 Claude Code 內建指令撞名後叫不出來（issue #210）；**`/ship` 現在是內建指令，不跑本專案的關卡與 AC 驗收，別用** | 有改動、不在 main |
 | `/commit` | 依 SDD 階段分群產生 commit | 有改動 |
 | `/pr` | push → PR 草案 → 建 PR | 已 commit、不在 main |
 | `/pr-feedback` | 爬 PR review 留言，分類報告後就地改（不 commit／push／發言） | PR 已開 |

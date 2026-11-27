@@ -241,7 +241,7 @@ doc/
 | 環境會說謊 | `.github/workflows/pull_request.yml` | 本機過了但 CI 不過的（unit / build / lint / typecheck ＋ **E2E gate 全量（production build，4 shard 平行）** 都在 PR 上跑） |
 | 依賴會過期 | `.github/workflows/osv-scanner.yml`（OSV-Scanner） | PR 新引入的已知漏洞（只比 main 與 PR 分支的差異，既有公告不擋無關 PR）；每週一遞迴全量掃 lockfile，新公告在這裡浮現 |
 
-兩道關的分工：**pre-push 防我手滑（煙霧），CI 防我環境說謊（全量 production）。** 本機 `/vibe-check` 預設只跑煙霧＋受影響的 spec，`/ship` 收尾跑一次 dev 全量。
+兩道關的分工：**pre-push 防我手滑（煙霧），CI 防我環境說謊（全量 production）。** 本機 `/vibe-check` 預設只跑煙霧＋受影響的 spec，`/wrapup` 收尾跑一次 dev 全量。
 
 ### 漏洞掃描（OSV-Scanner）
 
@@ -268,7 +268,7 @@ UI 可以自由微調——顏色、間距、layout、按鈕形式、table/card 
 
 **紅燈分流**是這裡最關鍵的一條：紅在 `test/e2e/specs/` ＝ 毀約，只能修產品、不能改測試；紅在 `test/e2e/vibe/` ＝ 行為變了，修產品或更新該 spec 都合法，由人拍板。合約保底線，紀錄保細節。
 
-三份 Playwright config：`playwright.config.ts`（主 spec）、`playwright.gate.config.ts`（守門＝主 spec＋vibe spec）、`playwright.vibe.config.ts`（只跑 vibe）。本機入口預設定向（煙霧＋受影響 spec），`/vibe-check --full` 與 `/ship` 收尾跑 dev 全量，CI 跑 production 全量；分級判準在 `.claude/skills/vibe-check/SKILL.md`。
+三份 Playwright config：`playwright.config.ts`（主 spec）、`playwright.gate.config.ts`（守門＝主 spec＋vibe spec）、`playwright.vibe.config.ts`（只跑 vibe）。本機入口預設定向（煙霧＋受影響 spec），`/vibe-check --full` 與 `/wrapup` 收尾跑 dev 全量，CI 跑 production 全量；分級判準在 `.claude/skills/vibe-check/SKILL.md`。
 
 ### 路徑觸發規範
 
@@ -313,7 +313,7 @@ UI 可以自由微調——顏色、間距、layout、按鈕形式、table/card 
 | `/pr` | push → PR 草案 → 建 PR | 已 commit、不在 main |
 | `/pr-feedback` | 爬 PR review 留言，分類報告後就地改（不 commit／push／發言） | PR 已開 |
 | `/review-loop` | push 後自動請 Copilot review、輪詢、修「必修」、回覆，直到共識才通知（不 merge） | PR 已開、工作區乾淨 |
-| `/ship` | 收尾一條龍：六層關卡（紅燈自動修）→ AC 驗收 → commit → PR，只停一次 | 有改動、不在 main |
+| `/wrapup` | 收尾一條龍：六層關卡（紅燈自動修）→ AC 驗收 → commit → PR，只停一次 | 有改動、不在 main |
 
 另有兩類非主線能力：`/requirement-breakdown` 走需求拆解線（rough 需求 → user story + 時間線 + 工種歸屬），與開發線不耦合；`vue`／`nuxt`／`pinia`／`realtime`／`streaming` 是知識型 skill，改到對應檔案時自動載入，負責裁決框架語意。
 
@@ -360,7 +360,7 @@ cd ../nuxt4-template-issue-40 && npm install
 - `.env` 是 git tracked，worktree checkout 自帶，無需手動複製
 - E2E dev server port 由 worktree 路徑自動推導（3100–3499，gate/vibe config 繼承同一 base 推導）：各 worktree 不互撞，同 worktree 重跑重用同一 server；萬一兩個 worktree 撞到同一個 port（機率 1/400），換個目錄名即換 port
 - port 隔離只管 E2E 起的 server；**手動 `npm run dev` 固定跑 3000**，多個 worktree 同時手動 dev 要自帶 port 錯開：`npm run dev -- --port 3001`
-- pre-push 只跑煙霧 spec（per-worktree port 的 dev server，多 session 同時 push 不互撞）；production build 全量由 CI 跑，`scripts/docker-gate.sh` 留給 `/ship --prod-gate` 本機選配
+- pre-push 只跑煙霧 spec（per-worktree port 的 dev server，多 session 同時 push 不互撞）；production build 全量由 CI 跑，`scripts/docker-gate.sh` 留給 `/wrapup --prod-gate` 本機選配
 - 兩條線都動了 API 層時，`spec/report/route-map.yaml`（機器產的單檔 SoT）merge 必衝突：**不手動解衝突**——晚合併的分支先 rebase main，再重跑 `/feature-to-api` 重新產出
 - 收工清理：`git worktree remove ../nuxt4-template-issue-40`
 
